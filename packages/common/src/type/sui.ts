@@ -196,3 +196,8 @@ export type BaseSdkOptions = {
 }
 
 export type FullClient = ExtendedSuiClient<SuiClient> & SuiClient
+
+export type TableHandle = {
+  id: string
+  size: number
+}

@@ -2,10 +2,11 @@ import { FullRpcUrlTestnet } from '@cetusprotocol/common-sdk'
 import { CetusClmmSDK, SdkOptions } from '../sdk'
 const SDKConfig = {
   clmmConfig: {
-    pools_id: '0x50eb61dd5928cec5ea04711a2e9b72e5237e79e9fbcd2ce3d5469dc8708e0ee2',
-    global_config_id: '0x9774e359588ead122af1c7e7f64e14ade261cfeecdb5d0eb4a5b3b4c8ab8bd3e',
-    global_vault_id: '0xf78d2ee3c312f298882cb680695e5e8c81b1d441a646caccc058006c2851ddea',
-    admin_cap_id: '0xa456f86a53fc31e1243f065738ff1fc93f5a62cc080ff894a0fb3747556a799b',
+    pools_id: '0xe54890bdb721cf2ee12c6327039bf3aaab900ae5ed4e0ffcc528c4a0c539edf0',
+    global_config_id: '0x88b0bc51163ad221218be14a0e614342db9a11d54bb54670a82e07049ec77396',
+    global_vault_id: '0xe962b50e2da5bb7ad17ef75fa377fc516dd84c5a477947fdef09b36e133bce8c',
+    admin_cap_id: '0xdcb9424f5996bcbe8e20ead25420364981681d48054d9916849b3fec7f300c71',
+    partners_id: '0x7699f3e3165509db1d1e83c6b7fa95e38db399fae2c2eee6b5dfadaee3c4f2c1',
   },
   cetusConfig: {
     coin_list_id: '0x257eb2ba592a5480bba0a97d05338fab17cc3283f8df6998a0e12e4ab9b84478',
@@ -59,19 +60,19 @@ export const clmmTestnet: SdkOptions = {
     },
   },
   clmm_pool: {
-    package_id: '0x305373e739d150500cabf6d428c66839d4979e75a59790c20f5b0b4c5c48d10d',
-    published_at: '0x305373e739d150500cabf6d428c66839d4979e75a59790c20f5b0b4c5c48d10d',
+    package_id: '0x5372d555ac734e272659136c2a0cd3227f9b92de67c80dc11250307268af2db8',
+    published_at: '0x5372d555ac734e272659136c2a0cd3227f9b92de67c80dc11250307268af2db8',
     config: {
-      pools_id: '0x180d004699228f34ea3fc1d32c3dc2e3dda5618f1610fd355724e80d76c2bb07',
-      global_config_id: '0xd38f21b0eefc839785996e4a8909d2215a99516cad3b5263fe0c452b5e0f668d',
-      global_vault_id: '0x286d508782f4834c40ad9bfaf798f830597836358afd2f45774d854aa797e464',
-      admin_cap_id: '0x9d1b48053a3eeb6eff3897feb84264e107467224a984c32b2a1798f6f585f0a7',
-      partners_id: '0x39b54a9ca028e8aa495d43451ec52c46f7235d4cfb9d07bf01b11c46237d8849',
+      pools_id: '0x20a086e6fa0741b3ca77d033a65faf0871349b986ddbdde6fa1d85d78a5f4222',
+      global_config_id: '0xc6273f844b4bc258952c4e477697aa12c918c8e08106fac6b934811298c9820a',
+      global_vault_id: '0x71e74a999dd7959e483f758ddf573e85fa4c24944db33ff6763c9d85a9c045fe',
+      admin_cap_id: '0xbf4c48590f403c38351de0e8aa13d6d91bf78fd8c04e93ac1d0269c44d70ae02',
+      partners_id: '0xb5ae5ed3f403654ae1307aadc0140f746db41efb7bda92235257c84d90a1397e',
     },
   },
   integrate: {
-    package_id: '0xbca2e2cf1b7cce2b2cc0adfb9eb05eb4b469808f0b04a26d32f22e13bc46beb6',
-    published_at: '0xbca2e2cf1b7cce2b2cc0adfb9eb05eb4b469808f0b04a26d32f22e13bc46beb6',
+    package_id: '0x36187418dd79415d50e2e5903f9b3caca582052005f062959c86da64e82107a9',
+    published_at: '0x36187418dd79415d50e2e5903f9b3caca582052005f062959c86da64e82107a9',
     version: 1,
   },
   stats_pools_url: 'https://api-sui.devcetus.com/v2/sui/stats_pools',

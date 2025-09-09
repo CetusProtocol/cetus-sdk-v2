@@ -326,12 +326,12 @@ export class DcaModule implements IModule<CetusDcaSDK> {
       const orderEvent = (await this._sdk.FullClient.queryEventsByPage({ MoveEventType: `${package_id}::order::InitEvent` })).data
 
       if (configEvent && configEvent.length > 0) {
-        const { parsedJson } = configEvent[0]
+        const { parsedJson } = configEvent[0] as { parsedJson: any }
         config.admin_cap_id = parsedJson.admin_cap_id
         config.global_config_id = parsedJson.global_config_id
       }
       if (orderEvent && orderEvent.length > 0) {
-        const { parsedJson } = orderEvent[0]
+        const { parsedJson } = orderEvent[0] as { parsedJson: any }
         config.indexer_id = parsedJson.indexer_id
         const user_indexer_object: any = await this._sdk.FullClient.getObject({
           id: parsedJson.indexer_id,

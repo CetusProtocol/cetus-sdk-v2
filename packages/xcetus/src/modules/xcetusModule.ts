@@ -119,27 +119,22 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
   async getOwnerRedeemLockList(account_address: SuiAddressType): Promise<LockCetus[]> {
     const { xcetus } = this.sdk.sdkOptions
     const lockCetusList: LockCetus[] = []
-    const xcetusType = extractStructTagFromType(
-      this.buildCetusCoinType()
-    ).full_address;
+    const xcetusType = extractStructTagFromType(this.buildCetusCoinType()).full_address
     const filterType = `${xcetus.package_id}::lock_coin::LockedCoin<${xcetusType}>`
 
     try {
-      
       const ownerRes: any = await this._sdk.FullClient.getOwnedObjectsByPage(account_address, {
         options: { showType: true, showContent: true },
         filter: { StructType: filterType },
       })
 
       for (const item of ownerRes.data) {
-        const type = extractStructTagFromType(
-          getMoveObjectType(item) as string
-        ).source_address;
+        const type = extractStructTagFromType(getMoveObjectType(item) as string).source_address
 
         if (type === filterType) {
           if (item.data) {
             const lockCetus = XCetusUtil.buildLockCetus(item.data.content)
-            lockCetus.xcetus_amount = await this.getXCetusAmount(lockCetus.id)
+            lockCetus.xcetus_amount = this.reverseRedeemNum(lockCetus.cetus_amount, lockCetus.lock_day).amount_out
             lockCetusList.push(lockCetus)
           }
         }
@@ -169,7 +164,7 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
 
       if (result.data?.content) {
         const lockCetus = XCetusUtil.buildLockCetus(result.data.content)
-        lockCetus.xcetus_amount = await this.getXCetusAmount(lockCetus.id)
+        lockCetus.xcetus_amount = this.reverseRedeemNum(lockCetus.cetus_amount, lockCetus.lock_day).amount_out
         return lockCetus
       }
       return undefined

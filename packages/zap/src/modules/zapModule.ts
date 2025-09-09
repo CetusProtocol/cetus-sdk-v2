@@ -1,4 +1,4 @@
-import { BuildRouterSwapParamsV2, FindRouterParams, PreSwapLpChangeParams } from '@cetusprotocol/aggregator-sdk'
+import { BuildRouterSwapParamsV3, FindRouterParams, PreSwapLpChangeParams } from '@cetusprotocol/aggregator-sdk'
 import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
 import BN from 'bn.js'
 import { ClmmIntegratePoolV2Module, PositionUtils } from '@cetusprotocol/sui-clmm-sdk'
@@ -230,14 +230,14 @@ export class ZapModule implements IModule<CetusZapSDK> {
       const is_receive_coin_a = mode === 'OnlyCoinA'
       const swapCoinObjectId = is_receive_coin_a ? receiveCoinB : receiveCoinA
 
-      const routerParamsV2 = {
-        routers: swap_result.route_obj,
+      const routerParamsV3: BuildRouterSwapParamsV3 = {
+        router: swap_result.route_obj,
         inputCoin: swapCoinObjectId,
         slippage: swap_slippage,
         txb: tx,
       }
 
-      const toCoin = await this._sdk.AggregatorClient.fixableRouterSwap(routerParamsV2)
+      const toCoin = await this._sdk.AggregatorClient.fixableRouterSwapV3(routerParamsV3)
 
       tx.transferObjects([is_receive_coin_a ? receiveCoinA : receiveCoinB, toCoin], this._sdk.getSenderAddress())
     } else {
@@ -655,13 +655,13 @@ export class ZapModule implements IModule<CetusZapSDK> {
       const swapCoinObject = CoinAssist.getCoinAmountObjId(isOnlyCoinA ? coinInputA : coinInputB, swap_in_amount)
 
       // Configure and execute the swap via router
-      const routerParamsV2: BuildRouterSwapParamsV2 = {
-        routers: route_obj,
+      const routerParamsV3: BuildRouterSwapParamsV3 = {
+        router: route_obj,
         slippage: swap_slippage,
         txb: tx,
         inputCoin: swapCoinObject,
       }
-      const swap_out_coin = await this._sdk.AggregatorClient.fixableRouterSwap(routerParamsV2)
+      const swap_out_coin = await this._sdk.AggregatorClient.fixableRouterSwapV3(routerParamsV3)
 
       const primaryCoinAInputs = isOnlyCoinA ? CoinAssist.getCoinAmountObjId(coinInputA, amount_a) : swap_out_coin
       const primaryCoinBInputs = isOnlyCoinA ? swap_out_coin : CoinAssist.getCoinAmountObjId(coinInputB, amount_b)
@@ -778,13 +778,13 @@ export class ZapModule implements IModule<CetusZapSDK> {
     const swapCoinObject = CoinAssist.getCoinAmountObjId(coinInput, swap_in_amount)
 
     // Configure and execute the swap via router
-    const routerParamsV2: BuildRouterSwapParamsV2 = {
-      routers: route_obj,
+    const routerParamsV3: BuildRouterSwapParamsV3 = {
+      router: route_obj,
       slippage: swap_slippage,
       txb: tx,
       inputCoin: swapCoinObject,
     }
-    const swap_out_coin = await this._sdk.AggregatorClient.fixableRouterSwap(routerParamsV2)
+    const swap_out_coin = await this._sdk.AggregatorClient.fixableRouterSwapV3(routerParamsV3)
 
     // Prepare primary coin inputs for liquidity provision
     const primaryCoinAInputs = isOnlyCoinA ? CoinAssist.getCoinAmountObjId(coinInput, fixed_amount_a) : swap_out_coin
@@ -1352,7 +1352,7 @@ export class ZapModule implements IModule<CetusZapSDK> {
           [DETAILS_KEYS.REQUEST_PARAMS]: findRouterParams,
         }) as never
       }
-      if (!res?.routes || res?.routes?.length === 0) {
+      if (!res?.paths || res?.paths?.length === 0) {
         return handleMessageError(ZapErrorCode.AggregatorError, 'Aggregator findRouters error: no router', {
           [DETAILS_KEYS.METHOD_NAME]: 'findRouters',
           [DETAILS_KEYS.REQUEST_PARAMS]: findRouterParams,
@@ -1360,12 +1360,12 @@ export class ZapModule implements IModule<CetusZapSDK> {
       }
 
       // Update the price after swapping
-      res.routes.forEach((split_path: any) => {
-        const base_path: any = split_path.path.find((base_path: any) => base_path.id.toLowerCase() === clmm_pool.toLowerCase())
+      // res.routes.forEach((split_path: any) => {
+        const base_path: any = res.paths.find((base_path: any) => base_path.id.toLowerCase() === clmm_pool.toLowerCase())
         if (base_path && base_path.extendedDetails && base_path.extendedDetails.afterSqrtPrice) {
           after_sqrt_price = convertScientificToDecimal(String(base_path.extendedDetails.afterSqrtPrice), 0)
         }
-      })
+      // })
 
       const swap_in_amount = res.amountIn.toString()
       const swap_out_amount = res.amountOut.toString()
@@ -1401,12 +1401,12 @@ export class ZapModule implements IModule<CetusZapSDK> {
         }
 
         // Update the price after swapping
-        res.routeData.routes.forEach((splitPath: any) => {
-          const basePath: any = splitPath.path.find((basePath: any) => basePath.id.toLowerCase() === clmm_pool.toLowerCase())
+        // res.routeData.paths.forEach((splitPath: any) => {
+          const basePath: any = res.routeData.paths.find((basePath: any) => basePath.id.toLowerCase() === clmm_pool.toLowerCase())
           if (basePath) {
             after_sqrt_price = convertScientificToDecimal(String(basePath.extendedDetails.afterSqrtPrice))
           }
-        })
+        // })
 
         // Return the swap result
         const swapResult: SwapResult = {

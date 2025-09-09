@@ -5,6 +5,6 @@ import { DefaultProviders, FullRpcUrlMainnet } from '@cetusprotocol/common-sdk'
 export const zapMainnet: SdkOptions = {
   env: 'mainnet',
   full_rpc_url: FullRpcUrlMainnet,
-  aggregator_url: 'https://api-sui.cetus.zone/router_v2',
+  aggregator_url: 'https://api-sui.cetus.zone/router_v3',
   providers: DefaultProviders,
 }

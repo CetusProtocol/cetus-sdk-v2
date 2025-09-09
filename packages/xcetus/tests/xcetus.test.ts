@@ -23,7 +23,7 @@ describe('xcetus Module', () => {
   })
 
   test('getOwnerRedeemLockList', async () => {
-    const lockCetus = await sdk.XCetusModule.getOwnerRedeemLockList(account_id)
+    const lockCetus = await sdk.XCetusModule.getOwnerRedeemLockList('0xc5cea39da987d8fe16bf0c6db51bfbf4897aef0edf9588e035ae175ac416fdd1')
     console.log('lockCetus: ', lockCetus)
   })
 

@@ -636,7 +636,7 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     const primaryCoinInputs: TransactionObjectArgument[] = []
     item.rewarder_coin_types.forEach((type) => {
       const coinType = normalizeCoinType(type)
-      let coinInput = coin_id_maps[type]
+      let coinInput = coin_id_maps[coinType]
       if (coinInput === undefined) {
         coinInput = CoinAssist.buildCoinForAmount(tx!, all_coin_asset!, BigInt(0), coinType, false)
         coin_id_maps[coinType] = coinInput

@@ -6,6 +6,7 @@ import type {
   PaginatedEvents,
   PaginatedObjectsResponse,
   PaginatedTransactionResponse,
+  SuiEvent,
   SuiEventFilter,
   SuiObjectDataOptions,
   SuiObjectResponse,
@@ -88,7 +89,7 @@ export class ExtendedSuiClient<T extends SuiClient> {
    * @param pagination_args
    * @returns
    */
-  async queryEventsByPage(query: SuiEventFilter, pagination_args: PaginationArgs = 'all'): Promise<DataPage<any>> {
+  async queryEventsByPage(query: SuiEventFilter, pagination_args: PaginationArgs = 'all'): Promise<DataPage<SuiEvent>> {
     let result: any = []
     let hasNextPage = true
     const queryAll = pagination_args === 'all'
@@ -153,8 +154,8 @@ export class ExtendedSuiClient<T extends SuiClient> {
     owner: string,
     query: SuiObjectResponseQuery,
     pagination_args: PaginationArgs = 'all'
-  ): Promise<DataPage<any>> {
-    let result: any = []
+  ): Promise<DataPage<SuiObjectResponse>> {
+    let result: SuiObjectResponse[] = []
     let hasNextPage = true
     const queryAll = pagination_args === 'all'
     let nextCursor = queryAll ? null : pagination_args.cursor

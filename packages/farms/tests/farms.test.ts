@@ -20,6 +20,10 @@ describe('farms Module', () => {
     sdk.ClmmSDK.setSenderAddress(send_key_pair.getPublicKey().toSuiAddress())
   })
 
+  test('1 getFarmsConfigs', async () => {
+    const configs = await sdk.Farms.getFarmsConfigs()
+    console.log('configs: ', configs)
+  })
   test('1 getFarmsPoolList', async () => {
     const poolData = await sdk.Farms.getFarmsPoolList()
     console.log('poolData: ', JSON.stringify(poolData.data, null, 2))

@@ -88,12 +88,16 @@ const tokens = [
 ]
 describe('Pool Module', () => {
   let send_key_pair = buildTestAccount()
-  // const sdk = CetusClmmSDK.createSDK({ env: 'mainnet', sui_client: new SuiClient({ url: 'https://fullnode.mainnet.sui.io:443' }) })
-  const sdk = CetusClmmSDK.createSDK({ env: 'testnet' })
+  const sdk = CetusClmmSDK.createSDK({ env: 'testnet', sui_client: new SuiClient({ url: 'https://fullnode.testnet.sui.io:443' }) })
   sdk.setSenderAddress(send_key_pair.getPublicKey().toSuiAddress())
 
+  test('getClmmConfigs', async () => {
+    const configs = await sdk.Pool.getClmmConfigs()
+    console.log(configs)
+  })
+
   test('getAllPools', async () => {
-    const pools = await sdk.Pool.getPoolsWithPage()
+    const pools = await sdk.FullClient.fetchCoinMetadata('0xbde4ba4c2e274a60ce15c1cfff9e5c42e41654ac8b6d906a57efa4bd3c29f47d::hasui::HASUI')
     console.log(pools)
   })
 

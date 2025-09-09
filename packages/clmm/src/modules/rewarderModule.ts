@@ -27,7 +27,8 @@ import {
   TickData,
 } from '../types'
 import { ClmmFetcherModule, ClmmIntegratePoolV2Module, ClmmIntegratePoolV3Module } from '../types/sui'
-import { buildTransferCoin, PositionUtils } from '../utils'
+import { PositionUtils } from '../utils/positionUtils'
+import { buildTransferCoin } from '../utils/common'
 
 /**
  * Helper class to help interact with clmm position rewaeder with a rewaeder router interface.

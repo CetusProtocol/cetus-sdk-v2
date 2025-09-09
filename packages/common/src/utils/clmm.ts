@@ -509,7 +509,7 @@ export async function printTransaction(tx: Transaction, is_print = true) {
   console.log(`inputs`, tx.getData().inputs)
   tx.getData().commands.forEach((item, index) => {
     if (is_print) {
-      console.log(`transaction ${index}: `, JSON.stringify(item, null, 2))
+      console.log(`transaction ${index}: `, item)
     }
   })
 }

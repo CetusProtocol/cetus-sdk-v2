@@ -1,6 +1,6 @@
+import { CLOCK_ADDRESS, DETAILS_KEYS, getPackagerConfigs, IModule } from '@cetusprotocol/common-sdk'
 import type { TransactionObjectArgument } from '@mysten/sui/transactions'
 import { Transaction } from '@mysten/sui/transactions'
-import { CLOCK_ADDRESS, DETAILS_KEYS, getPackagerConfigs, IModule } from '@cetusprotocol/common-sdk'
 import { BurnErrorCode, handleError } from '../errors/errors'
 import type { CetusBurnSDK } from '../sdk'
 import type { BurnParams, CollectFeeParams, CollectRewardParams, RedeemVestParams } from '../types/burn'

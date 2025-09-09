@@ -1,6 +1,6 @@
 {
   "name": "@cetusprotocol/burn-sdk",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "description": "SDK for cetus burn",
   "typings": "dist/index.d.ts",
   "main": "dist/index.js",
@@ -30,6 +30,6 @@
   },
   "peerDependencies": {
     "@cetusprotocol/common-sdk": "*",
-    "@mysten/sui": ">=1.29.1"
+    "@mysten/sui": "*"
   }
 }

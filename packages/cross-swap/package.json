@@ -1,0 +1,72 @@
+{
+  "name": "@cetusprotocol/cross-swap-sdk",
+  "version": "0.1.0",
+  "description": "SDK for cetus cross swap",
+  "typings": "dist/index.d.ts",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint src/*.ts src/**/*.ts",
+    "lint:fix": "eslint src/*.ts src/**/*.ts --fix",
+    "build": "pnpm run build:tsup",
+    "build:tsup": "npm run build:clean && npm run _build:node",
+    "build:clean": "rm -rf dist",
+    "_build:node": "tsup --format cjs,esm --dts",
+    "build:doc": "npx typedoc",
+    "publish_batch:test": "npm publish --tag experimental",
+    "publish:test": "node ../../scripts/version.js burn && npm publish --tag experimental"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "keywords": [],
+  "author": "test",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@bigmi/core": "^0.4.4",
+    "@cetusprotocol/common-sdk": "workspace:*",
+    "@cetusprotocol/test-utils": "workspace:*",
+    "@lifi/sdk": "^3.7.9",
+    "@mayanfinance/swap-sdk": "^11.0.1",
+    "@mysten/sui": "1.34.0",
+    "@mysten/wallet-standard": "0.16.14",
+    "@openzeppelin/contracts": "^5.2.0",
+    "@solana/buffer-layout": "^4 || ^3",
+    "@solana/wallet-adapter-base": "^0.9.26",
+    "@solana/web3.js": "^1.87.6",
+    "bech32": "^2.0.0",
+    "bip32": "^5.0.0-rc.0",
+    "bip39": "^3.1.0",
+    "bitcoinjs-lib": "^7.0.0-rc.0",
+    "bs58": "^6.0.0",
+    "cross-fetch": "^3.1.5",
+    "ed25519-hd-key": "^1.3.0",
+    "ethers": "^6.0.0",
+    "js-sha256": "^0.9.0",
+    "js-sha3": "^0.8.0",
+    "viem": "^2.30.5"
+  },
+  "peerDependencies": {
+    "@bigmi/core": ">=0.3.1",
+    "@cetusprotocol/common-sdk": "*",
+    "@lifi/sdk": ">=3.7.9",
+    "@mayanfinance/swap-sdk": ">=10.8.0",
+    "@mysten/sui": "*",
+    "@openzeppelin/contracts": "^5.2.0",
+    "@solana/buffer-layout": ">=4 || ^3",
+    "@solana/wallet-adapter-base": ">=0.9.26",
+    "@solana/web3.js": ">=1.87.6",
+    "bech32": ">=2.0.0",
+    "bitcoinjs-lib": ">=7.0.0-rc.0",
+    "bs58": ">=6.0.0",
+    "cross-fetch": ">=3.1.5",
+    "ethers": ">=6.0.0",
+    "js-sha256": ">=0.9.0",
+    "js-sha3": ">=0.8.0"
+  },
+  "dependencies": {
+    "tiny-secp256k1": "^2.2.3"
+  }
+}

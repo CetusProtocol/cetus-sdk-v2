@@ -17,6 +17,7 @@ import {
   type FetchParams,
   type Pool,
   type PoolImmutables,
+  PoolStatus,
   type PoolTransactionInfo,
   type Position,
   type PositionInfo,
@@ -45,6 +46,7 @@ import {
   DataPage,
   DETAILS_KEYS,
   extractStructTagFromType,
+  getObjectFields,
   getObjectPreviousTransactionDigest,
   getPackagerConfigs,
   IModule,
@@ -156,7 +158,9 @@ export class PoolModule implements IModule<CetusClmmSDK> {
           }
         })
       } catch (error) {
-        console.log('getPoolImmutables', error)
+        return handleError(PoolErrorCode.FetchError, error as Error, {
+          [DETAILS_KEYS.METHOD_NAME]: 'getPoolImmutables',
+        })
       }
     }
     dataPage.data = allPools
@@ -304,9 +308,10 @@ export class PoolModule implements IModule<CetusClmmSDK> {
    * Gets a pool by its object ID.
    * @param {string} pool_id The object ID of the pool to get.
    * @param {true} force_refresh Whether to force a refresh of the cache.
+   * @param {boolean} verify_pool_status Whether to verify the pool status.
    * @returns {Promise<Pool>} A promise that resolves to a Pool object.
    */
-  async getPool(pool_id: string, force_refresh = true): Promise<Pool> {
+  async getPool(pool_id: string, force_refresh = true, verify_pool_status = false): Promise<Pool> {
     const cacheKey = `${pool_id}_getPoolObject`
     const cacheData = this._sdk.getCache<Pool>(cacheKey, force_refresh)
     if (cacheData !== undefined) {
@@ -330,6 +335,12 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       )
     }
     const pool = buildPool(object)
+    if (verify_pool_status) {
+      const poolStatus = await this.getPoolStatus(pool_id)
+      if (poolStatus) {
+        pool.pool_status = poolStatus
+      }
+    }
     this._sdk.updateCache(cacheKey, pool)
     return pool
   }
@@ -1123,5 +1134,26 @@ export class PoolModule implements IModule<CetusClmmSDK> {
     })
 
     return tx
+  }
+
+  async getPoolStatus(poolId: string): Promise<PoolStatus | undefined> {
+    try {
+      const res: any = await this._sdk.FullClient.getDynamicFieldObject({
+        parentId: poolId,
+        name: {
+          type: '0x1::string::String',
+          value: 'pool_status',
+        },
+      })
+
+      const fields = getObjectFields(res)
+      const status = fields.position.fields.status
+      if (status) {
+        return status as PoolStatus
+      }
+    } catch (error) {
+      console.log('🚀 ~ file: poolModule.ts:1093 ~ PoolModule ~ getPoolStatus ~ error:', error)
+    }
+    return undefined
   }
 }

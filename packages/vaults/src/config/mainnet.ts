@@ -5,7 +5,7 @@ import { SdkOptions } from '../sdk'
 export const vaultsMainnet: SdkOptions = {
   env: 'mainnet',
   full_rpc_url: FullRpcUrlMainnet,
-  aggregator_url: 'https://api-sui.cetus.zone/router_v2',
+  aggregator_url: 'https://api-sui.cetus.zone/router_v3',
   providers: DefaultProviders,
   vaults: {
     package_id: '0xd3453d9be7e35efe222f78a810bb3af1859fd1600926afced8b4936d825c9a05',

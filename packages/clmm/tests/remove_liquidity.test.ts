@@ -45,7 +45,7 @@ describe('remove liquidity', () => {
     const coinAmount = new BN(592)
     const fix_amount_a = true
     const slippage = 0.05
-    const curSqrtPrice = new BN(pool.current_sqrt_price)
+    const curSqrtPrice = new BN(TickMath.tickIndexToSqrtPriceX64(Number(pool.current_tick_index)))
 
     const liquidityInput = ClmmPoolUtil.estLiquidityAndCoinAmountFromOneAmounts(
       lowerTick,

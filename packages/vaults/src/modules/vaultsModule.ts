@@ -17,7 +17,7 @@ import {
   WithdrawOneSideParams,
 } from '../types'
 
-import { AggregatorClient, BuildRouterSwapParamsV2, FindRouterParams, PreSwapLpChangeParams } from '@cetusprotocol/aggregator-sdk'
+import { AggregatorClient, BuildRouterSwapParamsV3, FindRouterParams, PreSwapLpChangeParams } from '@cetusprotocol/aggregator-sdk'
 import { ClmmIntegrateRouterModule, PositionUtils } from '@cetusprotocol/sui-clmm-sdk'
 import {
   BuildCoinResult,
@@ -660,18 +660,18 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
           is_exceed: res.insufficientLiquidity,
         }
       }
-      if (!res?.routes || res?.routes?.length === 0) {
+      if (!res?.paths || res?.paths?.length === 0) {
         throw Error('Aggregator no router')
       }
 
       let after_sqrt_price = cur_sqrt_price
-      res.routes.forEach((splitPath: any) => {
-        const basePath: any = splitPath.path.find((basePath: any) => basePath.id.toLowerCase() === clmm_pool.toLowerCase())
+      // res.paths.forEach((splitPath: any) => {
+        const basePath: any = res.paths.find((basePath: any) => basePath.id.toLowerCase() === clmm_pool.toLowerCase())
         if (basePath && basePath.extendedDetails && basePath.extendedDetails.afterSqrtPrice) {
           // after_sqrt_price
           after_sqrt_price = String(basePath.extendedDetails.afterSqrtPrice)
         }
-      })
+      // })
       return {
         amount_in: res.amountIn.toString(),
         amount_out: res.amountOut.toString(),
@@ -695,12 +695,12 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
 
           if (res) {
             let after_sqrt_price = cur_sqrt_price
-            res.routeData.routes.forEach((splitPath: any) => {
-              const basePath: any = splitPath.path.find((basePath: any) => basePath.id.toLowerCase() === clmm_pool.toLowerCase())
+            // res.routeData.paths.forEach((splitPath: any) => {
+              const basePath: any = res.routeData.paths.find((basePath: any) => basePath.id.toLowerCase() === clmm_pool.toLowerCase())
               if (basePath) {
                 after_sqrt_price = String(basePath.extendedDetails.afterSqrtPrice)
               }
-            })
+            // })
 
             return {
               amount_in: res.routeData.amountIn.toString(),
@@ -1031,8 +1031,8 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
       }
     }
     if (route_obj) {
-      const routerParamsV2: BuildRouterSwapParamsV2 = {
-        routers: route_obj,
+      const routerParamsV2 = {
+        router: route_obj,
         inputCoin: swap_coin_input_from,
         slippage,
         txb: tx,
@@ -1041,7 +1041,7 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
 
       let client: AggregatorClient = this._sdk.AggregatorClient
 
-      const toCoin = await client.fixableRouterSwap(routerParamsV2)
+      const toCoin = await client.fixableRouterSwapV3(routerParamsV2)
 
       return {
         swap_out_coin: toCoin,
@@ -1243,7 +1243,7 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
         }
 
         const routerParamsV2 = {
-          routers: route_obj,
+          router: route_obj,
           inputCoin: swap_coin_input_from.target_coin,
           slippage: params.slippage,
           txb: tx,
@@ -1251,7 +1251,7 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
         }
         let client = this._sdk.AggregatorClient
 
-        const to_coin = await client.fixableRouterSwap(routerParamsV2)
+        const to_coin = await client.fixableRouterSwapV3(routerParamsV2)
         const coin_abs = a2b ? [swap_coin_input_from.target_coin, to_coin] : [to_coin, swap_coin_input_from.target_coin]
 
         if (a2b) {
@@ -1549,7 +1549,7 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
       return cache_data
     }
 
-    const objects = (
+    const objects: any[] = (
       await this._sdk.FullClient.queryEventsByPage({
         MoveEventType: `${package_id}::vaults::InitEvent`,
       })

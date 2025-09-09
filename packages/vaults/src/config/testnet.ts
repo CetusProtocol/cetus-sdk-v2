@@ -4,7 +4,7 @@ import { SdkOptions } from '../sdk'
 export const vaultsTestnet: SdkOptions = {
   env: 'testnet',
   full_rpc_url: FullRpcUrlTestnet,
-  aggregator_url: 'https://api-sui.devcetus.com/router_v2',
+  aggregator_url: 'https://api-sui.devcetus.com/router_v3',
   providers: ['CETUS', 'DEEPBOOK', 'KRIYA', 'KRIYAV3', 'FLOWX', 'FLOWXV3', 'AFTERMATH', 'TURBOS', 'HAEDAL', 'VOLO', 'AFSUI'],
   vaults: {
     package_id: '0x10faa43183603ad756d84d4d2f67bf761b87384bb11c00526166664ae85ddfac',

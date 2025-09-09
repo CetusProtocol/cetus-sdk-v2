@@ -3,8 +3,8 @@ import { Pool, Position } from '@cetusprotocol/sui-clmm-sdk'
 import { printTransaction, toDecimalsAmount } from '@cetusprotocol/common-sdk'
 import { buildTestAccount } from '@cetusprotocol/test-utils'
 import { CetusZapSDK } from '../src/sdk'
-const poolId = '0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c90105'
-const posId = '0xc8ae131bd5cbf816a2b9c17b884396d27c32807e97f00f06707678b138d6a4cf'
+const poolId = '0xb8a67c149fd1bc7f9aca1541c61e51ba13bdded64c273c278e50850ae3bff073'
+const posId = '0x3c13008edd83d2ba9959dd64c1d77292d5cb51e0ace7c6d2ad3f6764e797cdc4'
 
 describe(' withdraw test', () => {
   const sdk = CetusZapSDK.createSDK({ env: 'mainnet' })
@@ -134,7 +134,7 @@ describe(' withdraw test', () => {
     const { current_sqrt_price, coin_type_a, coin_type_b } = pool!
     const tick_lower = pos.tick_lower_index
     const tick_upper = pos.tick_upper_index
-    const slippage = 0.01
+    const slippage = 0.0
 
     const result = await sdk.Zap.preCalculateWithdrawAmount({
       mode: 'OnlyCoinB',
@@ -142,12 +142,12 @@ describe(' withdraw test', () => {
       tick_lower,
       tick_upper,
       current_sqrt_price: current_sqrt_price.toString(),
-      burn_liquidity: '2000000',
+      burn_liquidity: pos.liquidity.toString(),
       available_liquidity: pos.liquidity.toString(),
       coin_type_a,
       coin_type_b,
       coin_decimal_a: 6,
-      coin_decimal_b: 9,
+      coin_decimal_b: 6,
     })
 
     console.log('🚀 ~ test ~ result:', result)
@@ -156,9 +156,9 @@ describe(' withdraw test', () => {
       withdraw_obj: result,
       pool_id: poolId,
       pos_id: posId,
-      close_pos: false,
-      collect_fee: false,
-      collect_rewarder_types: [],
+      close_pos: true,
+      collect_fee: true,
+      collect_rewarder_types: pool!.rewarder_infos.map((info) => info.coin_type),
       coin_type_a,
       coin_type_b,
       tick_lower,
@@ -168,13 +168,7 @@ describe(' withdraw test', () => {
 
     // printTransaction(tx)
 
-    let isSimulation = false
-    if (isSimulation) {
-      const res = await sdk.FullClient.sendSimulationTransaction(tx, address)
-      console.log('Deposit Transaction Simulation Result:', res?.effects?.status?.status === 'success' ? res?.events : res)
-    } else {
-      const res = await sdk.FullClient.sendTransaction(send_key_pair, tx)
-      console.log('Deposit Transaction Simulation Result:', res?.events)
-    }
+    const res = await sdk.FullClient.executeTx(send_key_pair, tx, true)
+    console.log('Deposit Transaction Simulation Result:', res?.events)
   })
 })

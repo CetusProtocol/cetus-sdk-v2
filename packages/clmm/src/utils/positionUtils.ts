@@ -185,7 +185,7 @@ export class PositionUtils {
     )
 
     const { fixAmount } = newResult
-    const { newTx } = newResult
+    let newTx = newResult.newTx
 
     if (newTx != null) {
       let primaryCoinAInputs: BuildCoinResult
@@ -237,8 +237,7 @@ export class PositionUtils {
         )
         params = this.fixAddLiquidityFixTokenParams(params, gas_estimate_arg.slippage, gas_estimate_arg.cur_sqrt_price)
 
-        tx = await this.buildAddLiquidityFixTokenArgs(newTx, sdk, all_coins, params, primaryCoinAInputs, primaryCoinBInputs)
-        return tx
+        return this.buildAddLiquidityFixTokenArgs(newTx, sdk, all_coins, params, primaryCoinAInputs, primaryCoinBInputs)
       }
     }
     return tx

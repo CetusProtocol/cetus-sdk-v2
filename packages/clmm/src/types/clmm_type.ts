@@ -210,7 +210,7 @@ export type Pool = {
   /**
    * is the pool pause
    */
-  is_pause: boolean
+  pool_status: PoolStatus
   /**
    * The liquidity of current tick index
    */
@@ -1027,4 +1027,13 @@ export type PositionSnapshot = {
   fee_owned_b: string
   value_cut: string
   rewards: string[]
+}
+
+export type PoolStatus = {
+  disable_add_liquidity: boolean
+  disable_remove_liquidity: boolean
+  disable_swap: boolean
+  disable_flash_loan: boolean
+  disable_collect_fee: boolean
+  disable_collect_reward: boolean
 }

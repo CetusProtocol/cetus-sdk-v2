@@ -23,8 +23,8 @@ describe('vest test', () => {
   test('getPoolLiquiditySnapshot', async () => {
     const poolSnapshot = [
       {
-        pool_id: '0x8903aa21e3a95fdeef8ab06ef29fd4511ce3bd650a1fdd28a455300ddf470062',
-        position_ids: ['0x0aeed0bf50737f651fdc78361f0c7cf6898f8d695a82f9e19c24d963ec9ee538'],
+        pool_id: '0x72f5c6eef73d77de271886219a2543e7c29a33de19a6c69c5cf1899f729c3f17',
+        position_ids: ['0xd273592049c735b1a246d6ac5fcb53636c6abbbd15a5dac4b2db1c6e544088eb'],
       },
     ]
 
@@ -44,9 +44,9 @@ describe('vest test', () => {
   test('getPositionVesting', async () => {
     const vestingList = await sdk.Vest.getPositionVesting([
       {
-        clmm_position_ids: ['0x1a5f81f11c1e28a7836ec93786c9a5ee33e61d5ad5c5b4ae220ee43f6195c77c'],
-        clmm_pool_id: '0x871d8a227114f375170f149f7e9d45be822dd003eba225e83c05ac80828596bc',
-        coin_type_a: '0xbde4ba4c2e274a60ce15c1cfff9e5c42e41654ac8b6d906a57efa4bd3c29f47d::hasui::HASUI',
+        clmm_position_ids: ['0xd273592049c735b1a246d6ac5fcb53636c6abbbd15a5dac4b2db1c6e544088eb'],
+        clmm_pool_id: '0x72f5c6eef73d77de271886219a2543e7c29a33de19a6c69c5cf1899f729c3f17',
+        coin_type_a: '0x356a26eb9e012a68958082340d4c4116e7f55615cf27affcff209cf0ae544f59::wal::WAL',
         coin_type_b: '0x2::sui::SUI',
       },
     ])

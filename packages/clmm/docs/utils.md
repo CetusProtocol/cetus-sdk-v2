@@ -42,7 +42,7 @@ const price = TickMath.tickIndexToPrice(tick_index, decimals_a, decimals_b)
 ```typescript
 import { TickMath } from '@cetusprotocol/common-sdk'
 // decimalsA and decimalsB means the decimal of coinA and coinB
-const price = TickMath.priceToTickIndex(tick_index, decimals_a, decimals_b)
+const index = TickMath.priceToTickIndex(price, decimals_a, decimals_b)
 ```
 
 ## 3.Tick index to sqrt price x64

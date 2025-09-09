@@ -1,6 +1,6 @@
 {
   "name": "@cetusprotocol/xcetus-sdk",
-  "version": "1.1.3",
+  "version": "1.2.0",
   "description": "SDK for cetus xcetus",
   "typings": "dist/index.d.ts",
   "main": "dist/index.js",
@@ -30,6 +30,6 @@
   },
   "peerDependencies": {
     "@cetusprotocol/common-sdk": "*",
-    "@mysten/sui": ">=1.29.1"
+    "@mysten/sui": "*"
   }
 }

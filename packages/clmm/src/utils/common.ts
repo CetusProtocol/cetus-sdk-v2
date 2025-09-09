@@ -17,7 +17,7 @@ import {
 } from '@cetusprotocol/common-sdk'
 import { handleMessageError, PoolErrorCode, PositionErrorCode } from '../errors/errors'
 import { CetusClmmSDK } from '../sdk'
-import type { Pool, PoolTransactionInfo, Position, PositionInfo, PositionTransactionInfo, Rewarder } from '../types'
+import type { Pool, PoolStatus, PoolTransactionInfo, Position, PositionInfo, PositionTransactionInfo, Rewarder } from '../types'
 import { ClmmIntegrateUtilsModule, ClmmPositionStatus, poolFilterEvenTypes } from '../types'
 import type { TickData } from '../types/clmmpool'
 import type { NFT } from '../types/sui'
@@ -64,6 +64,16 @@ export function buildPool(objects: SuiObjectResponse): Pool {
     })
   })
 
+  const is_pause = fields.is_pause
+  const pool_status: PoolStatus = {
+    disable_add_liquidity: is_pause,
+    disable_remove_liquidity: is_pause,
+    disable_swap: is_pause,
+    disable_flash_loan: is_pause,
+    disable_collect_fee: is_pause,
+    disable_collect_reward: is_pause,
+  }
+
   const pool: Pool = {
     id: getObjectId(objects),
     pool_type: type,
@@ -78,7 +88,7 @@ export function buildPool(objects: SuiObjectResponse): Pool {
     fee_protocol_coin_a: fields.fee_protocol_coin_a,
     fee_protocol_coin_b: fields.fee_protocol_coin_b,
     fee_rate: fields.fee_rate,
-    is_pause: fields.is_pause,
+    pool_status,
     liquidity: fields.liquidity,
     position_manager: {
       positions_handle: fields.position_manager.fields.positions.fields.id.id,

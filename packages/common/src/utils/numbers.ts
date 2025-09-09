@@ -28,10 +28,10 @@ export function decimalsMultiplier(decimals?: Decimal.Value): Decimal.Instance {
  * @param  {number | string} decimals - The number of decimals to use in the conversion.
  * @returns {number} - Returns the converted amount as a number.
  */
-export function toDecimalsAmount(amount: number | string, decimals: number | string): number {
+export function toDecimalsAmount(amount: number | string, decimals: number | string, rounding = Decimal.ROUND_DOWN): string {
   const mul = decimalsMultiplier(d(decimals))
 
-  return Number(d(amount).mul(mul))
+  return d(amount).mul(mul).toFixed(0, rounding).toString()
 }
 
 /**
@@ -58,12 +58,12 @@ export function asIntN(int: bigint, bits = 32) {
  * Converts an amount in decimals to its corresponding numerical value.
  * @param {number|string} amount - The amount to convert.
  * @param {number|string} decimals - The number of decimal places used in the amount.
- * @returns {number} - Returns the converted numerical value.
+ * @returns {string} - Returns the converted numerical value.
  */
-export function fromDecimalsAmount(amount: number | string, decimals: number | string): number {
+export function fromDecimalsAmount(amount: number | string, decimals: number | string): string {
   const mul = decimalsMultiplier(d(decimals))
 
-  return Number(d(amount).div(mul))
+  return d(amount).div(mul).toString()
 }
 
 /**
