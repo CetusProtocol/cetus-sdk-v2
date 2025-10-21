@@ -88,7 +88,7 @@ const tokens = [
 ]
 describe('Pool Module', () => {
   let send_key_pair = buildTestAccount()
-  const sdk = CetusClmmSDK.createSDK({ env: 'testnet', sui_client: new SuiClient({ url: 'https://fullnode.testnet.sui.io:443' }) })
+  const sdk = CetusClmmSDK.createSDK({ env: 'mainnet', sui_client: new SuiClient({ url: 'https://rpc-mainnet.suiscan.xyz/' }) })
   sdk.setSenderAddress(send_key_pair.getPublicKey().toSuiAddress())
 
   test('getClmmConfigs', async () => {
@@ -119,9 +119,9 @@ describe('Pool Module', () => {
 
   test('getPoolTransactionList', async () => {
     const res = await sdk.Pool.getPoolTransactionList({
-      pool_id: '0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c90105',
+      pool_id: '0x2e041f3fd93646dcc877f783c1f2b7fa62d30271bdef1f21ef002cebf857bded',
       pagination_args: {
-        limit: 10,
+        limit: 100,
         cursor: undefined,
       },
     })
@@ -130,7 +130,7 @@ describe('Pool Module', () => {
 
   test('getSinglePool', async () => {
     // const pool = await sdk.Pool.getPool('0xcf994611fd4c48e277ce3ffd4d4364c914af2c3cbb05f7bf6facd371de688630')
-    const pool = await sdk.Pool.getPool('0x3bb4c2bcb90efd0286de46c64df2c4a9251bac034a215b9412f35efc7baab454')
+    const pool = await sdk.Pool.getPool('0x2e041f3fd93646dcc877f783c1f2b7fa62d30271bdef1f21ef002cebf857bded')
     console.log('pool', pool)
   })
 
@@ -151,8 +151,6 @@ describe('Pool Module', () => {
       fix_amount_a: true,
       amount_a: '100000000',
       amount_b: '100000000',
-      metadata_a: '0x2c5f33af93f6511df699aaaa5822d823aac6ed99d4a0de2a4a50b3afa0172e24',
-      metadata_b: '0x9258181f5ceac8dbffb7030890243caed69a9599d2886d957a9cb7656af3bdb3',
       tick_lower: -443520,
       tick_upper: 443520,
     })
@@ -235,8 +233,6 @@ describe('Pool Module', () => {
       amount_b: '100000000',
       coin_type_a: '0xbde4ba4c2e274a60ce15c1cfff9e5c42e41654ac8b6d906a57efa4bd3c29f47d::hasui::HASUI',
       coin_type_b: '0x2::sui::SUI',
-      metadata_a: '0x2c5f33af93f6511df699aaaa5822d823aac6ed99d4a0de2a4a50b3afa0172e24',
-      metadata_b: '0x9258181f5ceac8dbffb7030890243caed69a9599d2886d957a9cb7656af3bdb3',
       tick_lower: -443520,
       tick_upper: 443520,
     })
@@ -254,9 +250,6 @@ describe('Pool Module', () => {
     const coinTypeA = '0x06864a6f921804860930db6ddbe2e16acdf8504495ea7481637a1c8b9a8fe54b::cetus::CETUS'
     const coinTypeB = '0xfa7ac3951fdca92c5200d468d31a365eb03b2be9936fde615e69f0c1274ad3a0::BLUB::BLUB'
 
-    const coinMetadataA = await sdk.FullClient.fetchCoinMetadata(coinTypeA)
-    const coinMetadataB = await sdk.FullClient.fetchCoinMetadata(coinTypeB)
-
     const { tx, pos_id, remain_coin_a, remain_coin_b, remain_coin_type_a, remain_coin_type_b } = await sdk.Pool.createPoolRowPayload({
       tick_spacing: 20,
       initialize_sqrt_price: '31366801070720067977',
@@ -266,8 +259,6 @@ describe('Pool Module', () => {
       amount_b: '1000000000',
       coin_type_a: coinTypeA,
       coin_type_b: coinTypeB,
-      metadata_a: coinMetadataA!.id!,
-      metadata_b: coinMetadataB!.id!,
       tick_lower: -440000,
       tick_upper: 440000,
     })

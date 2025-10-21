@@ -15,6 +15,7 @@ Cetus TypeScript SDK is a comprehensive collection of TypeScript libraries for i
 | [@cetusprotocol/dca-sdk](https://www.npmjs.com/package/@cetusprotocol/dca-sdk)           | ![npm](https://img.shields.io/npm/v/%40cetusprotocol%2Fdca-sdk?logo=npm&logoColor=rgb)      | Dollar Cost Averaging SDK                 | [View Docs](./packages/dca/README.md)    |
 | [@cetusprotocol/common-sdk](https://www.npmjs.com/package/@cetusprotocol/common-sdk)     | ![npm](https://img.shields.io/npm/v/%40cetusprotocol%2Fcommon-sdk?logo=npm&logoColor=rgb)   | Common Utilities and Shared Components    | [View Docs](./packages/common/README.md) |
 | [@cetusprotocol/zap-sdk](https://www.npmjs.com/package/@cetusprotocol/zap-sdk)           | ![npm](https://img.shields.io/npm/v/%40cetusprotocol%2Fzap-sdk?logo=npm&logoColor=rgb)      | Liquidity operations with different modes | [View Docs](./packages/zap/README.md)    |
+| [@cetusprotocol/dlmm-sdk](https://www.npmjs.com/package/@cetusprotocol/dlmm-sdk)         | ![npm](https://img.shields.io/npm/v/%40cetusprotocol%2Fdlmm-sdk?logo=npm&logoColor=rgb)     | SDK for cetus dlmm                        | [View Docs](./packages/dlmm/README.md)   |
 
 ## Getting Started
 

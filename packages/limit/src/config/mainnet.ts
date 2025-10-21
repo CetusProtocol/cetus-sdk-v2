@@ -1,13 +1,17 @@
-import { FullRpcUrlMainnet } from '@cetusprotocol/common-sdk'
+import { FullRpcUrlMainnet, GraphRpcUrlMainnet } from '@cetusprotocol/common-sdk'
 import { SdkOptions } from '../sdk'
 // mainnet
 export const limitMainnet: SdkOptions = {
   env: 'mainnet',
   full_rpc_url: FullRpcUrlMainnet,
+  graph_rpc_url: GraphRpcUrlMainnet,
   limit_order: {
+    /**
+     * https://www.moveregistry.com/package/@cetuspackages/limit-order
+     */
     package_id: '0x533fab9a116080e2cb1c87f1832c1bf4231ab4c32318ced041e75cc28604bba9',
-    published_at: '0x3b9f8d381c22bfcf7e4e6469f57a4d10d2087bbfae05248650b08fd5dff0434d',
-    version: 1,
+    published_at: '0x37d6284f2c6cdeb5663124be7e44016399b1b657bc51564d67ec480bdff15491',
+    version: 3,
     config: {
       rate_orders_indexer_id: '0xe7fa62b6fc095ed5659b85c735f4322059e1f4616dcf3343adece6e7eb52bf47',
       rate_orders_indexer_handle: '0x81a95c812cab1c9cc7a1c10446d93d2d9517097211c72b544f7efed33b540bcc',

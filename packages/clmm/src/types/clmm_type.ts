@@ -384,9 +384,6 @@ export type CreatePoolAddLiquidityParams = CreatePoolParams & {
    * The upper tick index for liquidity provision.
    */
   tick_upper: number
-
-  metadata_a: SuiObjectIdType
-  metadata_b: SuiObjectIdType
 }
 
 export type FetchParams = {
@@ -717,7 +714,13 @@ export type PoolTransactionInfo = {
   parsed_json: any
 }
 
-export const poolFilterEvenTypes = ['RemoveLiquidityEvent', 'SwapEvent', 'AddLiquidityEvent']
+export const poolFilterEvenTypes = [
+  'RemoveLiquidityEvent',
+  'SwapEvent',
+  'AddLiquidityEvent',
+  'AddLiquidityV2Event',
+  'RemoveLiquidityV2Event',
+]
 
 /**
  * @category CollectFeesQuote

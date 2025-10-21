@@ -1,4 +1,4 @@
-import { FullRpcUrlMainnet } from '@cetusprotocol/common-sdk'
+import { FullRpcUrlMainnet, GraphRpcUrlMainnet } from '@cetusprotocol/common-sdk'
 import { CetusClmmSDK, SdkOptions } from '../sdk'
 const SDKConfig = {
   clmmConfig: {
@@ -23,22 +23,29 @@ const SDKConfig = {
 export const clmmMainnet: SdkOptions = {
   env: 'mainnet',
   full_rpc_url: FullRpcUrlMainnet,
+  graph_rpc_url: GraphRpcUrlMainnet,
   cetus_config: {
     package_id: '0x95b8d278b876cae22206131fb9724f701c9444515813042f54f0a426c9a3bc2f',
     published_at: '0xba7e740c3c002673dbe69ad5fbdb0691ec260170e141297cefb982e7081fde52',
     version: 2,
     config: SDKConfig.cetusConfig,
   },
+  /**
+   * https://www.moveregistry.com/package/@cetuspackages/clmm?tab=versions
+   */
   clmm_pool: {
     package_id: '0x1eabed72c53feb3805120a081dc15963c204dc8d091542592abaf7a35689b2fb',
-    published_at: '0x75b2e9ecad34944b8d0c874e568c90db0cf9437f0d7392abfd4cb902972f3e40',
-    version: 12,
+    published_at: '0x25ebb9a7c50eb17b3fa9c5a30fb8b5ad8f97caaf4928943acbcff7153dfee5e3',
+    version: 14,
     config: SDKConfig.clmmConfig,
   },
+  /**
+   * https://www.moveregistry.com/package/@cetuspackages/integrate?tab=versions
+   */
   integrate: {
     package_id: '0x996c4d9480708fb8b92aa7acf819fb0497b5ec8e65ba06601cae2fb6db3312c3',
-    published_at: '0xb2db7142fa83210a7d78d9c12ac49c043b3cbbd482224fea6e3da00aa5a5ae2d',
-    version: 12,
+    published_at: '0xfbb32ac0fa89a3cb0c56c745b688c6d2a53ac8e43447119ad822763997ffb9c3',
+    version: 15,
   },
   stats_pools_url: 'https://api-sui.cetus.zone/v2/sui/stats_pools',
   clmm_vest: {
@@ -52,3 +59,8 @@ export const clmmMainnet: SdkOptions = {
     },
   },
 }
+
+export const eventMainnetContractMaps = [
+  '0x1eabed72c53feb3805120a081dc15963c204dc8d091542592abaf7a35689b2fb',
+  '0xdb5cd62a06c79695bfc9982eb08534706d3752fe123b48e0144f480209b3117f',
+]

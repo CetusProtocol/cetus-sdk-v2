@@ -21,6 +21,11 @@ describe('sdk config', () => {
       console.log(error)
     }
   })
+
+  test('fetchCoinMetadataId', async () => {
+    const id = await sdk.FullClient.fetchCoinMetadataId('0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC')
+    console.log('id: ', id)
+  })
 })
 
 describe('warp sdk config', () => {

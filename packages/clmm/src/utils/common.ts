@@ -342,6 +342,8 @@ export function buildPositionTransactionInfo(data: SuiTransactionBlockResponse, 
     'CollectRewardEvent',
     'CollectRewardV2Event',
     'HarvestEvent',
+    'AddLiquidityV2Event',
+    'RemoveLiquidityV2Event',
   ]
 
   events?.forEach((event, index) => {
@@ -366,6 +368,8 @@ export function buildPositionTransactionInfo(data: SuiTransactionBlockResponse, 
           break
         case 'RemoveLiquidityEvent':
         case 'AddLiquidityEvent':
+        case 'AddLiquidityV2Event':
+        case 'RemoveLiquidityV2Event':
           if (d(info.parsed_json.amount_a).gt(0) || d(info.parsed_json.amount_b).gt(0)) {
             list.push(info)
           }
@@ -390,13 +394,13 @@ export function buildPositionTransactionInfo(data: SuiTransactionBlockResponse, 
   return list
 }
 
-export function buildPoolTransactionInfo(data: SuiTransactionBlockResponse, txIndex: number, package_id: string, pool_id: string) {
+export function buildPoolTransactionInfo(data: SuiTransactionBlockResponse, txIndex: number, package_ids: string[], pool_id: string) {
   const list: PoolTransactionInfo[] = []
   const { timestampMs, events } = data
 
   events?.forEach((event: any, index) => {
     const { name: type, address: package_address } = extractStructTagFromType(event.type)
-    if (poolFilterEvenTypes.includes(type) && package_address === package_id && pool_id === event.parsedJson.pool) {
+    if (poolFilterEvenTypes.includes(type) && package_ids.includes(package_address) && pool_id === event.parsedJson.pool) {
       const info: PoolTransactionInfo = {
         tx: event.id.txDigest,
         sender: event.sender,

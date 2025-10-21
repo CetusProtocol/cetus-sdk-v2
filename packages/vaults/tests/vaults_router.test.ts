@@ -50,10 +50,10 @@ describe('vaults router', () => {
   test('1 both side deposit', async () => {
     const result = await sdk.Vaults.calculateDepositAmount({
       vault_id: vaultId,
-      fix_amount_a: true,
-      input_amount: toDecimalsAmount(1, 9).toString(),
+      fix_amount_a: false,
+      input_amount: toDecimalsAmount(3, 9).toString(),
       slippage: 0.01,
-      side: InputType.Both,
+      side: InputType.OneSide,
     })
     console.log({ result })
 
@@ -65,13 +65,13 @@ describe('vaults router', () => {
     }
 
     await sdk.Vaults.deposit(params, tx)
-    // const txResult = await sdk.fullClient.sendTransaction(send_key_pair, paylod)
-    // console.log('deposit: ', txResult)
-    const res = await sdk.FullClient.devInspectTransactionBlock({
-      transactionBlock: tx,
-      sender: sdk.getSenderAddress(),
-    })
-    console.log('1110 res: ', res.events.length > 0 ? res.events : res)
+    const txResult = await sdk.FullClient.sendTransaction(send_key_pair, tx)
+    console.log('deposit: ', txResult)
+    // const res = await sdk.FullClient.devInspectTransactionBlock({
+    //   transactionBlock: tx,
+    //   sender: sdk.getSenderAddress(),
+    // })
+    // console.log('1110 res: ', res.events.length > 0 ? res.events : res)
   })
 
   test('2 one side deposit fix_amount_a true', async () => {

@@ -1,15 +1,19 @@
 import type CetusClmmSDK from '@cetusprotocol/sui-clmm-sdk'
 import type { SdkOptions } from '../sdk'
 import { CetusFarmsSDK } from '../sdk'
-import { FullRpcUrlMainnet } from '@cetusprotocol/common-sdk'
+import { FullRpcUrlMainnet, GraphRpcUrlMainnet } from '@cetusprotocol/common-sdk'
 // mainnet
 export const farmsMainnet: SdkOptions = {
   env: 'mainnet',
   full_rpc_url: FullRpcUrlMainnet,
+  graph_rpc_url: GraphRpcUrlMainnet,
   farms: {
+    /**
+     * https://www.moveregistry.com/package/@cetuspackages/farming?tab=versions
+     */
     package_id: '0x11ea791d82b5742cc8cab0bf7946035c97d9001d7c3803a93f119753da66f526',
-    published_at: '0x7dba8e74b5d512a3c3bd8a1f7ef111fe9f624ddeb935635385645ca5db1f7850',
-    version: 7,
+    published_at: '0x894c344135024be3b91fec9d118cba2ffcd705088325a1fa1e777d5fe93b224f',
+    version: 8,
     config: {
       global_config_id: '0x21215f2f6de04b57dd87d9be7bb4e15499aec935e36078e2488f36436d64996e',
       rewarder_manager_id: '0xe0e155a88c77025056da08db5b1701a91b79edb6167462f768e387c3ed6614d5',

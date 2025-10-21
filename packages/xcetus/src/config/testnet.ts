@@ -1,4 +1,4 @@
-import { FullRpcUrlTestnet } from '@cetusprotocol/common-sdk'
+import { FullRpcUrlTestnet, GraphRpcUrlTestnet } from '@cetusprotocol/common-sdk'
 import type { SdkOptions } from '../../src'
 const SDKConfig = {
   xcetusConfig: {
@@ -17,6 +17,7 @@ const SDKConfig = {
 
 export const xcetus_testnet: SdkOptions = {
   full_rpc_url: FullRpcUrlTestnet,
+  graph_rpc_url: GraphRpcUrlTestnet,
   xcetus: {
     package_id: '0xdebaab6b851fd3414c0a62dbdf8eb752d6b0d31f5cfce5e38541bc6c6daa8966',
     published_at: '0xdebaab6b851fd3414c0a62dbdf8eb752d6b0d31f5cfce5e38541bc6c6daa8966',

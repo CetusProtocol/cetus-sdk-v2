@@ -2,6 +2,7 @@ import { getFullnodeUrl, SuiClient } from '@mysten/sui/client'
 import type { TransactionArgument } from '@mysten/sui/transactions'
 import Decimal from 'decimal.js'
 import { ExtendedSuiClient } from '../modules/extendedSuiClient'
+import { SuiGraphQLClient } from '@mysten/sui/graphql'
 
 /**
  * Represents a SUI address, which is a string.
@@ -36,6 +37,10 @@ export type SuiResource = any
 
 export const FullRpcUrlMainnet = getFullnodeUrl('mainnet')
 export const FullRpcUrlTestnet = getFullnodeUrl('testnet')
+
+export const GraphRpcUrlMainnet = 'https://graphql.mainnet.sui.io/graphql'
+export const GraphRpcUrlTestnet = 'https://graphql.testnet.sui.io/graphql'
+
 export const DefaultProviders = [
   'CETUS',
   'TURBOS',
@@ -192,7 +197,9 @@ export type SuiInputTypes = 'object' | SuiBasicTypes
 export type BaseSdkOptions = {
   env?: 'mainnet' | 'testnet'
   full_rpc_url?: string
+  graph_rpc_url?: string
   sui_client?: SuiClient
+  graph_client?: SuiGraphQLClient
 }
 
 export type FullClient = ExtendedSuiClient<SuiClient> & SuiClient

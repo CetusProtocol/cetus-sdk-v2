@@ -382,6 +382,36 @@ export class CoinAssist {
     return coin
   }
 
+  public static intoBalance(coin_obj: TransactionObjectArgument | string, coin_type: string, tx: Transaction): TransactionObjectArgument {
+    const coin = tx.moveCall({
+      target: `0x2::coin::into_balance`,
+      typeArguments: [coin_type],
+      arguments: [typeof coin_obj === 'string' ? tx.object(coin_obj) : coin_obj],
+    })
+
+    return coin
+  }
+
+  public static mintBalanceZero(coin_type: string, tx: Transaction): TransactionObjectArgument {
+    const coin = tx.moveCall({
+      target: `0x2::balance::zero`,
+      typeArguments: [coin_type],
+      arguments: [],
+    })
+
+    return coin
+  }
+
+  public static destroyBalanceZero(balance: TransactionObjectArgument, coin_type: string, tx: Transaction): TransactionObjectArgument {
+    const coin = tx.moveCall({
+      target: `0x2::balance::destroy_zero`,
+      typeArguments: [coin_type],
+      arguments: [balance],
+    })
+
+    return coin
+  }
+
   public static getCoinAmountObjId(coin_input: MultiCoinInput, amount: string): TransactionObjectArgument {
     const coin_obj = coin_input.amount_coin_array.find((coin) => {
       if (!coin.used && d(coin.amount).eq(amount)) {

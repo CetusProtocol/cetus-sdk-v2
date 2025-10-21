@@ -5,26 +5,41 @@ import { CACHE_TIME_24H, CachedContent, getFutureTime } from '../utils/cachedCon
 import { patchFixSuiObjectId } from '../utils/contracts'
 import { SuiClient } from '@mysten/sui/client'
 import { createFullClient } from '../modules/extendedSuiClient'
+import { SuiGraphQLClient } from '@mysten/sui/graphql'
 
 export abstract class SdkWrapper<T extends BaseSdkOptions> {
   readonly _cache: Record<string, CachedContent> = {}
   private _fullClient: FullClient
+  private _graphClient: SuiGraphQLClient | undefined
   private _senderAddress: SuiAddressType = ''
+  private _env: 'mainnet' | 'testnet' = 'mainnet'
   /**
    *  Provide sdk options
    */
   protected _sdkOptions: T
 
   constructor(options: T) {
-    const { sui_client, env = 'mainnet' } = options
+    const { sui_client, graph_client, env = 'mainnet', full_rpc_url, graph_rpc_url } = options
     this._sdkOptions = options
-    if (sui_client) {
-      this._fullClient = createFullClient(sui_client)
-    } else {
-      const full_rpc_url = options.full_rpc_url || (env === 'mainnet' ? FullRpcUrlMainnet : FullRpcUrlTestnet)
-      this._sdkOptions.full_rpc_url = full_rpc_url
-      this._fullClient = createFullClient(new SuiClient({ url: full_rpc_url }))
+    this._env = env
+    this._sdkOptions.full_rpc_url = full_rpc_url
+    this._sdkOptions.graph_rpc_url = graph_rpc_url
+
+    const suiClient = sui_client ? sui_client : full_rpc_url ? new SuiClient({ url: full_rpc_url }) : undefined
+    this._graphClient = graph_client
+      ? graph_client
+      : graph_rpc_url
+        ? new SuiGraphQLClient({
+            network: env,
+            url: graph_rpc_url,
+          })
+        : undefined
+
+    if (!suiClient) {
+      throw new Error('sui_client or full_rpc_url is required')
     }
+
+    this._fullClient = createFullClient(suiClient, this._graphClient, env)
   }
 
   /**
@@ -43,17 +58,35 @@ export abstract class SdkWrapper<T extends BaseSdkOptions> {
     return this._fullClient
   }
 
+  get GraphClient(): SuiGraphQLClient | undefined {
+    return this._graphClient
+  }
+
   /**
    * Update the full RPC URL
    * @param full_rpc_url - The new full RPC URL
    */
   updateFullRpcUrl(full_rpc_url: string): void {
     this._sdkOptions.full_rpc_url = full_rpc_url
-    this._fullClient = createFullClient(new SuiClient({ url: full_rpc_url }))
+    this._fullClient = createFullClient(new SuiClient({ url: full_rpc_url }), this._graphClient, this._env)
   }
 
   updateSuiClient(sui_client: SuiClient): void {
-    this._fullClient = createFullClient(sui_client)
+    this._fullClient = createFullClient(sui_client, this._graphClient, this._env)
+  }
+
+  updateGraphRpcUrl(graph_rpc_url: string): void {
+    this._sdkOptions.graph_rpc_url = graph_rpc_url
+    this._graphClient = new SuiGraphQLClient({
+      network: this._env,
+      url: graph_rpc_url,
+    })
+    this._fullClient = createFullClient(this._fullClient._client, this._graphClient, this._env)
+  }
+
+  updateGraphClient(graph_client: SuiGraphQLClient): void {
+    this._graphClient = graph_client
+    this._fullClient = createFullClient(this._fullClient._client, this._graphClient, this._env)
   }
 
   /**

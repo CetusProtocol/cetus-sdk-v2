@@ -1,8 +1,9 @@
-import { FullRpcUrlTestnet } from '@cetusprotocol/common-sdk'
+import { FullRpcUrlTestnet, GraphRpcUrlTestnet } from '@cetusprotocol/common-sdk'
 import { SdkOptions } from '../sdk'
 export const limitTestnet: SdkOptions = {
   env: 'testnet',
   full_rpc_url: FullRpcUrlTestnet,
+  graph_rpc_url: GraphRpcUrlTestnet,
   limit_order: {
     package_id: '0xc65bc51d2bc2fdbce8c701f8d812da80fb37dba9cdf97ce38f60ab18c5202b17',
     published_at: '0xc65bc51d2bc2fdbce8c701f8d812da80fb37dba9cdf97ce38f60ab18c5202b17',

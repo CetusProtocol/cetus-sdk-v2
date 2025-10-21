@@ -1,9 +1,10 @@
 import CetusClmmSDK from '@cetusprotocol/sui-clmm-sdk'
 import type { SdkOptions } from '../sdk'
-import { FullRpcUrlTestnet } from '@cetusprotocol/common-sdk'
+import { FullRpcUrlTestnet, GraphRpcUrlTestnet } from '@cetusprotocol/common-sdk'
 export const farmsTestnet: SdkOptions = {
   env: 'testnet',
   full_rpc_url: FullRpcUrlTestnet,
+  graph_rpc_url: GraphRpcUrlTestnet,
   farms: {
     package_id: '0x5f64435f1496e51e0b7b3d686cafdff0cbfa2cded7f3e4c579deb5d0a0338123',
     published_at: '0x5f64435f1496e51e0b7b3d686cafdff0cbfa2cded7f3e4c579deb5d0a0338123',

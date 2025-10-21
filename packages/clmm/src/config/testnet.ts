@@ -1,4 +1,4 @@
-import { FullRpcUrlTestnet } from '@cetusprotocol/common-sdk'
+import { FullRpcUrlTestnet, GraphRpcUrlTestnet } from '@cetusprotocol/common-sdk'
 import { CetusClmmSDK, SdkOptions } from '../sdk'
 const SDKConfig = {
   clmmConfig: {
@@ -45,6 +45,7 @@ const SDKConfig = {
 export const clmmTestnet: SdkOptions = {
   env: 'testnet',
   full_rpc_url: FullRpcUrlTestnet,
+  graph_rpc_url: GraphRpcUrlTestnet,
   cetus_config: {
     package_id: '0x2933975c3f74ef7c31f512edead6c6ce3f58f8e8fdbea78770ec8d5abd8ff700',
     published_at: '0xb50a626294f743b40ea51c9cb75190f0e38c71f580981b5613aef910b67a2691',
@@ -86,3 +87,8 @@ export const clmmTestnet: SdkOptions = {
     },
   },
 }
+
+export const eventTestnetContractMaps = [
+  '0x5372d555ac734e272659136c2a0cd3227f9b92de67c80dc11250307268af2db8',
+  '0x5372d555ac734e272659136c2a0cd3227f9b92de67c80dc11250307268af2db8',
+]

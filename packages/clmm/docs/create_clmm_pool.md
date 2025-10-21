@@ -29,8 +29,6 @@ Use `sdk.Pool.createPoolTransactionPayload()` to create a pool.
 - `fix_amount_a`: Boolean value - true means fixed coin A amount, false means fixed coin B amount.
 - `tick_lower`: The index of the lower tick boundary.
 - `tick_upper`: The index of the upper tick boundary.
-- `metadata_a`: The coin metadata ID of coin A.
-- `metadata_b`: The coin metadata ID of coin B.
 
 #### Optional Parameters
 
@@ -102,11 +100,6 @@ const res = ClmmPoolUtil.estLiquidityAndCoinAmountFromOneAmounts(
 const amount_a = fix_amount_a ? fix_coin_amount.toNumber() : res.coin_amount_limit_a.toNumber()
 const amount_b = fix_amount_a ? res.coin_amount_b.toNumber() : fix_coin_amount.toNumber()
 
-const coin_type_a = '0x3cfe7b9f6106808a8178ebd2d5ae6656cd0ccec15d33e63fd857c180bde8da75::coin:CetusUSDT'
-const coin_type_b = '0x3cfe7b9f6106808a8178ebd2d5ae6656cd0ccec15d33e63fd857c180bde8da75::coin::CetusUSDC'
-
-const coin_metadata_a_id = await suiClient.fetchCoinMetadata({coinType: coin_type_a}).id
-const coin_metadata_b_id = await suiClient.fetchCoinMetadata({coinType: coin_type_b}).id
 
 // Build createPoolPayload
 const create_pool_payload = sdk.Pool.createPoolPayload({
@@ -120,8 +113,6 @@ const create_pool_payload = sdk.Pool.createPoolPayload({
     fix_amount_a,
     tick_lower,
     tick_upper,
-    metadata_a: coin_metadata_a_id,
-    metadata_b: coin_metadata_b_id,
 })
 const send_key_pair = 'THE_KEY_PAIR_GENERATED_BY_YOUR_PRIVATE_KEY'
 const transfer_txn = await sdk.FullClient.executeTx(send_key_pair, tx, true)

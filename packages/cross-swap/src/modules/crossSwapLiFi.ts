@@ -96,7 +96,7 @@ export class LiFiCrossSwapModule extends CrossSwapLiFi {
     }
     if (sui) {
       this._CrossSwapLiFiConfigs.sui = sui
-      this._suiProvider.setOptions({ getWallet: async () => sui.wallet })
+      this._suiProvider.setOptions({ getWallet: async () => sui.wallet as any })
     }
     if (evm) {
       this._CrossSwapLiFiConfigs.evm = evm

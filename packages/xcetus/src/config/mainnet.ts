@@ -1,4 +1,4 @@
-import { FullRpcUrlMainnet } from '@cetusprotocol/common-sdk'
+import { FullRpcUrlMainnet, GraphRpcUrlMainnet } from '@cetusprotocol/common-sdk'
 import type { SdkOptions } from '../../src'
 
 const SDKConfig = {
@@ -18,12 +18,18 @@ const SDKConfig = {
 
 export const xcetus_mainnet: SdkOptions = {
   full_rpc_url: FullRpcUrlMainnet,
+  /**
+   * https://www.moveregistry.com/package/@cetuspackages/xcetus?tab=versions
+   */
   xcetus: {
     package_id: '0x9e69acc50ca03bc943c4f7c5304c2a6002d507b51c11913b247159c60422c606',
     published_at: '0x07d45ee8fc56ddce3232304c1191f3c0319fa8240305c5ee2231a2da7cbb49e6',
     version: 2,
     config: SDKConfig.xcetusConfig,
   },
+  /**
+   * https://www.moveregistry.com/package/@cetuspackages/dividends
+   */
   xcetus_dividends: {
     package_id: '0x785248249ac457dfd378bdc6d2fbbfec9d1daf65e9d728b820eb4888c8da2c10',
     published_at: '0x5aa58e1623885bd93de2331d05c29bf4930e54e56beeabcab8fe5385de2d31dc',

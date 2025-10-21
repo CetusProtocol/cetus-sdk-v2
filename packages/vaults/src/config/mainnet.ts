@@ -1,24 +1,31 @@
 import CetusClmmSDK from '@cetusprotocol/sui-clmm-sdk'
-import { DefaultProviders, FullRpcUrlMainnet } from '@cetusprotocol/common-sdk'
+import { DefaultProviders, FullRpcUrlMainnet, GraphRpcUrlMainnet } from '@cetusprotocol/common-sdk'
 import { SdkOptions } from '../sdk'
 // mainnet
 export const vaultsMainnet: SdkOptions = {
   env: 'mainnet',
   full_rpc_url: FullRpcUrlMainnet,
+  graph_rpc_url: GraphRpcUrlMainnet,
   aggregator_url: 'https://api-sui.cetus.zone/router_v3',
   providers: DefaultProviders,
   vaults: {
+    /**
+     * https://www.moveregistry.com/package/@cetuspackages/vaults
+     */
     package_id: '0xd3453d9be7e35efe222f78a810bb3af1859fd1600926afced8b4936d825c9a05',
-    published_at: '0x9890eca0da01697ddfdc2cd4b34def4733f755cc3de662f689ab6f0763ca6f52',
-    version: 8,
+    published_at: '0x92efb523574a0c60b0f5bd794b2f5abfb26f5ddec3818dde8336abb6e0b07c21',
+    version: 11,
     config: {
       admin_cap_id: '0x78a42978709c4032fab7b33b782b5bcef64c1c6603250bf23644650b72144375',
       vaults_manager_id: '0x25b82dd2f5ee486ed1c8af144b89a8931cd9c29dee3a86a1bfe194fdea9d04a6',
       vaults_pool_handle: '0x9036bcc5aa7fd2cceec1659a6a1082871f45bc400c743f50063363457d1738bd',
+      /**
+       * https://www.moveregistry.com/package/@haedal/hasui?tab=versions
+       */
       haedal: {
         package_id: '0xbde4ba4c2e274a60ce15c1cfff9e5c42e41654ac8b6d906a57efa4bd3c29f47d',
-        published_at: '0xaabf0856070391df81fad9240049d69c5a51c3d376cc0885eeedd516526cc79b',
-        version: 1,
+        published_at: '0x19e6ea7f5ced4f090e20da794cc80349a03e638940ddb95155a4e301f5f4967c',
+        version: 7,
         config: {
           staking_id: '0x47b224762220393057ebf4f70501b6e657c3e56684737568439a04f80849b2ca',
           coin_type: '0xbde4ba4c2e274a60ce15c1cfff9e5c42e41654ac8b6d906a57efa4bd3c29f47d::hasui::HASUI',

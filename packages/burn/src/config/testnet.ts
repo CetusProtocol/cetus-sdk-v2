@@ -1,10 +1,11 @@
-import { FullRpcUrlTestnet } from '@cetusprotocol/common-sdk'
+import { FullRpcUrlTestnet, GraphRpcUrlTestnet } from '@cetusprotocol/common-sdk'
 import type { SdkOptions } from '../sdk'
 import { CetusBurnSDK } from '../sdk'
 
 export const burnTestnet: SdkOptions = {
   env: 'testnet',
   full_rpc_url: FullRpcUrlTestnet,
+  graph_rpc_url: GraphRpcUrlTestnet,
   burn: {
     package_id: '0xf871bf6b73e30a740b44abfbbcac697b9c891a1d075f5ef8dd5092288dd52a7a',
     published_at: '0xf871bf6b73e30a740b44abfbbcac697b9c891a1d075f5ef8dd5092288dd52a7a',

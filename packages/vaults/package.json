@@ -1,6 +1,6 @@
 {
   "name": "@cetusprotocol/vaults-sdk",
-  "version": "1.3.0",
+  "version": "1.3.3",
   "description": "SDK for cetus vaults",
   "typings": "dist/index.d.ts",
   "main": "dist/index.js",
@@ -32,7 +32,7 @@
   },
   "peerDependencies": {
     "@cetusprotocol/common-sdk": "*",
-    "@cetusprotocol/aggregator-sdk": ">=1.1.6",
+    "@cetusprotocol/aggregator-sdk": ">=1.2.0",
     "@cetusprotocol/sui-clmm-sdk": "*",
     "@cetusprotocol/farms-sdk": "*",
     "@mysten/sui": "*"

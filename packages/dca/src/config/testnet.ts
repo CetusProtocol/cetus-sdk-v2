@@ -1,9 +1,10 @@
-import { FullRpcUrlTestnet } from '@cetusprotocol/common-sdk'
+import { FullRpcUrlTestnet, GraphRpcUrlTestnet } from '@cetusprotocol/common-sdk'
 import type { SdkOptions } from '../sdk'
 import { CetusDcaSDK } from '../sdk'
 export const dcaTestnet: SdkOptions = {
   env: 'testnet',
   full_rpc_url: FullRpcUrlTestnet,
+  graph_rpc_url: GraphRpcUrlTestnet,
   dca: {
     package_id: '0x484d2be08b58b8dc00a08c0ff8a2a9cd0542c4249ea2d5934ef9b15a10585d88',
     published_at: '0x484d2be08b58b8dc00a08c0ff8a2a9cd0542c4249ea2d5934ef9b15a10585d88',

@@ -24,6 +24,9 @@ import type { DataPage, PaginationArgs, SuiObjectIdType, SuiResource } from '../
 import { CACHE_TIME_24H, CachedContent, getFutureTime } from '../utils/cachedContent'
 import { extractStructTagFromType } from '../utils/contracts'
 import { deriveDynamicFieldIdByType, ValueBcsType } from '../utils/dynamicField'
+import { CoinAssist } from '../utils'
+import { SuiGraphQLClient } from '@mysten/sui/graphql'
+import { graphql } from '@mysten/sui/graphql/schemas/latest'
 
 /**
  * A wrapper around the SuiClient that provides additional methods for querying and sending transactions.
@@ -36,9 +39,14 @@ export class ExtendedSuiClient<T extends SuiClient> {
    */
   public readonly _client: T
   private readonly _cache: Record<string, CachedContent> = {}
+  private readonly _env: 'mainnet' | 'testnet' = 'mainnet'
 
-  constructor(client: T) {
+  private readonly _graphQLClient: SuiGraphQLClient | undefined
+
+  constructor(client: T, _graphQLClient?: SuiGraphQLClient, env?: 'mainnet' | 'testnet') {
     this._client = client
+    this._env = env || 'mainnet'
+    this._graphQLClient = _graphQLClient
   }
 
   async fetchCoinMetadata(coin_type: string): Promise<CoinMetadata | null> {
@@ -50,6 +58,39 @@ export class ExtendedSuiClient<T extends SuiClient> {
     const res = await this._client.getCoinMetadata({ coinType: coin_type })
     this.updateCache(cacheKey, res)
     return res
+  }
+
+  async fetchCoinMetadataId(coin_type: string): Promise<string | null> {
+    if (!this._graphQLClient) {
+      throw new Error('graphQLClient is not set')
+    }
+
+    const cacheKey = `coin_metadata_id_${coin_type}`
+    const cachedData = this.getCache<string>(cacheKey)
+    if (cachedData) {
+      return cachedData
+    }
+
+    const CoinMetadataIdQuery = graphql(`
+      query coinMetadataId($coinType: String!) {
+        objects(filter: { type: $coinType }, first: 1) {
+          nodes {
+            address
+          }
+        }
+      }
+    `)
+    const result = await this._graphQLClient.query({
+      query: CoinMetadataIdQuery,
+      variables: {
+        coinType: `0x2::coin::CoinMetadata<${coin_type}>`,
+      },
+    })
+    const id = result.data?.objects.nodes[0]?.address ?? null
+    if (id) {
+      this.updateCache(cacheKey, id)
+    }
+    return id
   }
 
   /**
@@ -329,23 +370,28 @@ export class ExtendedSuiClient<T extends SuiClient> {
       return simulateRes
     } catch (error) {
       console.log('devInspectTransactionBlock error', error)
+      throw error
     }
 
     return undefined
   }
 
   async executeTx(keypair: Ed25519Keypair | Secp256k1Keypair | string, tx: Transaction, simulate: boolean): Promise<any> {
-    if (simulate) {
-      const address =
-        typeof keypair === 'string' ? normalizeSuiAddress(keypair) : normalizeSuiAddress(keypair.getPublicKey().toSuiAddress())
-      const res = await this.sendSimulationTransaction(tx, address)
-      return res!.events.length > 0 ? res!.events : res
-    } else {
-      if (typeof keypair === 'string') {
-        throw new Error('Cannot send transaction with string address - keypair required for signing')
+    try {
+      if (simulate) {
+        const address =
+          typeof keypair === 'string' ? normalizeSuiAddress(keypair) : normalizeSuiAddress(keypair.getPublicKey().toSuiAddress())
+        const res = await this.sendSimulationTransaction(tx, address)
+        return res!.events.length > 0 ? res!.events : res
+      } else {
+        if (typeof keypair === 'string') {
+          throw new Error('Cannot send transaction with string address - keypair required for signing')
+        }
+        const txResult = await this.sendTransaction(keypair, tx)
+        return txResult
       }
-      const txResult = await this.sendTransaction(keypair, tx)
-      return txResult
+    } catch (error) {
+      return error
     }
   }
 
@@ -453,8 +499,12 @@ export class ExtendedSuiClient<T extends SuiClient> {
   }
 }
 
-export function createFullClient<T extends SuiClient>(client: T): ExtendedSuiClient<T> & T {
-  const fullClient = new ExtendedSuiClient(client)
+export function createFullClient<T extends SuiClient>(
+  client: T,
+  graphQLClient?: SuiGraphQLClient,
+  env?: 'mainnet' | 'testnet'
+): ExtendedSuiClient<T> & T {
+  const fullClient = new ExtendedSuiClient(client, graphQLClient, env)
 
   return new Proxy(fullClient, {
     get(target, prop, receiver) {

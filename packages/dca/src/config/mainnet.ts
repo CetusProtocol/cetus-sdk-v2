@@ -1,14 +1,18 @@
-import { FullRpcUrlMainnet } from '@cetusprotocol/common-sdk'
+import { FullRpcUrlMainnet, GraphRpcUrlMainnet } from '@cetusprotocol/common-sdk'
 import type { SdkOptions } from '../sdk'
 import { CetusDcaSDK } from '../sdk'
 // mainnet
 export const dcaMainnet: SdkOptions = {
   env: 'mainnet',
   full_rpc_url: FullRpcUrlMainnet,
+  graph_rpc_url: GraphRpcUrlMainnet,
   dca: {
+    /**
+     * https://www.moveregistry.com/package/@cetuspackages/dca?tab=versions
+     */
     package_id: '0x587614620d0d30aed66d86ffd3ba385a661a86aa573a4d579017068f561c6d8f',
-    published_at: '0x587614620d0d30aed66d86ffd3ba385a661a86aa573a4d579017068f561c6d8f',
-    version: 1,
+    published_at: '0xbeb32dee947006e0c22374d11af3fec2af862d380dea69488939dc4398d3daa9',
+    version: 2,
     config: {
       admin_cap_id: '0xbcdd7391245dd8d6118a39bc83e6d9a7cfca899d06cc283c1a4cae41b2508574',
       global_config_id: '0x5db218756f8486fa2ac26fab590c4be4e439be54e6d932c9a30b20573a5b706a',

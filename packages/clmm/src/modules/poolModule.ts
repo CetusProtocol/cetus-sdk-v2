@@ -56,6 +56,7 @@ import {
   TickUtil,
 } from '@cetusprotocol/common-sdk'
 import { VestUtils } from '../utils/vestUtils'
+import { eventMainnetContractMaps, eventTestnetContractMaps } from '../config'
 
 type GetTickParams = {
   start: number[]
@@ -410,15 +411,12 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       const swap_coin_type_b = params.coin_type_b
       params.coin_type_b = params.coin_type_a
       params.coin_type_a = swap_coin_type_b
-      const metadata_b = params.metadata_b
-      params.metadata_b = params.metadata_a
-      params.metadata_a = metadata_b
     }
     return await this.createPoolAndAddLiquidity(params, tx)
   }
 
   /**
-   * Create pool and add liquidity row. It will call `pool_creator_v2::create_pool_v2` function.
+   * Create pool and add liquidity row. It will call `pool_creator_v3::create_pool_v3` function.
    * This method will return the position, coin_a, coin_b. User can use these to build own transaction.
    * @param {CreatePoolAddLiquidityParams}params The parameters for the create and liquidity.
    * @returns {Promise<CreatePoolAndAddLiquidityRowResult>} A promise that resolves to the transaction payload.
@@ -431,9 +429,6 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       const swap_coin_type_b = params.coin_type_b
       params.coin_type_b = params.coin_type_a
       params.coin_type_a = swap_coin_type_b
-      const metadata_b = params.metadata_b
-      params.metadata_b = params.metadata_a
-      params.metadata_a = metadata_b
     }
     return await this.createPoolAndAddLiquidityRow(params, tx)
   }
@@ -523,11 +518,12 @@ export class PoolModule implements IModule<CetusClmmSDK> {
     const limit = 50
     const query = pagination_args
     const user_limit = pagination_args.limit || 10
+    const eventContractMaps = sdkOptions.env === 'testnet' ? eventTestnetContractMaps : eventMainnetContractMaps
     do {
       const res = await client.queryTransactionBlocksByPage({ ChangedObject: pool_id }, { ...query, limit: 50 }, order)
       res.data.forEach((item, index) => {
         data.next_cursor = res.next_cursor
-        const dataList = buildPoolTransactionInfo(item, index, sdkOptions.clmm_pool.package_id, pool_id)
+        const dataList = buildPoolTransactionInfo(item, index, eventContractMaps, pool_id)
         data.data = [...data.data, ...dataList]
       })
       data.has_next_page = res.has_next_page
@@ -600,7 +596,7 @@ export class PoolModule implements IModule<CetusClmmSDK> {
   }
 
   /**
-   * Create pool and add liquidity internal. It will call `pool_creator_v2::create_pool_v2` function in cetus integrate contract.
+   * Create pool and add liquidity internal. It will call `pool_creator_v3::create_pool_v3` function in cetus integrate contract.
    * It encapsulates the original create_pool_v2 method from the Cetus CLMM and processes the additional outputs for position and coin within a single move call.
    * @param {CreatePoolAddLiquidityParams}params The parameters for the create and liquidity.
    * @returns {Promise<Transaction>} A promise that resolves to the transaction payload.
@@ -627,13 +623,11 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       tx.pure.u32(Number(asUintN(BigInt(params.tick_upper)).toString())),
       primaryCoinAInputsR.target_coin,
       primaryCoinBInputsR.target_coin,
-      tx.object(params.metadata_a),
-      tx.object(params.metadata_b),
       tx.pure.bool(params.fix_amount_a),
       tx.object(CLOCK_ADDRESS),
     ]
     tx.moveCall({
-      target: `${integrate.published_at}::pool_creator_v2::create_pool_v2`,
+      target: `${integrate.published_at}::pool_creator_v3::create_pool_v3`,
       typeArguments: [params.coin_type_a, params.coin_type_b],
       arguments: args,
     })
@@ -644,7 +638,7 @@ export class PoolModule implements IModule<CetusClmmSDK> {
   }
 
   /**
-   * Create pool and add liquidity row. It will call `pool_creator_v2::create_pool_v2` function.
+   * Create pool and add liquidity row. It will call `pool_creator::create_pool_v3` function.
    * This method will return the position, coin_a, coin_b. User can use these to build own transaction.
    * @param {CreatePoolAddLiquidityParams}params The parameters for the create and liquidity.
    * @returns {Promise<Transaction>} A promise that resolves to the transaction payload.
@@ -672,13 +666,11 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       tx.pure.u32(Number(asUintN(BigInt(params.tick_upper)).toString())),
       primaryCoinAInputsR.target_coin,
       primaryCoinBInputsR.target_coin,
-      tx.object(params.metadata_a),
-      tx.object(params.metadata_b),
       tx.pure.bool(params.fix_amount_a),
       tx.object(CLOCK_ADDRESS),
     ]
     const res: TransactionObjectArgument[] = tx.moveCall({
-      target: `${clmm_pool.published_at}::pool_creator::create_pool_v2`,
+      target: `${clmm_pool.published_at}::pool_creator::create_pool_v3`,
       typeArguments: [params.coin_type_a, params.coin_type_b],
       arguments: args,
     })
@@ -710,26 +702,6 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       coin_amount_limit_b,
     } = calculate_result
 
-    const coinMetadataA = await this._sdk.FullClient.fetchCoinMetadata(coin_type_a)
-    const coinMetadataB = await this._sdk.FullClient.fetchCoinMetadata(coin_type_b)
-
-    if (coinMetadataA === null) {
-      return handleMessageError(PoolErrorCode.FetchError, `fetch coin ${coin_type_a} metadata failed`, {
-        [DETAILS_KEYS.METHOD_NAME]: 'createPoolAndAddLiquidityWithPrice',
-        [DETAILS_KEYS.REQUEST_PARAMS]: params,
-      })
-    }
-
-    if (coinMetadataB === null) {
-      return handleMessageError(PoolErrorCode.FetchError, `fetch coin ${coin_type_b} metadata failed`, {
-        [DETAILS_KEYS.METHOD_NAME]: 'createPoolAndAddLiquidityWithPrice',
-        [DETAILS_KEYS.REQUEST_PARAMS]: params,
-      })
-    }
-
-    let metadata_a = coinMetadataA.id!
-    let metadata_b = coinMetadataB.id!
-
     return this.createPoolRowPayload(
       {
         tick_spacing,
@@ -742,8 +714,6 @@ export class PoolModule implements IModule<CetusClmmSDK> {
         fix_amount_a: fix_amount_a,
         tick_lower: tick_lower,
         tick_upper: tick_upper,
-        metadata_a: metadata_a,
-        metadata_b: metadata_b,
       },
       tx
     )
@@ -763,26 +733,6 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       coin_amount_limit_b,
     } = calculate_result
 
-    const coinMetadataA = await this._sdk.FullClient.fetchCoinMetadata(coin_type_a)
-    const coinMetadataB = await this._sdk.FullClient.fetchCoinMetadata(coin_type_b)
-
-    if (coinMetadataA === null) {
-      return handleMessageError(PoolErrorCode.FetchError, `fetch coin ${coin_type_a} metadata failed`, {
-        [DETAILS_KEYS.METHOD_NAME]: 'createPoolAndAddLiquidityWithPrice',
-        [DETAILS_KEYS.REQUEST_PARAMS]: params,
-      })
-    }
-
-    if (coinMetadataB === null) {
-      return handleMessageError(PoolErrorCode.FetchError, `fetch coin ${coin_type_b} metadata failed`, {
-        [DETAILS_KEYS.METHOD_NAME]: 'createPoolAndAddLiquidityWithPrice',
-        [DETAILS_KEYS.REQUEST_PARAMS]: params,
-      })
-    }
-
-    let metadata_a = coinMetadataA.id!
-    let metadata_b = coinMetadataB.id!
-
     return this.createPoolPayload({
       tick_spacing,
       initialize_sqrt_price,
@@ -794,8 +744,6 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       fix_amount_a: fix_amount_a,
       tick_lower: tick_lower,
       tick_upper: tick_upper,
-      metadata_a: metadata_a,
-      metadata_b: metadata_b,
     })
   }
 

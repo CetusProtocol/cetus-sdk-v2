@@ -1,6 +1,6 @@
 {
   "name": "@cetusprotocol/farms-sdk",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "SDK for cetus farms",
   "typings": "dist/index.d.ts",
   "main": "dist/index.js",

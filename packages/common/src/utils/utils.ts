@@ -198,4 +198,22 @@ export class MathUtil {
     }
     return this.u128Neg(v).add(new BN(1)).or(new BN(1).shln(127))
   }
+
+  /**
+   * Convert u128 to i128
+   * If the highest bit is 1, it represents a negative number: -(2^128 - bits)
+   * If the highest bit is 0, it represents a positive number: bits
+   * @param v - u128 value as BN
+   * @returns i128 value as BN
+   */
+  static u128ToI128(v: BN): BN {
+    const signBit = v.testn(127)
+    if (signBit) {
+      // Highest bit is 1, negative number: -(2^128 - v)
+      return U128.sub(v).neg()
+    } else {
+      // Highest bit is 0, positive number
+      return v
+    }
+  }
 }

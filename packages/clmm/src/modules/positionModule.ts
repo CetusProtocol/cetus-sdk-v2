@@ -43,7 +43,13 @@ import type {
   PositionTransactionInfo,
   RemoveLiquidityParams,
 } from '../types'
-import { ClmmFetcherModule, ClmmIntegratePoolModule, ClmmIntegratePoolV2Module, ClmmIntegratePoolV3Module } from '../types/sui'
+import {
+  ClmmFetcherModule,
+  ClmmIntegratePoolModule,
+  ClmmIntegratePoolV2Module,
+  ClmmIntegratePoolV3Module,
+  ClmmIntegrateRouterModule,
+} from '../types/sui'
 import { buildPosition, buildPositionInfo, buildPositionTransactionInfo } from '../utils'
 import { findAdjustCoin, PositionUtils } from '../utils/positionUtils'
 /**
@@ -597,8 +603,6 @@ export class PositionModule implements IModule<CetusClmmSDK> {
   async removeLiquidityPayload(params: RemoveLiquidityParams, tx?: Transaction): Promise<Transaction> {
     const { clmm_pool, integrate } = this.sdk.sdkOptions
 
-    const functionName = 'remove_liquidity'
-
     tx = tx || new Transaction()
 
     const typeArguments = [params.coin_type_a, params.coin_type_b]
@@ -612,16 +616,31 @@ export class PositionModule implements IModule<CetusClmmSDK> {
       tx.object(params.pool_id),
       tx.object(params.pos_id),
       tx.pure.u128(params.delta_liquidity),
-      tx.pure.u64(params.min_amount_a),
-      tx.pure.u64(params.min_amount_b),
       tx.object(CLOCK_ADDRESS),
     ]
 
-    tx.moveCall({
-      target: `${integrate.published_at}::${ClmmIntegratePoolModule}::${functionName}`,
+    const [balanceA, balanceB] = tx.moveCall({
+      target: `${clmm_pool.published_at}::pool::remove_liquidity`,
       typeArguments,
       arguments: args,
     })
+
+    const receiveCoinA = CoinAssist.fromBalance(balanceA, params.coin_type_a, tx)
+    const receiveCoinB = CoinAssist.fromBalance(balanceB, params.coin_type_b, tx)
+
+    tx.moveCall({
+      target: `${integrate.published_at}::${ClmmIntegrateRouterModule}::check_coin_threshold`,
+      typeArguments: [params.coin_type_a],
+      arguments: [receiveCoinA, tx.pure.u64(params.min_amount_a)],
+    })
+
+    tx.moveCall({
+      target: `${integrate.published_at}::${ClmmIntegrateRouterModule}::check_coin_threshold`,
+      typeArguments: [params.coin_type_b],
+      arguments: [receiveCoinB, tx.pure.u64(params.min_amount_b)],
+    })
+
+    tx.transferObjects([receiveCoinA, receiveCoinB], this.sdk.getSenderAddress())
 
     return tx
   }

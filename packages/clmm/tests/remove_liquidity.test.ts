@@ -7,11 +7,11 @@ import CetusClmmSDK, { ClosePositionParams, RemoveLiquidityParams } from '../src
 
 let send_key_pair: Ed25519Keypair
 
-const poolId = '0xdd83e7fbee4f22b28c212d108379435f299dcc47cd0e4cd196cecb6a78e439d1'
-const position_nft_id = '0x67ff4a016f0d0984ee5a816426f00853da432bacb071c709627eb3ac12419834'
+const poolId = '0x84fc1515fd3d2395b2d67b301dc2b60040e31af7e295f8731c84bd528733252f'
+const position_nft_id = '0xc444d321cb690727904947813c65b8231b9a7668635b012fdf67d6c14b90b6f7'
 
 describe('remove liquidity', () => {
-  const sdk = CetusClmmSDK.createSDK({ env: 'testnet' })
+  const sdk = CetusClmmSDK.createSDK({ env: 'mainnet' })
 
   beforeEach(async () => {
     send_key_pair = buildTestAccount()
@@ -88,7 +88,7 @@ describe('remove liquidity', () => {
     const lowerSqrtPrice = TickMath.tickIndexToSqrtPriceX64(lowerTick)
     const upperSqrtPrice = TickMath.tickIndexToSqrtPriceX64(upperTick)
 
-    const liquidity = new BN(position.liquidity)
+    const liquidity = new BN(200)
     const slippageTolerance = new Percentage(new BN(5), new BN(100))
     const curSqrtPrice = new BN(pool.current_sqrt_price)
 
@@ -106,7 +106,7 @@ describe('remove liquidity', () => {
       pool_id: pool.id,
       pos_id: position.pos_object_id,
       rewarder_coin_types: [...rewardCoinTypes],
-      collect_fee: true,
+      collect_fee: false,
     }
 
     const removeLiquidityTransactionPayload = await sdk.Position.removeLiquidityPayload(removeLiquidityParams)
