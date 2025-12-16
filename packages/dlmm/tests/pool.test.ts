@@ -60,13 +60,13 @@ describe('pool', () => {
   })
 
   test('getPool', async () => {
-    const pool = await sdk.Pool.getPool('0x4650ca3fd23deef634fdc84eb35c578a5d003dbf5a40e19376f4d7c1aef702de')
+    const pool = await sdk.Pool.getPool('0x5f7113564e5532f47c33eaab120faf1d17b5aeed768f647d5eba23c497640373')
     console.log('🚀 ~ test ~ pool:', JSON.stringify(pool, null, 2))
   })
 
   test('getBinInfo', async () => {
-    const binId = -946
-    const bin_info = await sdk.Pool.getBinInfo('0x5efbc117f7eb3ee634d7cdfb0ff1d0e4bba859b4084e756d7f91fe75c5228630', binId, 100)
+    const binId = 2075
+    const bin_info = await sdk.Pool.getBinInfo('0x6431faeba9476e27b39392f715d4558709471dbaaef66e4ec7d8208df3dfb77e', binId, 50)
     console.log('🚀 ~ test ~ bin_info:', bin_info)
   })
 
@@ -105,9 +105,9 @@ describe('pool', () => {
 
   test('1 getPoolBinInfo', async () => {
     const bin_info = await sdk.Pool.getPoolBinInfo({
-      pool_id: '0x2805cdfa9a58d112d1a8ce238cd77dbb40b1fe89d9e64f1625dee8ce378450bf',
-      coin_type_a: '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::usdt::USDT',
-      coin_type_b: '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::usdc::USDC',
+      pool_id: '0x5f7113564e5532f47c33eaab120faf1d17b5aeed768f647d5eba23c497640373',
+      coin_type_a: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
+      coin_type_b: '0x06864a6f921804860930db6ddbe2e16acdf8504495ea7481637a1c8b9a8fe54b::cetus::CETUS',
     })
     console.log('🚀 ~ test ~ bin_info:', bin_info)
   })

@@ -176,6 +176,8 @@ export type BaseAddLiquidityOption = {
    * - false: Pass strategy_type to contract for automatic liquidity distribution calculation
    */
   use_bin_infos?: boolean
+  coin_object_id_a?: TransactionObjectArgument
+  coin_object_id_b?: TransactionObjectArgument
 } & CoinPairType
 
 export type BaseCalculateAddLiquidityOption = {

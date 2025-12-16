@@ -14,7 +14,7 @@ import {
 import { printTransaction, toDecimalsAmount } from '@cetusprotocol/common-sdk'
 import { BinUtils } from '../src/utils/binUtils'
 
-const pool_id = '0x2ebd6828bc7a952f6e3a884800f70c3ad658964fa9a103bea953835d73873e68'
+const pool_id = '0xd4e815d17d501c9585f0d073c3b6dbf2615ee6ca5ba83af5a8cccada9d665e45'
 const position_id = '0xf5139870fbc926d1ca1afdc536b4ab457a9c2a696440d10955572f04b95d9e29'
 
 describe('dlmm add liquidity spot', () => {
@@ -97,8 +97,8 @@ describe('dlmm add liquidity spot', () => {
     pool = await sdk.Pool.getPool(pool_id)
     console.log('🚀 ~ beforeEach ~ pool:', pool)
     const { active_id, bin_step } = pool
-    const amount_a = '10000000'
-    const amount_b = '20000000'
+    const amount_a = '500000'
+    const amount_b = '247215430'
     const lower_bin_id = active_id - 10
     const upper_bin_id = active_id + 10
 
@@ -206,12 +206,12 @@ describe('dlmm add liquidity spot', () => {
     const { active_id, bin_step, bin_manager, coin_type_a, coin_type_b } = pool
     console.log('🚀 ~ pool:', pool)
 
-    const position = await sdk.Position.getPosition(position_id)
-    const { lower_bin_id, upper_bin_id } = position
-    console.log('🚀  ~ position:', position)
+    // const position = await sdk.Position.getPosition(position_id)
+    // const { lower_bin_id, upper_bin_id } = position
+    // console.log('🚀  ~ position:', position)
 
-    // const lower_bin_id = active_id + 1
-    // const upper_bin_id = active_id + 1
+    const lower_bin_id = active_id + 10
+    const upper_bin_id = active_id + 20
 
     const amounts_in_active_bin = await sdk.Position.getActiveBinIfInRange(
       bin_manager.bin_manager_handle,
@@ -220,8 +220,9 @@ describe('dlmm add liquidity spot', () => {
       active_id,
       bin_step
     )
-
-    const coin_amount = toDecimalsAmount(1, 9)
+    //14753663
+    //165973192
+    const coin_amount = toDecimalsAmount(0.1, 6).toString()
 
     const calculateOption: CalculateAddLiquidityAutoFillOption = {
       pool_id,
@@ -237,25 +238,24 @@ describe('dlmm add liquidity spot', () => {
     const bin_infos = await sdk.Position.calculateAddLiquidityInfo(calculateOption)
     console.log('🚀 ~ test ~ bin_infos:', bin_infos)
 
-    const addOption: AddLiquidityOption = {
+    const addOption: OpenAndAddLiquidityOption = {
       pool_id,
       bin_infos: bin_infos,
       coin_type_a,
       coin_type_b,
       active_id,
-      position_id,
-      collect_fee: false,
-      reward_coins: [],
       use_bin_infos: false,
       strategy_type: StrategyType.Spot,
       max_price_slippage: 0.01,
       bin_step,
+      lower_bin_id,
+      upper_bin_id,
     }
     const tx = sdk.Position.addLiquidityPayload(addOption)
     tx.setGasBudget(10000000000)
     printTransaction(tx)
 
-    const res = await sdk.FullClient.executeTx(send_key_pair, tx, false)
+    const res = await sdk.FullClient.executeTx(send_key_pair, tx, true)
     console.log('🚀 ~ test ~ res:', res)
   })
 

@@ -7,6 +7,7 @@ import { CetusFarmsSDK } from '@cetusprotocol/farms-sdk'
 import { zapMainnet } from './config/mainnet'
 import { zapTestnet } from './config/testnet'
 import { ZapModule } from './modules/zapModule'
+import { CompoundModule } from './modules/compoundModule'
 /**
  * Represents options and configurations for an SDK.
  */
@@ -35,6 +36,8 @@ export class CetusZapSDK extends SdkWrapper<SdkOptions> {
    */
   protected _zapModule: ZapModule
 
+  protected _compoundModule: CompoundModule
+
   protected _clmmSDK: CetusClmmSDK
 
   protected _farmsSDK: CetusFarmsSDK
@@ -51,6 +54,11 @@ export class CetusZapSDK extends SdkWrapper<SdkOptions> {
      * Initialize the ZapModule.
      */
     this._zapModule = new ZapModule(this)
+
+    /**
+     * Initialize the CompoundModule.
+     */
+    this._compoundModule = new CompoundModule(this)
 
     /**
      * Initialize the ClmmSDK.
@@ -133,6 +141,14 @@ export class CetusZapSDK extends SdkWrapper<SdkOptions> {
    */
   get Zap(): ZapModule {
     return this._zapModule
+  }
+
+  /**
+   * Getter for the CompoundModule property.
+   * @returns {CompoundModule} The CompoundModule property value.
+   */
+  get Compound(): CompoundModule {
+    return this._compoundModule
   }
 
   /**

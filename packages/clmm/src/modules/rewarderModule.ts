@@ -25,6 +25,7 @@ import {
   PosRewarderResult,
   RewarderAmountOwned,
   TickData,
+  CollectRewarderAndReturnCoinParams
 } from '../types'
 import { ClmmFetcherModule, ClmmIntegratePoolV2Module, ClmmIntegratePoolV3Module } from '../types/sui'
 import { PositionUtils } from '../utils/positionUtils'
@@ -427,5 +428,26 @@ export class RewarderModule implements IModule<CetusClmmSDK> {
       }
     })
     return tx
+  }
+
+  createCollectRewarderAndReturnCoinPayload(params: CollectRewarderAndReturnCoinParams, tx: Transaction) {
+    const { clmm_pool } = this.sdk.sdkOptions
+    const clmm_configs = getPackagerConfigs(clmm_pool)
+    const type_arguments = [params.coin_type_a, params.coin_type_b]
+    const args = [
+      tx.object(getPackagerConfigs(clmm_pool).global_config_id),
+      tx.object(params.pool_id),
+      tx.object(params.pos_id),
+      tx.object(clmm_configs.global_vault_id),
+      tx.pure.bool(true),
+      tx.object(CLOCK_ADDRESS),
+    ]
+
+    const rewarder_coin = tx.moveCall({
+      target: `${clmm_pool.published_at}::pool::collect_reward`,
+      typeArguments: [...type_arguments, params.rewarder_coin_type],
+      arguments: args,
+    })
+    return rewarder_coin
   }
 }

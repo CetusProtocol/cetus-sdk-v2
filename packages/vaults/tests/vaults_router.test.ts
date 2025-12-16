@@ -6,7 +6,7 @@ import 'isomorphic-fetch'
 import { CetusVaultsSDK } from '../src/sdk'
 import { DepositParams, InputType } from '../src/types/vaults'
 
-const vaultId = '0xde97452e63505df696440f86f0b805263d8659b77b8c316739106009d514c270'
+const vaultId = '0x73e3ae25107adb4bda2a286773fd6998087c5c7978f0b5d0ceebea06e7d3e7b7'
 
 describe('vaults router', () => {
   // const sdk = CetusVaultsSDK.createSDK({ env: 'mainnet' })
@@ -34,6 +34,11 @@ describe('vaults router', () => {
     console.log('dataPage: ', dataPage.data)
   })
 
+  test('1 getAssignVaultList', async () => {
+    const pools = await sdk.Vaults.getAssignVaultList([vaultId])
+    console.log('pools: ', pools)
+  })
+
   test('2 getOwnerCoinBalances', async () => {
     const vault = await sdk.Vaults.getVault(vaultId)
     console.log('vault: ', vault)
@@ -51,22 +56,22 @@ describe('vaults router', () => {
     const result = await sdk.Vaults.calculateDepositAmount({
       vault_id: vaultId,
       fix_amount_a: false,
-      input_amount: toDecimalsAmount(3, 9).toString(),
+      input_amount: toDecimalsAmount(5, 9).toString(),
       slippage: 0.01,
-      side: InputType.OneSide,
+      side: InputType.Both,
     })
     console.log({ result })
 
-    const tx = new Transaction()
-    const params: DepositParams = {
-      vault_id: vaultId,
-      slippage: 0.01,
-      deposit_result: result,
-    }
+    // const tx = new Transaction()
+    // const params: DepositParams = {
+    //   vault_id: vaultId,
+    //   slippage: 0.01,
+    //   deposit_result: result,
+    // }
 
-    await sdk.Vaults.deposit(params, tx)
-    const txResult = await sdk.FullClient.sendTransaction(send_key_pair, tx)
-    console.log('deposit: ', txResult)
+    // await sdk.Vaults.deposit(params, tx)
+    // const txResult = await sdk.FullClient.sendTransaction(send_key_pair, tx)
+    // console.log('deposit: ', txResult)
     // const res = await sdk.FullClient.devInspectTransactionBlock({
     //   transactionBlock: tx,
     //   sender: sdk.getSenderAddress(),
@@ -75,11 +80,11 @@ describe('vaults router', () => {
   })
 
   test('2 one side deposit fix_amount_a true', async () => {
-    const input_amount = toDecimalsAmount(0.1, 9).toString()
+    const input_amount = toDecimalsAmount(10, 9).toString()
 
     const result = await sdk.Vaults.calculateDepositAmount({
       vault_id: vaultId,
-      fix_amount_a: true,
+      fix_amount_a: false,
       input_amount,
       slippage: 0.01,
       side: InputType.OneSide,
@@ -98,7 +103,7 @@ describe('vaults router', () => {
     // tx.getData().commands.forEach((command, index) => {
     //   console.log('command: ', index, command)
     // })
-    // const txResult = await sdk.FullClient.sendTransaction(sendKeypair, tx)
+    // const txResult = await sdk.FullClient.sendTransaction(send_key_pair, tx)
     // console.log('deposit: ', txResult)
 
     const res = await sdk.FullClient.devInspectTransactionBlock({
@@ -109,11 +114,11 @@ describe('vaults router', () => {
   })
 
   test('3 one side deposit fix_amount_a false', async () => {
-    const input_amount = toDecimalsAmount(3, 9).toString()
+    const input_amount = toDecimalsAmount(1, 9).toString()
 
     const result = await sdk.Vaults.calculateDepositAmount({
       vault_id: vaultId,
-      fix_amount_a: false,
+      fix_amount_a: true,
       input_amount,
       slippage: 0.01,
       side: InputType.OneSide,

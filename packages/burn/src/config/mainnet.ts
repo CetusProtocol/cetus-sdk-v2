@@ -11,8 +11,8 @@ export const burnMainnet: SdkOptions = {
      * https://www.moveregistry.com/package/@cetuspackages/lpburn
      */
     package_id: '0x12d73de9a6bc3cb658ec9dc0fe7de2662be1cea5c76c092fcc3606048cdbac27',
-    published_at: '0xa235e50f9eb9b9a869b343d9de09f54038a7ac39a5d9cf784a3a7bfa6819a3c1',
-    version: 6,
+    published_at: '0xa5d8457e049c8f2a04b7b47e925b200f457e57016aa158f050a931c8ead99fe0',
+    version: 7,
     config: {
       manager_id: '0x1d94aa32518d0cb00f9de6ed60d450c9a2090761f326752ffad06b2e9404f845',
       clmm_global_config: '0xdaa46292632c3c4d8f31f23ea0f9b36a28ff3677e9684980e4438403a67a3d8f',

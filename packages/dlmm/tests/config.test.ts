@@ -9,7 +9,7 @@ import { toB64, toBase64 } from '@mysten/sui/utils'
 import BN from 'bn.js'
 
 describe('config', () => {
-  const sdk = CetusDlmmSDK.createSDK({ env: 'mainnet' })
+  const sdk = CetusDlmmSDK.createSDK({ env: 'testnet' })
   let send_key_pair: Ed25519Keypair
   let account: string
 
@@ -43,7 +43,7 @@ describe('config', () => {
   })
 
   test('getBinStepConfigList', async () => {
-    const res = await sdk.Config.getBinStepConfigList('0xd51eb4320a8d4bc84d854eec4012c30425aebdb33b6bcc1fa85ce94319b63bcd')
+    const res = await sdk.Config.getBinStepConfigList('0xaf104c430fba556e51395aae4088eaee74982eec6b5599ae3302e18878151f74')
     console.log('🚀 ~ test ~ res:', res)
   })
 

@@ -600,7 +600,7 @@ export class PositionModule implements IModule<CetusClmmSDK> {
    * @param {RemoveLiquidityParams} params
    * @returns {TransactionBlock}
    */
-  async removeLiquidityPayload(params: RemoveLiquidityParams, tx?: Transaction): Promise<Transaction> {
+  async removeLiquidityPayload(params: RemoveLiquidityParams, tx?: Transaction): Promise<Transaction | { coin_a: TransactionObjectArgument; coin_b: TransactionObjectArgument }> {
     const { clmm_pool, integrate } = this.sdk.sdkOptions
 
     tx = tx || new Transaction()
@@ -639,6 +639,13 @@ export class PositionModule implements IModule<CetusClmmSDK> {
       typeArguments: [params.coin_type_b],
       arguments: [receiveCoinB, tx.pure.u64(params.min_amount_b)],
     })
+
+    if (params.is_return_coins) {
+      return {
+        coin_a: receiveCoinA,
+        coin_b: receiveCoinB,
+      }
+    }
 
     tx.transferObjects([receiveCoinA, receiveCoinB], this.sdk.getSenderAddress())
 
@@ -996,5 +1003,29 @@ export class PositionModule implements IModule<CetusClmmSDK> {
       arguments: args,
     })
     return tx
+  }
+
+  createCollectFeeAndReturnCoinsPayload(
+    params: CollectFeeParams,
+    tx: Transaction,
+  ) {
+    const { clmm_pool } = this.sdk.sdkOptions
+    const typeArguments = [params.coin_type_a, params.coin_type_b]
+    const args = [
+      tx.object(getPackagerConfigs(clmm_pool).global_config_id),
+      tx.object(params.pool_id),
+      tx.object(params.pos_id),
+      tx.pure.bool(true)
+    ]
+
+    const [fee_a, fee_b] = tx.moveCall({
+      target: `${clmm_pool.published_at}::pool::collect_fee`,
+      typeArguments,
+      arguments: args,
+    })
+    return {
+      fee_a,
+      fee_b
+    }
   }
 }

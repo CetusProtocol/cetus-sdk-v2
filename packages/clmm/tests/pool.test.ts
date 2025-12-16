@@ -88,7 +88,7 @@ const tokens = [
 ]
 describe('Pool Module', () => {
   let send_key_pair = buildTestAccount()
-  const sdk = CetusClmmSDK.createSDK({ env: 'mainnet', sui_client: new SuiClient({ url: 'https://rpc-mainnet.suiscan.xyz/' }) })
+  const sdk = CetusClmmSDK.createSDK({ env: 'mainnet', sui_client: new SuiClient({ url: 'https://fullnode.mainnet.sui.io:443' }) })
   sdk.setSenderAddress(send_key_pair.getPublicKey().toSuiAddress())
 
   test('getClmmConfigs', async () => {
@@ -171,6 +171,31 @@ describe('Pool Module', () => {
     const claimRefFeePayload = await sdk.Pool.claimPartnerRefFeePayload(partnerCap, partner, '0x2::sui::SUI')
     const transferTxn = await sdk.FullClient.sendTransaction(buildTestAccount(), claimRefFeePayload)
     console.log('doCreatePool: ', JSON.stringify(transferTxn))
+  })
+
+  test('claim all partner ref fees', async () => {
+    const partnerCap = '0x..'
+    const partner = '0x..'
+
+    const { ref_fees, tx } = await sdk.Pool.claimAllPartnerRefFeesPayload(partner, partnerCap)
+
+    console.log('All ref fees:', ref_fees)
+    console.log('Total ref fee types:', ref_fees.length)
+
+    const claimableRefFees = ref_fees.filter((fee) => fee.balance > BigInt(0))
+    console.log('Claimable ref fees:', claimableRefFees.length)
+
+    if (claimableRefFees.length > 0) {
+      console.log('Claimable ref fee details:')
+      claimableRefFees.forEach((fee) => {
+        console.log(`  - ${fee.coin_type}: ${fee.balance}`)
+      })
+
+      const transferTxn = await sdk.FullClient.sendSimulationTransaction(tx, '0x..')
+      console.log('Claim all ref fees transaction:', JSON.stringify(transferTxn))
+    } else {
+      console.log('No claimable ref fees (all balances are 0)')
+    }
   })
 
   test('get pool by coin types', async () => {

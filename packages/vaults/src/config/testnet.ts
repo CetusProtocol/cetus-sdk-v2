@@ -14,27 +14,6 @@ export const vaultsTestnet: SdkOptions = {
       admin_cap_id: '0x804c552b25adb4a532347956ae9992e9d4a1bd4727034d18a55d0a91caa1579d',
       vaults_manager_id: '0x72647044a12098594c6fa53baabcc82c1675ea5bd0a0a2725511d8edca68e476',
       vaults_pool_handle: '0x25d32be8892c28ab2845b91bcd95ece1b75f191a39dfd1f9681ba3212070c6c2',
-      haedal: {
-        package_id: '0xac2afb455cbcdc2ff1a2e9bbb8aa4ccb4506a544b08c740886892a5cdf92f472',
-        published_at: '0x9dac9c5770e5f930d2223ff68782958701acfaee9337e8d8363978ce7670dffb',
-        version: 1,
-        config: {
-          staking_id: '0x6e384d2da5b040b27f973155e25bbe4beb0ad5ca8ee0a36e20dff356094c9fc0',
-          coin_type: '0xac2afb455cbcdc2ff1a2e9bbb8aa4ccb4506a544b08c740886892a5cdf92f472::hasui::HASUI',
-        },
-      },
-      aftermath: {
-        package_id: '0x5e8c0fc2b3d8aa1b06eec36c08d9d835c73c0626a1efaebc0fb03aa52f1a3ff4',
-        published_at: '0x5e8c0fc2b3d8aa1b06eec36c08d9d835c73c0626a1efaebc0fb03aa52f1a3ff4',
-        version: 1,
-        config: {
-          staked_sui_vault: '0xe498a8c07ec62200c519a0092eda233abdab879e8f332c11bdc1819eb7b12fbb',
-          referral_vault: '0x8d357115058f22976cd01c5415116d9aca806d1ded37eecd75d87978f404e927',
-          safe: '0x38710a6e0bd885c158e52ec7a42c8a9a1826c6696b626b4a5e2d1dcb15cfd9b7',
-          validator_address: '0x9336c4c9d891e263cfac99adc397853a7392e5cf84cbd5df92207a57c7fbdadc',
-          coin_type: '0x5e8c0fc2b3d8aa1b06eec36c08d9d835c73c0626a1efaebc0fb03aa52f1a3ff4::afsui::AFSUI',
-        },
-      },
     },
   },
   vest: {

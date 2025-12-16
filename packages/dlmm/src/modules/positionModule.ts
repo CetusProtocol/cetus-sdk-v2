@@ -213,6 +213,22 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
    * @returns The transaction object
    */
   closePositionPayload(option: ClosePositionOption, tx?: Transaction): Transaction {
+    tx = tx || new Transaction()
+    const { coin_a_obj, coin_b_obj } = this.closePositionNoTransferPayload(option, tx)
+    tx.transferObjects([coin_a_obj, coin_b_obj], this.sdk.getSenderAddress())
+    return tx
+  }
+
+  /**
+   * Close a position without transferring the coins to the sender
+   * @param option - The option for closing a position
+   * @param tx
+   * @returns The transaction object
+   */
+  closePositionNoTransferPayload(
+    option: ClosePositionOption,
+    tx: Transaction
+  ): { coin_a_obj: TransactionObjectArgument; coin_b_obj: TransactionObjectArgument } {
     const { pool_id, position_id, reward_coins, coin_type_a, coin_type_b } = option
     const { dlmm_pool } = this.sdk.sdkOptions
     const { versioned_id, global_config_id } = getPackagerConfigs(dlmm_pool)
@@ -244,9 +260,10 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
       typeArguments: [],
     })
 
-    tx.transferObjects([coin_a_obj, coin_b_obj], this.sdk.getSenderAddress())
-
-    return tx
+    return {
+      coin_a_obj,
+      coin_b_obj,
+    }
   }
 
   /**
@@ -312,42 +329,9 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
       })
     }
 
-    const info = BinUtils.processBinsByRate([...used_bins], amount_rate.toFixed())
-    // If the proportional allocation results in an invalid amount, iterate through the bins and remove them one by one
-    if (info.has_invalid_amount) {
-      let remaining_amount = d(coin_amount)
-      const processed_bins: BinAmount[] = []
-      const is_amount_a = isBothSide ? option.fix_amount_a : option.is_only_a
-      for (const bin of used_bins) {
-        if (remaining_amount.lte(0)) break
+    const result_bins = BinUtils.processBinsByRate([...used_bins], amount_rate.toFixed())
 
-        const bin_amount = is_amount_a ? bin.amount_a : bin.amount_b
-        const bin_amount_other = is_amount_a ? bin.amount_b : bin.amount_a
-
-        let rate = d(d(remaining_amount).div(bin_amount).toFixed(9, Decimal.ROUND_UP))
-        rate = rate.gt(1) ? d(1) : rate
-        let amount_to_remove = d(bin_amount).mul(rate)
-        remaining_amount = remaining_amount.minus(amount_to_remove)
-
-        const amount_to_remove_other = d(bin_amount_other).mul(rate)
-        const liquidity_to_remove = d(bin.liquidity!).mul(rate)
-
-        processed_bins.push({
-          ...bin,
-          amount_a: is_amount_a ? amount_to_remove.toFixed(0) : amount_to_remove_other.toFixed(0),
-          amount_b: is_amount_a ? amount_to_remove_other.toFixed(0) : amount_to_remove.toFixed(0),
-          liquidity: liquidity_to_remove.toFixed(0),
-        })
-      }
-
-      return {
-        bins: processed_bins,
-        amount_a: processed_bins.reduce((acc, bin) => d(acc).plus(bin.amount_a), d(0)).toFixed(0),
-        amount_b: processed_bins.reduce((acc, bin) => d(acc).plus(bin.amount_b), d(0)).toFixed(0),
-      }
-    }
-
-    return info.bins
+    return result_bins
   }
 
   /**
@@ -398,8 +382,6 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
           active_bin.amount_a = d(active_bin.amount_a).sub(fees_a).toFixed(0)
           active_bin.amount_b = d(active_bin.amount_b).sub(fees_b).toFixed(0)
           bin_infos.bins[active_bin_index] = active_bin
-          console.log('🚀 ~ PositionModule ~ calculateAddLiquidityInfo ~ fees_a:', fees_a)
-          console.log('🚀 ~ PositionModule ~ calculateAddLiquidityInfo ~ fees_b:', fees_b)
         }
       }
     }
@@ -413,6 +395,19 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
    * @returns The transaction
    */
   removeLiquidityPayload(option: RemoveLiquidityOption): Transaction {
+    const tx = new Transaction()
+    const { coin_a_obj, coin_b_obj } = this.removeLiquidityNoTransferPayload(option, tx)
+    tx.transferObjects([coin_a_obj, coin_b_obj], this.sdk.getSenderAddress())
+    return tx
+  }
+
+  removeLiquidityNoTransferPayload(
+    option: RemoveLiquidityOption,
+    tx: Transaction
+  ): {
+    coin_a_obj: TransactionObjectArgument
+    coin_b_obj: TransactionObjectArgument
+  } {
     const {
       pool_id,
       position_id,
@@ -428,7 +423,6 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
     } = option
     const { dlmm_pool } = this.sdk.sdkOptions
     const { bins } = bin_infos
-    const tx = new Transaction()
 
     if (collect_fee || reward_coins.length > 0) {
       this.updatePositionFeeAndRewards({ pool_id, position_id, coin_type_a, coin_type_b }, tx)
@@ -461,7 +455,13 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
       })
       const coin_a_obj = CoinAssist.fromBalance(coin_a_balance, coin_type_a, tx)
       const coin_b_obj = CoinAssist.fromBalance(coin_b_balance, coin_type_b, tx)
-      tx.transferObjects([coin_a_obj, coin_b_obj], this.sdk.getSenderAddress())
+
+      this.validateActiveIdSlippage({ pool_id, active_id, max_price_slippage: slippage, bin_step, coin_type_a, coin_type_b }, tx)
+
+      return {
+        coin_a_obj,
+        coin_b_obj,
+      }
     } else {
       const bin_amounts = tx.pure.vector(
         'u32',
@@ -485,15 +485,17 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
         ],
         typeArguments: [coin_type_a, coin_type_b],
       })
+
+      this.validateActiveIdSlippage({ pool_id, active_id, max_price_slippage: slippage, bin_step, coin_type_a, coin_type_b }, tx)
+
       const coin_a_obj = CoinAssist.fromBalance(coin_a_balance, coin_type_a, tx)
       const coin_b_obj = CoinAssist.fromBalance(coin_b_balance, coin_type_b, tx)
-      tx.transferObjects([coin_a_obj, coin_b_obj], this.sdk.getSenderAddress())
+
+      return {
+        coin_a_obj,
+        coin_b_obj,
+      }
     }
-
-    // validate the active id slippage
-    this.validateActiveIdSlippage({ pool_id, active_id, max_price_slippage: slippage, bin_step, coin_type_a, coin_type_b }, tx)
-
-    return tx
   }
 
   /**
@@ -582,6 +584,8 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
       max_price_slippage,
       bin_step,
       use_bin_infos = false,
+      coin_object_id_a,
+      coin_object_id_b,
     } = option
     tx = tx || new Transaction()
 
@@ -616,8 +620,8 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
       console.log('🚀 ~ PositionModule ~ addLiquidityPayload ~ liquidity_bin:', index, liquidity_bin)
       const { amount_a, amount_b, bins } = liquidity_bin
 
-      const coin_a_obj_id = CoinAssist.buildCoinWithBalance(BigInt(amount_a), coin_type_a, tx)
-      const coin_b_obj_id = CoinAssist.buildCoinWithBalance(BigInt(amount_b), coin_type_b, tx)
+      const coin_a_obj_id = coin_object_id_a ? coin_object_id_a : CoinAssist.buildCoinWithBalance(BigInt(amount_a), coin_type_a, tx)
+      const coin_b_obj_id = coin_object_id_b ? coin_object_id_b : CoinAssist.buildCoinWithBalance(BigInt(amount_b), coin_type_b, tx)
 
       if (use_bin_infos) {
         this.addLiquidityInternal({

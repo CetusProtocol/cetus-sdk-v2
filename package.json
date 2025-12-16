@@ -17,7 +17,7 @@
     "update-peer-deps": "node scripts/update-peer-deps.js"
   },
   "dependencies": {
-    "@cetusprotocol/aggregator-sdk": "1.1.6",
+    "@cetusprotocol/aggregator-sdk": "1.4.1",
     "@mysten/sui": "1.34.0",
     "@suchipi/femver": "^1.0.0",
     "@types/bn.js": "^5.1.1",

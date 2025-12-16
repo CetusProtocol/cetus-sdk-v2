@@ -1,0 +1,38 @@
+{
+  "name": "@cetusprotocol/dlmm-zap-sdk",
+  "version": "1.0.0",
+  "description": "SDK for cetus dlmm zap",
+  "typings": "dist/index.d.ts",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint src/*.ts src/**/*.ts",
+    "lint:fix": "eslint src/*.ts src/**/*.ts --fix",
+    "build": "pnpm run build:tsup",
+    "build:tsup": "npm run build:clean && npm run _build:node",
+    "build:clean": "rm -rf dist",
+    "_build:node": "tsup --format cjs,esm --dts",
+    "build:doc": "npx typedoc",
+    "publish_batch:test": "npm publish --tag experimental",
+    "publish:test": "node ../../scripts/version.js zap && npm publish --tag experimental"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "keywords": [],
+  "author": "test",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@cetusprotocol/common-sdk": "workspace:*",
+    "@cetusprotocol/dlmm-sdk": "workspace:*",
+    "@cetusprotocol/test-utils": "workspace:*"
+  },
+  "peerDependencies": {
+    "@cetusprotocol/common-sdk": "*",
+    "@cetusprotocol/aggregator-sdk": ">=1.1.6",
+    "@cetusprotocol/dlmm-sdk": "*",
+    "@mysten/sui": "*"
+  }
+}

@@ -8,7 +8,6 @@ import {
   CalculateRemoveAmountResult,
   DepositParams,
   InputType,
-  SuiStakeProtocol,
   Vault,
   VaultsConfigs,
   VaultsRouterModule,
@@ -17,7 +16,7 @@ import {
   WithdrawOneSideParams,
 } from '../types'
 
-import { AggregatorClient, BuildRouterSwapParamsV3, FindRouterParams, PreSwapLpChangeParams } from '@cetusprotocol/aggregator-sdk'
+import { AggregatorClient, FindRouterParams, PreSwapLpChangeParams } from '@cetusprotocol/aggregator-sdk'
 import { ClmmIntegrateRouterModule, PositionUtils } from '@cetusprotocol/sui-clmm-sdk'
 import {
   BuildCoinResult,
@@ -37,10 +36,7 @@ import {
 } from '@cetusprotocol/common-sdk'
 import { handleMessageError, VaultsErrorCode } from '../errors'
 import { CetusVaultsSDK } from '../sdk'
-import { AftermathUtils } from '../utils/aftermath'
-import { HaedalUtils } from '../utils/haedal'
 import { VaultsUtils } from '../utils/vaults'
-import { VoloUtils } from '../utils/volo'
 
 /**
  * Helper class to help interact with Vaults interface.
@@ -253,7 +249,6 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
           swap_out_amount: swap_out_amount,
           a2b,
           is_exceed,
-          sui_stake_protocol: SuiStakeProtocol.Cetus,
           route_obj: data.route_obj,
         },
       }
@@ -300,76 +295,54 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
       let swap_in_amount
       let swap_out_amount
       let swap_out_amount_limit
-      const suiStakeProtocol = this.findSuiStakeProtocol(position.coin_type_a, position.coin_type_b, fix_input_amount_a)
-      if (suiStakeProtocol !== SuiStakeProtocol.Cetus) {
-        swap_data = await this.calculateStakeDepositFixSui({
-          input_sui_amount: d(params.input_amount),
-          swap_sui_amount: swap_amount,
+
+      swap_data = await this.findRouters(
+        pool.id,
+        pool.current_sqrt_price.toString(),
+        a2b ? pool.coin_type_a : pool.coin_type_b,
+        a2b ? pool.coin_type_b : pool.coin_type_a,
+        swap_amount,
+        true,
+        [pool.id]
+      )
+
+      pares_swap_data = this.paresSwapData(
+        swap_data,
+        params.input_amount,
+        params.fix_amount_a,
+        a2b,
+        lowerTick,
+        upperTick,
+        ratio_a,
+        ratio_b,
+        slippage
+      )
+      swap_out_amount_limit = pares_swap_data.swap_out_amount_limit
+      const max_remaining = d(params.input_amount).mul(max_remain_rate)
+      if (d(params.input_amount).sub(pares_swap_data.pre_amount_total).gt(max_remaining)) {
+        const rebalance_params = {
+          clmm_pool: pool.id,
+          cur_sqrt_price: pool.current_sqrt_price.toString(),
+          a2b,
+          amount_a: a2b ? d(input_amount) : d(0),
+          amount_b: a2b ? d(0) : d(params.input_amount),
+          amount_left: a2b ? d(swap_amount.toFixed(0)) : d(0),
+          amount_right: a2b ? d(input_amount) : d(swap_amount.toFixed(0)),
           lower_tick: lowerTick,
           upper_tick: upperTick,
-          cur_sqrt_price: pool.current_sqrt_price.toString(),
-          remain_rate: 0.01,
-          fix_coin_a: params.fix_amount_a,
-          rebalance_count: 0,
-          should_request_stake: should_request_stake,
-          left_sui_amount: a2b ? new Decimal(swap_amount.toFixed(0)) : new Decimal(0),
-          right_sui_amount: a2b ? new Decimal(params.input_amount) : new Decimal(swap_amount.toFixed(0)),
-          slippage,
-          stake_protocol: suiStakeProtocol,
-        })
-        after_sqrt_price = pool.current_sqrt_price.toString()
-        fix_amount_a = swap_data.fix_amount_a
-        swap_in_amount = swap_data.swap_in_amount
-        swap_out_amount = swap_data.swap_out_amount
-        swap_out_amount_limit = swap_data.swap_out_amount_limit
-      } else {
-        swap_data = await this.findRouters(
-          pool.id,
-          pool.current_sqrt_price.toString(),
-          a2b ? pool.coin_type_a : pool.coin_type_b,
-          a2b ? pool.coin_type_b : pool.coin_type_a,
-          swap_amount,
-          true,
-          [pool.id]
-        )
+          tick_spacing: 2,
+          coin_type_a: position.coin_type_a,
+          coin_type_b: position.coin_type_b,
+          remain_rate: 0.02,
+          price_split_point: slippage,
+          use_route: use_route,
+          max_loop_limit: max_loop_limit,
+        }
+        const use_rebalance = adjust_best_amount && first_tick <= upperTick
 
-        pares_swap_data = this.paresSwapData(
-          swap_data,
-          params.input_amount,
-          params.fix_amount_a,
-          a2b,
-          lowerTick,
-          upperTick,
-          ratio_a,
-          ratio_b,
-          slippage
-        )
-        swap_out_amount_limit = pares_swap_data.swap_out_amount_limit
-        const max_remaining = d(params.input_amount).mul(max_remain_rate)
-        if (d(params.input_amount).sub(pares_swap_data.pre_amount_total).gt(max_remaining)) {
-          const rebalance_params = {
-            clmm_pool: pool.id,
-            cur_sqrt_price: pool.current_sqrt_price.toString(),
-            a2b,
-            amount_a: a2b ? d(input_amount) : d(0),
-            amount_b: a2b ? d(0) : d(params.input_amount),
-            amount_left: a2b ? d(swap_amount.toFixed(0)) : d(0),
-            amount_right: a2b ? d(input_amount) : d(swap_amount.toFixed(0)),
-            lower_tick: lowerTick,
-            upper_tick: upperTick,
-            tick_spacing: 2,
-            coin_type_a: position.coin_type_a,
-            coin_type_b: position.coin_type_b,
-            remain_rate: 0.02,
-            price_split_point: slippage,
-            use_route: use_route,
-            max_loop_limit: max_loop_limit,
-          }
-          const use_rebalance = adjust_best_amount && first_tick <= upperTick
-
-          swap_data = use_rebalance
-            ? await this.calculateRebalance(rebalance_params)
-            : await this.findRouters(
+        swap_data = use_rebalance
+          ? await this.calculateRebalance(rebalance_params)
+          : await this.findRouters(
               pool.id,
               pool.current_sqrt_price.toString(),
               a2b ? pool.coin_type_a : pool.coin_type_b,
@@ -378,27 +351,26 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
               true,
               [pool.id]
             )
-        }
-
-        after_sqrt_price = swap_data.after_sqrt_price
-
-        pares_swap_data = this.paresSwapData(
-          swap_data,
-          params.input_amount,
-          params.fix_amount_a,
-          a2b,
-          lowerTick,
-          upperTick,
-          ratio_a,
-          ratio_b,
-          slippage
-        )
-        swap_out_amount_limit = pares_swap_data.swap_out_amount_limit
-        fix_amount_a = pares_swap_data.fix_amount_a
-        swap_in_amount = pares_swap_data.swap_in_amount
-        swap_out_amount = pares_swap_data.swap_out_amount
-        after_sqrt_price = pares_swap_data.after_sqrt_price
       }
+
+      after_sqrt_price = swap_data.after_sqrt_price
+
+      pares_swap_data = this.paresSwapData(
+        swap_data,
+        params.input_amount,
+        params.fix_amount_a,
+        a2b,
+        lowerTick,
+        upperTick,
+        ratio_a,
+        ratio_b,
+        slippage
+      )
+      swap_out_amount_limit = pares_swap_data.swap_out_amount_limit
+      fix_amount_a = pares_swap_data.fix_amount_a
+      swap_in_amount = pares_swap_data.swap_in_amount
+      swap_out_amount = pares_swap_data.swap_out_amount
+      after_sqrt_price = pares_swap_data.after_sqrt_price
 
       const coin_amount = fix_amount_a === fix_input_amount_a ? d(input_amount).sub(swap_in_amount).toFixed(0) : swap_out_amount_limit
 
@@ -430,7 +402,6 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
           swap_in_amount: swap_in_amount,
           swap_out_amount: swap_out_amount,
           a2b: fix_input_amount_a,
-          sui_stake_protocol: suiStakeProtocol,
           route_obj: swap_data.route_obj,
           is_exceed: swap_data.is_exceed,
           after_sqrt_price: after_sqrt_price,
@@ -496,7 +467,7 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
 
       pre_amount_total = d(fix_input_amount_a ? amount_a.toString() : amount_b.toString()).add(swap_in_amount)
 
-      if (pre_amount_total.greaterThanOrEqualTo(input_amount)) {
+      if (pre_amount_total.greaterThan(input_amount)) {
         fix_amount_a = !fix_amount_a
       }
     }
@@ -509,118 +480,6 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
       swap_out_amount_limit,
       after_sqrt_price,
     }
-  }
-
-  /**
-   * @param params
-   */
-  async calculateStakeDepositFixSui(params: {
-    input_sui_amount: Decimal
-    swap_sui_amount: Decimal
-    left_sui_amount: Decimal
-    right_sui_amount: Decimal
-    lower_tick: number
-    upper_tick: number
-    cur_sqrt_price: string
-    remain_rate: number
-    fix_coin_a: boolean
-    rebalance_count: number
-    should_request_stake: boolean
-    stake_protocol: SuiStakeProtocol
-    slippage: number
-    exchange_rate?: string
-  }): Promise<any | null> {
-    // if (params.swapSuiAmount.lessThan(1000000000)) {
-    //   throw Error('HaedalStakeSuiAmountError')
-    // }
-    const remain_sui_limit = params.input_sui_amount.mul(params.remain_rate)
-    const remain_sui = params.input_sui_amount.sub(params.swap_sui_amount)
-    let exchange_rate
-    if (params.should_request_stake) {
-      exchange_rate = await this.getExchangeRateForStake(
-        params.stake_protocol,
-        params.should_request_stake,
-        Number(params.swap_sui_amount.toFixed(0))
-      )
-    } else {
-      exchange_rate = params.exchange_rate
-        ? params.exchange_rate
-        : await this.getExchangeRateForStake(params.stake_protocol, params.should_request_stake, Number(params.swap_sui_amount.toFixed(0)))
-    }
-    // const exchangeRate =  params.exchangeRate
-    //   ? params.exchangeRate
-    //   : await this.getExchangeRateForStake(params.stakeProtocol, params.shouldRequestStake, Number(params.swapSuiAmount.toFixed(0)))
-    const hasui_amount = params.swap_sui_amount.div(exchange_rate).toFixed(0, Decimal.ROUND_DOWN)
-
-    const liquidity_input = ClmmPoolUtil.estLiquidityAndCoinAmountFromOneAmounts(
-      params.lower_tick,
-      params.upper_tick,
-      new BN(hasui_amount.toString()),
-      !params.fix_coin_a,
-      true,
-      0,
-      new BN(params.cur_sqrt_price)
-    )
-    const use_sui_amount = params.fix_coin_a ? liquidity_input.coin_amount_a.toString() : liquidity_input.coin_amount_b.toString()
-    const act_remain_sui = d(remain_sui).sub(use_sui_amount)
-
-    if (
-      (act_remain_sui.greaterThanOrEqualTo(0) && act_remain_sui.lessThanOrEqualTo(remain_sui_limit)) ||
-      params.rebalance_count > 12 ||
-      params.left_sui_amount.greaterThanOrEqualTo(params.right_sui_amount)
-    ) {
-      return {
-        swap_in_amount: params.swap_sui_amount.toFixed(0),
-        swap_out_amount: hasui_amount,
-        swap_out_amount_limit: d(hasui_amount)
-          .mul(1 - params.slippage)
-          .toFixed(0),
-        after_sqrt_price: params.cur_sqrt_price,
-        fix_amount_a: !params.fix_coin_a,
-        is_exceed: true,
-        request_id: '',
-        stake_protocol: params.stake_protocol,
-      }
-    }
-    if (act_remain_sui.lessThan(0)) {
-      return await this.calculateStakeDepositFixSui({
-        ...params,
-        right_sui_amount: params.swap_sui_amount,
-        swap_sui_amount: params.swap_sui_amount.add(params.left_sui_amount).div(2),
-        exchange_rate,
-        rebalance_count: params.rebalance_count + 1,
-      })
-    }
-
-    if (act_remain_sui.greaterThan(remain_sui_limit)) {
-      return await this.calculateStakeDepositFixSui({
-        ...params,
-        left_sui_amount: params.swap_sui_amount,
-        swap_sui_amount: params.swap_sui_amount.add(params.right_sui_amount).div(2),
-        exchange_rate,
-        rebalance_count: params.rebalance_count + 1,
-      })
-    }
-
-    return null
-  }
-
-  /**
-   * Get the exchange rate of haSUI:SUI
-   * @param shouldRequestStake  When it is true, simulation calculations are performed through the pledge logic.
-   * @returns
-   */
-  async getExchangeRateForStake(staking_protocol: SuiStakeProtocol, should_request_stake: boolean, swap_amount?: number): Promise<string> {
-    if (staking_protocol === SuiStakeProtocol.Haedal) {
-      return await HaedalUtils.getExchangeRateForStake(this._sdk, should_request_stake, swap_amount)
-    }
-    if (staking_protocol === SuiStakeProtocol.Volo) {
-      return await VoloUtils.getExchangeRateForStake(this._sdk, should_request_stake, swap_amount)
-    }
-    if (staking_protocol === SuiStakeProtocol.Aftermath) {
-      return await AftermathUtils.getExchangeRateForStake(this._sdk, should_request_stake, swap_amount)
-    }
-    return '0'
   }
 
   public async findRouters(
@@ -666,11 +525,11 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
 
       let after_sqrt_price = cur_sqrt_price
       // res.paths.forEach((splitPath: any) => {
-        const basePath: any = res.paths.find((basePath: any) => basePath.id.toLowerCase() === clmm_pool.toLowerCase())
-        if (basePath && basePath.extendedDetails && basePath.extendedDetails.afterSqrtPrice) {
-          // after_sqrt_price
-          after_sqrt_price = String(basePath.extendedDetails.afterSqrtPrice)
-        }
+      const basePath: any = res.paths.find((basePath: any) => basePath.id.toLowerCase() === clmm_pool.toLowerCase())
+      if (basePath && basePath.extendedDetails && basePath.extendedDetails.afterSqrtPrice) {
+        // after_sqrt_price
+        after_sqrt_price = String(basePath.extendedDetails.afterSqrtPrice)
+      }
       // })
       return {
         amount_in: res.amountIn.toString(),
@@ -696,10 +555,10 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
           if (res) {
             let after_sqrt_price = cur_sqrt_price
             // res.routeData.paths.forEach((splitPath: any) => {
-              const basePath: any = res.routeData.paths.find((basePath: any) => basePath.id.toLowerCase() === clmm_pool.toLowerCase())
-              if (basePath) {
-                after_sqrt_price = String(basePath.extendedDetails.afterSqrtPrice)
-              }
+            const basePath: any = res.routeData.paths.find((basePath: any) => basePath.id.toLowerCase() === clmm_pool.toLowerCase())
+            if (basePath) {
+              after_sqrt_price = String(basePath.extendedDetails.afterSqrtPrice)
+            }
             // })
 
             return {
@@ -921,7 +780,6 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
           swap_in_amount: swap_result.swap_in_amount,
           swap_in_coin,
           a2b: swap_result.a2b,
-          sui_stake_protocol: swap_result.sui_stake_protocol,
           route_obj: swap_result.route_obj,
         },
         tx
@@ -1004,32 +862,14 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
       swap_in_amount: string
       swap_in_coin: TransactionObjectArgument
       a2b: boolean
-      sui_stake_protocol: SuiStakeProtocol
       route_obj?: any
     },
     tx: Transaction
   ) {
-    const {
-      partner,
-      coin_type_a,
-      coin_type_b,
-      slippage,
-      clmm_pool_address,
-      swap_in_amount,
-      a2b,
-      sui_stake_protocol,
-      route_obj,
-      swap_in_coin,
-    } = params
+    const { partner, coin_type_a, coin_type_b, slippage, clmm_pool_address, swap_in_amount, a2b, route_obj, swap_in_coin } = params
     const { clmm_pool, integrate } = this._sdk.ClmmSDK.sdkOptions
     const swap_coin_input_from = swap_in_coin
 
-    if (sui_stake_protocol !== SuiStakeProtocol.Cetus) {
-      const ha_sui_coin = this.requestStakeCoin(sui_stake_protocol, tx, swap_coin_input_from)!
-      return {
-        swap_out_coin: ha_sui_coin,
-      }
-    }
     if (route_obj) {
       const routerParamsV2 = {
         router: route_obj,
@@ -1074,28 +914,6 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
     return {
       swap_out_coin: swapOutCoin,
     }
-  }
-
-  /**
-   * the haSUI is just returned
-   * @param tx
-   * @param sui_coin
-   * @returns
-   */
-  requestStakeCoin(staking_protocol: SuiStakeProtocol, tx: Transaction, sui_coin: TransactionArgument) {
-    if (staking_protocol === SuiStakeProtocol.Haedal) {
-      return HaedalUtils.requestStakeCoin(this._sdk, tx, sui_coin)
-    }
-
-    if (staking_protocol === SuiStakeProtocol.Volo) {
-      return VoloUtils.requestStakeCoin(this._sdk, tx, sui_coin)
-    }
-
-    if (staking_protocol === SuiStakeProtocol.Aftermath) {
-      return AftermathUtils.requestStakeCoin(this._sdk, tx, sui_coin)
-    }
-
-    return undefined
   }
 
   private async depositInternal(
@@ -1409,7 +1227,6 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
     objectList.forEach((item: any) => {
       const pool = VaultsUtils.buildPool(item)
       if (pool) {
-        pool.stake_protocol = this.findStakeProtocol(pool.position.coin_type_a, pool.position.coin_type_b)
         this.savePoolToCache(pool)
         poolList.push(pool)
       }
@@ -1419,38 +1236,19 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
     return res
   }
 
-  public findStakeProtocol(coin_type_a: string, coin_type_b: string): SuiStakeProtocol | undefined {
-    const { haedal, volo, aftermath } = getPackagerConfigs(this._sdk.sdkOptions.vaults)
-
-    const coin_type_a_format = extractStructTagFromType(coin_type_a).full_address
-    const coin_type_b_format = extractStructTagFromType(coin_type_b).full_address
-
-    if (!(CoinAssist.isSuiCoin(coin_type_a_format) || CoinAssist.isSuiCoin(coin_type_b_format))) {
-      return undefined
+  async getAssignVaultList(poolIds: string[]): Promise<Vault[]> {
+    const poolList: Vault[] = []
+    if (poolIds.length > 0) {
+      const objectList = await this._sdk.FullClient.batchGetObjects(poolIds, { showContent: true })
+      objectList.forEach((item: any) => {
+        const pool = VaultsUtils.buildPool(item)
+        if (pool) {
+          this.savePoolToCache(pool)
+          poolList.push(pool)
+        }
+      })
     }
-
-    if (haedal) {
-      const coin_type = extractStructTagFromType(getPackagerConfigs(haedal).coin_type).full_address
-      if (coin_type_a_format === coin_type || coin_type_b_format === coin_type) {
-        return SuiStakeProtocol.Haedal
-      }
-    }
-
-    if (volo) {
-      const coin_type = extractStructTagFromType(getPackagerConfigs(volo).coin_type).full_address
-      if (coin_type_a_format === coin_type || coin_type_b_format === coin_type) {
-        return SuiStakeProtocol.Volo
-      }
-    }
-
-    if (aftermath) {
-      const coin_type = extractStructTagFromType(getPackagerConfigs(aftermath).coin_type).full_address
-      if (coin_type_a_format === coin_type || coin_type_b_format === coin_type) {
-        return SuiStakeProtocol.Aftermath
-      }
-    }
-
-    return undefined
+    return poolList
   }
 
   /**
@@ -1489,38 +1287,6 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
   private readPoolFromCache(id: string, force_refresh = false) {
     const cache_key = `${id}_mirror_pool`
     return this._sdk.getCache<Vault>(cache_key, force_refresh)
-  }
-
-  public findSuiStakeProtocol(coin_type_a: string, coin_type_b: string, fix_amount_a: boolean): SuiStakeProtocol {
-    const { haedal, volo, aftermath } = getPackagerConfigs(this._sdk.sdkOptions.vaults)
-
-    const coin_type_a_format = extractStructTagFromType(coin_type_a).full_address
-    const coin_type_b_format = extractStructTagFromType(coin_type_b).full_address
-
-    if ((CoinAssist.isSuiCoin(coin_type_a_format) && fix_amount_a) || (CoinAssist.isSuiCoin(coin_type_b_format) && !fix_amount_a)) {
-      if (haedal) {
-        const coin_type = extractStructTagFromType(getPackagerConfigs(haedal).coin_type).full_address
-        if (coin_type_a_format === coin_type || coin_type_b_format === coin_type) {
-          return SuiStakeProtocol.Haedal
-        }
-      }
-
-      if (volo) {
-        const coin_type = extractStructTagFromType(getPackagerConfigs(volo).coin_type).full_address
-        if (coin_type_a_format === coin_type || coin_type_b_format === coin_type) {
-          return SuiStakeProtocol.Volo
-        }
-      }
-
-      if (aftermath) {
-        const coin_type = extractStructTagFromType(getPackagerConfigs(aftermath).coin_type).full_address
-        if (coin_type_a_format === coin_type || coin_type_b_format === coin_type) {
-          return SuiStakeProtocol.Aftermath
-        }
-      }
-    }
-
-    return SuiStakeProtocol.Cetus
   }
 
   public getOwnerVaultsBalance = async (wallet_address: any) => {

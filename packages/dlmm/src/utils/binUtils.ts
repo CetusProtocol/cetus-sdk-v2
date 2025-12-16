@@ -50,25 +50,26 @@ export class BinUtils {
    * @param rate - The rate to be applied
    * @returns The processed bins
    */
-  static processBinsByRate(bins: BinAmount[], rate: string): { bins: BinLiquidityInfo; has_invalid_amount: boolean } {
+  static processBinsByRate(bins: BinAmount[], rate: string): BinLiquidityInfo {
     const used_bins: BinAmount[] = []
     let used_total_amount_a = d(0)
     let used_total_amount_b = d(0)
 
-    let has_invalid_amount = false
-
     bins.forEach((bin) => {
       const { amount_a, amount_b, liquidity = '0' } = bin
       const used_liquidity = d(rate).mul(liquidity).toFixed(0)
-      const used_amount_a = d(amount_a).mul(rate)
-      const used_amount_b = d(amount_b).mul(rate)
+      let used_amount_a = d(amount_a).mul(rate)
+      let used_amount_b = d(amount_b).mul(rate)
+
+      if (d(used_amount_a).lt(1) && d(used_amount_a).gt(0)) {
+        used_amount_a = d(1)
+      }
+      if (d(used_amount_b).lt(1) && d(used_amount_b).gt(0)) {
+        used_amount_b = d(1)
+      }
 
       used_total_amount_a = d(used_total_amount_a).plus(used_amount_a)
       used_total_amount_b = d(used_total_amount_b).plus(used_amount_b)
-
-      if ((d(used_amount_a).lt(1) && d(used_amount_a).gt(0)) || (d(used_amount_b).lt(1) && d(used_amount_b).gt(0))) {
-        has_invalid_amount = true
-      }
 
       used_bins.push({
         bin_id: bin.bin_id,
@@ -80,12 +81,9 @@ export class BinUtils {
     })
 
     return {
-      bins: {
-        bins: used_bins,
-        amount_a: used_total_amount_a.toFixed(0),
-        amount_b: used_total_amount_b.toFixed(0),
-      },
-      has_invalid_amount,
+      bins: used_bins,
+      amount_a: used_total_amount_a.toFixed(0),
+      amount_b: used_total_amount_b.toFixed(0),
     }
   }
 

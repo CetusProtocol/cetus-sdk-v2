@@ -10,41 +10,11 @@ export type VaultsConfigs = {
   admin_cap_id: string
   vaults_manager_id: string
   vaults_pool_handle: string
-  haedal?: Package<HaedalConfigs>
-  volo?: Package<VoloConfigs>
-  aftermath?: Package<AftermathConfigs>
-}
-
-export type HaedalConfigs = {
-  staking_id: string
-  coin_type: string
-}
-
-export type VoloConfigs = {
-  native_pool: string
-  vsui_metadata: string
-  coin_type: string
-}
-// https://ch-docs.aftermath.finance/liu-dong-zhi-ya/he-yue
-// https://aftermath.finance/api/staking/validator-configs
-// https://testnet.aftermath.finance/api/staking/validator-configs
-export type AftermathConfigs = {
-  staked_sui_vault: string
-  referral_vault: string
-  safe: string
-  validator_address: string
-  coin_type: string
 }
 
 export enum VaultStatus {
   STATUS_RUNNING = 'STATUS_RUNNING',
   STATUS_REBALANCING = 'STATUS_REBALANCING',
-}
-
-export enum StakeProtocol {
-  Haedal = 'Haedal',
-  Volo = 'Volo',
-  Aftermath = 'aftermath',
 }
 
 export type Vault = {
@@ -63,7 +33,6 @@ export type Vault = {
   max_quota: string
   quota_based_type: string
   status: VaultStatus
-  stake_protocol?: SuiStakeProtocol
 }
 
 export type RemoveParams = {
@@ -93,23 +62,8 @@ export type CalculateDepositOnlyParams = {
   clmm_pool: string
   request_id?: string
   use_route: boolean
-  stake_protocol?: StakeProtocol
   should_request_stake: boolean
   pools: string[]
-} & CoinPairType
-
-export type CalculateHaedalDepositOnlyParams = {
-  lower_tick: number
-  upper_tick: number
-  cur_sqrt_price: string
-  fix_amount_a: boolean
-  input_amount: string
-  price_split_point: number
-  remain_rate?: number
-  clmm_pool: string
-  request_id?: string
-  stake_protocol: StakeProtocol
-  should_request_stake: boolean
 } & CoinPairType
 
 export type CalculateDepositOnlyResult = {
@@ -120,7 +74,6 @@ export type CalculateDepositOnlyResult = {
   is_exceed: boolean
   request_id?: string
   route_obj?: any
-  stake_protocol?: StakeProtocol
 }
 
 export type CalculateMaxAvailableParams = {
@@ -155,13 +108,6 @@ export type CalculateRemoveOnlyResult = {
   a2b: boolean
   by_amount_in: boolean
   route_Obj?: any
-}
-
-export enum SuiStakeProtocol {
-  Cetus = 'Cetus',
-  Haedal = 'Haedal',
-  Volo = 'Volo',
-  Aftermath = 'aftermath',
 }
 
 export enum InputType {
@@ -205,7 +151,6 @@ export type SwapAmountResult = {
   swap_out_amount: string
   a2b: boolean
   is_exceed: boolean
-  sui_stake_protocol: SuiStakeProtocol
   after_sqrt_price?: string
   route_obj?: any
 }

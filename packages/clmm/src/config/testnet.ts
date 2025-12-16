@@ -62,7 +62,7 @@ export const clmmTestnet: SdkOptions = {
   },
   clmm_pool: {
     package_id: '0x5372d555ac734e272659136c2a0cd3227f9b92de67c80dc11250307268af2db8',
-    published_at: '0x5372d555ac734e272659136c2a0cd3227f9b92de67c80dc11250307268af2db8',
+    published_at: '0x6bbdf09f9fa0baa1524080a5b8991042e95061c4e1206217279aec51ba08edf7',
     config: {
       pools_id: '0x20a086e6fa0741b3ca77d033a65faf0871349b986ddbdde6fa1d85d78a5f4222',
       global_config_id: '0xc6273f844b4bc258952c4e477697aa12c918c8e08106fac6b934811298c9820a',
@@ -72,8 +72,8 @@ export const clmmTestnet: SdkOptions = {
     },
   },
   integrate: {
-    package_id: '0x36187418dd79415d50e2e5903f9b3caca582052005f062959c86da64e82107a9',
-    published_at: '0x36187418dd79415d50e2e5903f9b3caca582052005f062959c86da64e82107a9',
+    package_id: '0xab2d58dd28ff0dc19b18ab2c634397b785a38c342a8f5065ade5f53f9dbffa1c',
+    published_at: '0xab2d58dd28ff0dc19b18ab2c634397b785a38c342a8f5065ade5f53f9dbffa1c',
     version: 1,
   },
   stats_pools_url: 'https://api-sui.devcetus.com/v2/sui/stats_pools',

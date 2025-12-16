@@ -41,9 +41,7 @@ export class ConfigModule implements IModule<CetusDlmmSDK> {
   }
 
   async getBinStepConfigList(bin_steps_handle: string): Promise<BinStepConfig[]> {
-    const res = await this._sdk.FullClient.getDynamicFields({
-      parentId: bin_steps_handle,
-    })
+    const res = await this._sdk.FullClient.getDynamicFieldsByPage(bin_steps_handle)
 
     const list: BinStepConfig[] = []
 

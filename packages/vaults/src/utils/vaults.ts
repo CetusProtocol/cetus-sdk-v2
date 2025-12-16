@@ -110,7 +110,7 @@ export class VaultsUtils {
    */
   static getLpAmountByLiquidity(vault: Vault, current_liquidity: string) {
     if (vault.total_supply === '0') {
-      return '0'
+      return current_liquidity
     }
     return d(vault.total_supply).mul(current_liquidity).div(vault.liquidity).toFixed(0, Decimal.ROUND_DOWN).toString()
   }

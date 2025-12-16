@@ -22,6 +22,11 @@ export type BigNumber = Decimal.Value | number | string
 export const CLOCK_ADDRESS = '0x0000000000000000000000000000000000000000000000000000000000000006'
 
 /**
+ * Error handling RPC priority list
+ */
+export const ERROR_HANDLING_RPC_LIST = ['https://rpc-mainnet.suiscan.xyz:443', 'https://cetus-mainnet-endpoint.blockvision.org', 'https://cetus-suimain-e31f.mainnet.sui.rpcpool.com']
+
+/**
  * The address for CoinInfo module.
  */
 export const CoinInfoAddress = '0x1::coin::CoinInfo'

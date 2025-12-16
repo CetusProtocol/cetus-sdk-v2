@@ -27,7 +27,7 @@ import { deriveDynamicFieldIdByType, ValueBcsType } from '../utils/dynamicField'
 import { CoinAssist } from '../utils'
 import { SuiGraphQLClient } from '@mysten/sui/graphql'
 import { graphql } from '@mysten/sui/graphql/schemas/latest'
-
+import {ERROR_HANDLING_RPC_LIST} from '../type/sui'
 /**
  * A wrapper around the SuiClient that provides additional methods for querying and sending transactions.
  * This class is designed to be used in conjunction with the SuiClient to provide a more comprehensive API for interacting with the Sui blockchain.
@@ -196,27 +196,45 @@ export class ExtendedSuiClient<T extends SuiClient> {
     query: SuiObjectResponseQuery,
     pagination_args: PaginationArgs = 'all'
   ): Promise<DataPage<SuiObjectResponse>> {
-    let result: SuiObjectResponse[] = []
-    let hasNextPage = true
-    const queryAll = pagination_args === 'all'
-    let nextCursor = queryAll ? null : pagination_args.cursor
-    do {
-      const res: PaginatedObjectsResponse = await this._client.getOwnedObjects({
-        owner,
-        ...query,
-        cursor: nextCursor,
-        limit: queryAll ? null : pagination_args.limit,
-      })
-      if (res.data) {
-        result = [...result, ...res.data]
-        hasNextPage = res.hasNextPage
-        nextCursor = res.nextCursor
-      } else {
-        hasNextPage = false
-      }
-    } while (queryAll && hasNextPage)
+    const fetchOwnedObjects = async (client: Pick<SuiClient, 'getOwnedObjects'>) => {
+      let result: SuiObjectResponse[] = []
+      let hasNextPage = true
+      const queryAll = pagination_args === 'all'
+      let nextCursor = queryAll ? null : pagination_args.cursor
+      do {
+        const res: PaginatedObjectsResponse = await client.getOwnedObjects({
+          owner,
+          ...query,
+          cursor: nextCursor,
+          limit: queryAll ? null : pagination_args.limit,
+        })
+        if (res.data) {
+          result = [...result, ...res.data]
+          hasNextPage = res.hasNextPage
+          nextCursor = res.nextCursor
+        } else {
+          hasNextPage = false
+        }
+      } while (queryAll && hasNextPage)
 
-    return { data: result, next_cursor: nextCursor, has_next_page: hasNextPage }
+      return { data: result, next_cursor: nextCursor, has_next_page: hasNextPage }
+    }
+
+    try {
+      return await fetchOwnedObjects(this._client)
+    } catch (error) {
+      let lastError: unknown = error
+      for (const rpcUrl of ERROR_HANDLING_RPC_LIST) {
+        try {
+          const fallbackClient = createFullClient(new SuiClient({ url: rpcUrl }), this._graphQLClient, this._env)
+          return await fetchOwnedObjects(fallbackClient)
+        } catch (fallbackError) {
+          lastError = fallbackError
+          continue
+        }
+      }
+      throw lastError
+    }
   }
 
   /**

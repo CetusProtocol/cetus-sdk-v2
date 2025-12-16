@@ -12,11 +12,11 @@ import {
 import { printTransaction } from '@cetusprotocol/common-sdk'
 import { parseLiquidityShares } from '../src/utils/parseData'
 
-const pool_id = '0x0bec57bb33a99d0a999a3257c047c8ab35e611acd59d7a2b7a0fb5d89aaffe9e'
-const position_id = '0xa99890fa6a8d4be06413759d04351d712377e5fda3cc03daf7f4815d99477d77'
+const pool_id = '0x8fd240c6488d7e4f29481fbe6e498f37add3bf7c46d3022d81eb4f4f8e51269b'
+const position_id = '0x28dc33edbd43ecd526ae8fa8b9aa31176b86eadb71af7ed12344b48268bde6f0'
 
 describe('dlmm remove liquidity ', () => {
-  const sdk = CetusDlmmSDK.createSDK({ env: 'testnet', full_rpc_url: 'https://rpc-testnet.suiscan.xyz' })
+  const sdk = CetusDlmmSDK.createSDK({ env: 'mainnet' })
   let send_key_pair: Ed25519Keypair
   let account: string
   let pool: DlmmPool
@@ -46,7 +46,7 @@ describe('dlmm remove liquidity ', () => {
       bins: liquidity_shares_data.bins,
       active_id,
       fix_amount_a: false,
-      coin_amount: '200000000',
+      coin_amount: '378543042',
     }
     const bin_infos = sdk.Position.calculateRemoveLiquidityInfo(calculateOption)
     console.log('🚀 ~ test ~ bin_infos:', bin_infos)

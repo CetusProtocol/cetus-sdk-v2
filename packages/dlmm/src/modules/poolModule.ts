@@ -547,7 +547,7 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
     const { registry_id, global_config_id, versioned_id } = getPackagerConfigs(dlmm_pool)
 
     const [cert, pool_id] = tx.moveCall({
-      target: `${dlmm_pool.published_at}::registry::create_pool_v2`,
+      target: `${dlmm_pool.published_at}::registry::create_pool_v3`,
       arguments: [
         tx.object(registry_id),
         tx.pure.u16(bin_step),

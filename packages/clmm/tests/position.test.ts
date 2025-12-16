@@ -9,7 +9,7 @@ const poolId = '0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c901
 const position_nft_id = '0xcf995f40b0f9c40a8b03e0b9d9554fea2bc12a18fe63db3a04c59c46be5c10be'
 describe('Position add Liquidity Module', () => {
   let send_key_pair = buildTestAccount()
-  const sdk = CetusClmmSDK.createSDK({ env: 'testnet' })
+  const sdk = CetusClmmSDK.createSDK({ env: 'mainnet' })
   sdk.setSenderAddress(send_key_pair.getPublicKey().toSuiAddress())
 
   beforeEach(async () => {
@@ -38,7 +38,7 @@ describe('Position add Liquidity Module', () => {
   })
 
   test('getPositionById', async () => {
-    const res = await sdk.Position.getPositionById('0x660ea6bc10f2d6c2d40b829850ab746a6ad93c2674537c71e21809b0486254c6')
+    const res = await sdk.Position.getPositionById('0x4c1c8f183230929d4300bb380563ed6756578db14f8b63784e2b6ae1679d7f1a')
     console.log('getPositionById###', res)
   })
 

@@ -4,6 +4,6 @@ export default defineConfig({
     entry: ['src/index.ts'],
     splitting: false,
     sourcemap: true,
-    minify: true,
+    minify: false,
     target: 'esnext',
 })

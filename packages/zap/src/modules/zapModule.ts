@@ -118,7 +118,7 @@ export class ZapModule implements IModule<CetusZapSDK> {
           tx
         )
       }
-      return await this._sdk.ClmmSDK.Position.removeLiquidityPayload(
+      return (await this._sdk.ClmmSDK.Position.removeLiquidityPayload(
         {
           coin_type_a: coin_type_a,
           coin_type_b: coin_type_b,
@@ -131,7 +131,7 @@ export class ZapModule implements IModule<CetusZapSDK> {
           collect_fee,
         },
         tx
-      )
+      )) as Transaction
     }
 
     // Collect rewards and fees
@@ -290,11 +290,11 @@ export class ZapModule implements IModule<CetusZapSDK> {
 
     // FlexibleBoth mode
     if (mode === 'FlexibleBoth') {
-      // return await this.buildDepositFlexibleBothPayload(options, tx)
-      return handleMessageError(ZapErrorCode.UnsupportedDepositMode, `Unsupported deposit mode: ${mode}`, {
-        [DETAILS_KEYS.REQUEST_PARAMS]: options,
-        [DETAILS_KEYS.METHOD_NAME]: 'buildDepositPayload',
-      }) as never
+      return await this.buildDepositFlexibleBothPayload(options, tx)
+      // return handleMessageError(ZapErrorCode.UnsupportedDepositMode, `Unsupported deposit mode: ${mode}`, {
+      //   [DETAILS_KEYS.REQUEST_PARAMS]: options,
+      //   [DETAILS_KEYS.METHOD_NAME]: 'buildDepositPayload',
+      // }) as never
     }
 
     // OnlyCoinA or OnlyCoinB mode
@@ -1269,7 +1269,8 @@ export class ZapModule implements IModule<CetusZapSDK> {
     // 1: Calculate the liquidity addition consumption and the direction of liquidity addition
     const { liquidity, use_amount_a, use_amount_b, amount_limit_a, amount_limit_b, fix_liquidity_amount_a, remain_amount } =
       calculateLiquidityAmountSide(coin_amount_a, coin_amount_b, current_sqrt_price, tick_lower, tick_upper, slippage, true)
-    console.log('🚀 ~ ZapModule ~ calculateFlexibleBoth ~ remain_amount:', remain_amount)
+    // console.log('🚀 ~ ZapModule ~ calculateFlexibleBoth ~ remain_amount:', remain_amount)
+    console.log('🚀 ~ ZapModule ~ calculateFlexibleBoth ~ p1273 return:', { liquidity, use_amount_a, use_amount_b, amount_limit_a, amount_limit_b, fix_liquidity_amount_a, remain_amount })
 
     let sub_result
     // 2: The remaining portion should follow the one-sided coin addition logic
@@ -1321,7 +1322,7 @@ export class ZapModule implements IModule<CetusZapSDK> {
     target_decimal: number,
     liquidity_changes?: PreSwapLpChangeParams
   ): Promise<SwapResult> {
-    const { providers } = this._sdk.sdkOptions
+    // const { providers } = this._sdk.sdkOptions
     const client = this._sdk.AggregatorClient
 
     if (d(amount.toFixed(0).toString()).lt(1)) {
@@ -1338,7 +1339,7 @@ export class ZapModule implements IModule<CetusZapSDK> {
         amount: new BN(amount.toFixed(0).toString()),
         byAmountIn: true,
         depth: 3,
-        providers,
+        // providers,
       }
       if (liquidity_changes && liquidity_changes.poolID) {
         findRouterParams.liquidityChanges = [liquidity_changes]
@@ -1361,10 +1362,10 @@ export class ZapModule implements IModule<CetusZapSDK> {
 
       // Update the price after swapping
       // res.routes.forEach((split_path: any) => {
-        const base_path: any = res.paths.find((base_path: any) => base_path.id.toLowerCase() === clmm_pool.toLowerCase())
-        if (base_path && base_path.extendedDetails && base_path.extendedDetails.afterSqrtPrice) {
-          after_sqrt_price = convertScientificToDecimal(String(base_path.extendedDetails.afterSqrtPrice), 0)
-        }
+      const base_path: any = res.paths.find((base_path: any) => base_path.id.toLowerCase() === clmm_pool.toLowerCase())
+      if (base_path && base_path.extendedDetails && base_path.extendedDetails.afterSqrtPrice) {
+        after_sqrt_price = convertScientificToDecimal(String(base_path.extendedDetails.afterSqrtPrice), 0)
+      }
       // })
 
       const swap_in_amount = res.amountIn.toString()
@@ -1402,10 +1403,10 @@ export class ZapModule implements IModule<CetusZapSDK> {
 
         // Update the price after swapping
         // res.routeData.paths.forEach((splitPath: any) => {
-          const basePath: any = res.routeData.paths.find((basePath: any) => basePath.id.toLowerCase() === clmm_pool.toLowerCase())
-          if (basePath) {
-            after_sqrt_price = convertScientificToDecimal(String(basePath.extendedDetails.afterSqrtPrice))
-          }
+        const basePath: any = res.routeData.paths.find((basePath: any) => basePath.id.toLowerCase() === clmm_pool.toLowerCase())
+        if (basePath) {
+          after_sqrt_price = convertScientificToDecimal(String(basePath.extendedDetails.afterSqrtPrice))
+        }
         // })
 
         // Return the swap result
@@ -1594,8 +1595,8 @@ export class ZapModule implements IModule<CetusZapSDK> {
   ): Promise<{ swap_amount: string; receive_amount: string; remaining_a: string; remaining_b: string; swap_result?: any }> {
     const { ratio_a, ratio_b } = ClmmPoolUtil.calculateDepositRatio(lower_tick, upper_tick, new BN(cur_sqrt_price))
     console.log('🚀 ~ ratioA:', {
-      ratio_a,
-      ratio_b,
+      ratio_a: ratio_a.toString(),
+      ratio_b: ratio_b.toString(),
       mark_price,
     })
 
@@ -1644,7 +1645,7 @@ export class ZapModule implements IModule<CetusZapSDK> {
     const maxLoop = 200
     const maxRemainRatio = d(max_remain_rate) // Maximum allowed remaining ratio
     let bestSwapAmount = d(amount).mul(fix_amount_a ? ratio_a : ratio_b)
-    console.log('🚀 ~ bestSwapAmount:', bestSwapAmount, verify_price_loop)
+    console.log('🚀 ~ bestSwapAmount:', bestSwapAmount.toString(), verify_price_loop)
 
     let receiveAmount = d(0)
     let remainingA

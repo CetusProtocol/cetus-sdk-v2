@@ -1,9 +1,9 @@
 export type IlmInputOptions = {
   curvature: number
-  initial_price: string
-  max_price: string
+  initial_price: number
+  max_price: number
   bin_step: number
-  total_supply: string
+  total_supply: number
   pool_share_percentage: number
   config: {
     price_curve_points_num: number
@@ -14,35 +14,35 @@ export type IlmInputOptions = {
 }
 
 export type Axis = {
-  x: string
-  y: string
+  x: number
+  y: number
 }
 
 export type TokenTable = {
-  withdrawn: string
-  price: string
-  usdc_in_pool: string
+  withdrawn: number
+  price: number
+  usdc_in_pool: number
 }
 
 export type IlmInputResult = {
   price_curve: {
     data: Axis[]
-    min_y: string
-    max_y: string
+    min_y: number
+    max_y: number
   }
   liquidity_curve: {
     data: Axis[]
-    min_y: string
-    max_y: string
+    min_y: number
+    max_y: number
   }
   dlmm_bins: {
     data: Axis[]
-    min_y: string
-    max_y: string
+    min_y: number
+    max_y: number
   }
   tokens_table: TokenTable[]
   price_table: TokenTable[]
-  initial_fdv: string
-  final_fdv: string
-  usdc_in_pool: string
+  initial_fdv: number
+  final_fdv: number
+  usdc_in_pool: number
 }

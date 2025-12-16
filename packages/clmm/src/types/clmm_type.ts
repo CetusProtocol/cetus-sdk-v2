@@ -620,6 +620,11 @@ export type RemoveLiquidityParams = CoinPairType &
      * Coin types associated with rewarder contracts.
      */
     rewarder_coin_types: string[]
+
+    /**
+     * Indicates whether to return the coins.
+     */
+    is_return_coins?: boolean
   }
 
 /**
@@ -678,6 +683,27 @@ export type CollectRewarderParams = {
    */
   rewarder_coin_types: SuiAddressType[]
 } & CoinPairType
+
+/**
+ * Represents parameters for collecting rewarder and return coin.
+ */
+export type CollectRewarderAndReturnCoinParams = {
+  /**
+   * The identifier of the pool.
+   */
+  pool_id: SuiObjectIdType
+
+  /**
+   * The identifier of the position.
+   */
+  pos_id: SuiObjectIdType
+
+  /**
+   * An array of rewarder coin types.
+   */
+  rewarder_coin_type: SuiAddressType
+} & CoinPairType
+
 
 /**
  * Represents the amount owned by a rewarder.

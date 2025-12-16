@@ -1104,4 +1104,72 @@ export class PoolModule implements IModule<CetusClmmSDK> {
     }
     return undefined
   }
+
+  /**
+   * Claim all ref fees for a specific partner in a single transaction
+   * This method combines getPartnerRefFeeAmount and claimPartnerRefFeePayload
+   * to create a complete transaction that claims all ref fees for a partner
+   * @param {string} partner The partner object ID
+   * @param {string} partner_cap The partner cap ID (required)
+   * @param {string[]} specific_coin_types Optional array of specific coin types to claim (if not provided, claims all)
+   * @returns {Promise<{ ref_fees: CoinAsset[], tx: Transaction }>} CoinAsset array and the complete Transaction
+   */
+  async claimAllPartnerRefFeesPayload(
+    partner: string,
+    partner_cap: string,
+    specific_coin_types?: string[]
+  ): Promise<{ ref_fees: CoinAsset[]; tx: Transaction }> {
+    try {
+      const { clmm_pool } = this._sdk.sdkOptions
+      const { global_config_id } = getPackagerConfigs(clmm_pool)
+
+      // Get all ref fees for this partner using getPartnerRefFeeAmount
+      const ref_fees = await this.getPartnerRefFeeAmount(partner, true)
+
+      // Create new transaction
+      const tx = new Transaction()
+
+      if (ref_fees.length === 0) {
+        return {
+          ref_fees: [],
+          tx,
+        }
+      }
+
+      // Directly iterate ref_fees and add claim calls
+      for (const refFee of ref_fees) {
+        const coin_type = refFee.coin_type
+        const balance = refFee.balance
+
+        // Skip if balance is 0
+        if (balance === BigInt(0)) {
+          continue
+        }
+
+        // If specific coin types are provided, only claim those
+        if (specific_coin_types && specific_coin_types.length > 0) {
+          if (!specific_coin_types.includes(coin_type)) {
+            continue
+          }
+        }
+
+        // Add claim ref fee call to transaction
+        tx.moveCall({
+          target: `${clmm_pool.published_at}::${ClmmPartnerModule}::claim_ref_fee`,
+          arguments: [tx.object(global_config_id), tx.object(partner_cap), tx.object(partner)],
+          typeArguments: [coin_type],
+        })
+      }
+
+      return {
+        ref_fees,
+        tx,
+      }
+    } catch (error) {
+      return handleError(PartnerErrorCode.InvalidPartnerRefFeeFields, error as Error, {
+        [DETAILS_KEYS.METHOD_NAME]: 'claimAllPartnerRefFeesPayload',
+        [DETAILS_KEYS.REQUEST_PARAMS]: { partner, partner_cap, specific_coin_types },
+      })
+    }
+  }
 }

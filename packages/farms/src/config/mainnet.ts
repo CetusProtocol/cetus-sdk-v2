@@ -12,8 +12,8 @@ export const farmsMainnet: SdkOptions = {
      * https://www.moveregistry.com/package/@cetuspackages/farming?tab=versions
      */
     package_id: '0x11ea791d82b5742cc8cab0bf7946035c97d9001d7c3803a93f119753da66f526',
-    published_at: '0x894c344135024be3b91fec9d118cba2ffcd705088325a1fa1e777d5fe93b224f',
-    version: 8,
+    published_at: '0x1829f473437d24456825662e5bba97924194b5008dcbb59f6b6a6eb2a5d1a2de',
+    version: 9,
     config: {
       global_config_id: '0x21215f2f6de04b57dd87d9be7bb4e15499aec935e36078e2488f36436d64996e',
       rewarder_manager_id: '0xe0e155a88c77025056da08db5b1701a91b79edb6167462f768e387c3ed6614d5',

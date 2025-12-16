@@ -371,6 +371,14 @@ export class ClmmPoolUtil {
   }
 
   static calculateDepositRatio(lower_tick: number, upper_tick: number, cur_sqrt_price: BN) {
+    const current_tick = TickMath.sqrtPriceX64ToTickIndex(new BN(cur_sqrt_price))
+    if (current_tick < lower_tick) {
+      return { ratio_a: new Decimal(1), ratio_b: new Decimal(0) }
+    }
+    if (current_tick > upper_tick) {
+      return { ratio_a: new Decimal(0), ratio_b: new Decimal(1) }
+    }
+
     // Use a fixed amount of token A with proper decimals
     const coin_amount_a = new BN(100000000)
     const { coin_amount_b } = ClmmPoolUtil.estLiquidityAndCoinAmountFromOneAmounts(

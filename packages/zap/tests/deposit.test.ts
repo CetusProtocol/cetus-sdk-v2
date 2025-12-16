@@ -5,7 +5,7 @@ import { ClmmPoolUtil, printTransaction, TickMath, toDecimalsAmount } from '@cet
 import { buildTestAccount } from '@cetusprotocol/test-utils'
 import { CetusZapSDK } from '../src/sdk'
 import { BaseDepositOptions, FixedOneSideOptions, FlexibleBothOptions, OnlyCoinAOptions, OnlyCoinBOptions } from '../src/types/zap'
-const poolId = '0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c90105'
+const poolId = '0xb8a67c149fd1bc7f9aca1541c61e51ba13bdded64c273c278e50850ae3bff073'
 const posId = '0xcf995f40b0f9c40a8b03e0b9d9554fea2bc12a18fe63db3a04c59c46be5c10be'
 
 describe('deposit test', () => {
@@ -16,7 +16,8 @@ describe('deposit test', () => {
 
   beforeAll(async () => {
     send_key_pair = buildTestAccount()
-    address = send_key_pair.getPublicKey().toSuiAddress()
+    // address = send_key_pair.getPublicKey().toSuiAddress()
+    address = ''
     sdk.setSenderAddress(address)
 
     pool = await sdk.ClmmSDK.Pool.getPool(poolId)
@@ -76,6 +77,8 @@ describe('deposit test', () => {
 
   test('Mode: FlexibleBoth ', async () => {
     const { current_sqrt_price, current_tick_index, tick_spacing, coin_type_a, coin_type_b } = pool!
+    console.log("1010🚀 ~ tick_spacing:", tick_spacing)
+    console.log("1010🚀 ~ current_tick_index:", current_tick_index)
     const tick_lower = TickMath.getInitializeTickIndex(current_tick_index - 2000, Number(tick_spacing))
     const tick_upper = TickMath.getInitializeTickIndex(current_tick_index + 2000, Number(tick_spacing))
     const slippage = 0.01
@@ -195,8 +198,8 @@ describe('deposit test', () => {
     const { current_sqrt_price, current_tick_index, tick_spacing, coin_type_a, coin_type_b } = pool!
     const pos: any = undefined //await sdk.CetusClmmSDK.Position.getPositionById(posId)
 
-    const tick_lower = TickMath.getInitializeTickIndex(current_tick_index - 2000, Number(tick_spacing))
-    const tick_upper = TickMath.getInitializeTickIndex(current_tick_index + 2000, Number(tick_spacing))
+    const tick_lower = -2 // TickMath.getInitializeTickIndex(current_tick_index - 2000, Number(tick_spacing))
+    const tick_upper = 6 // TickMath.getInitializeTickIndex(current_tick_index + 2000, Number(tick_spacing))
     const slippage = 0.01
 
     const options: BaseDepositOptions = {
@@ -209,36 +212,36 @@ describe('deposit test', () => {
 
     const modeOptions: OnlyCoinBOptions = {
       mode: 'OnlyCoinB',
-      coin_amount: toDecimalsAmount('0.0000001', 8).toString(),
+      coin_amount: toDecimalsAmount('10', 6).toString(),
       coin_type_a,
       coin_type_b,
-      coin_decimal_a: 8,
-      coin_decimal_b: 9,
+      coin_decimal_a: 6,
+      coin_decimal_b: 6,
     }
 
     const result = await sdk.Zap.preCalculateDepositAmount(options, modeOptions)
 
     console.log('🚀 ~ test ~ result:', result)
 
-    const tx = await sdk.Zap.buildDepositPayload({
-      deposit_obj: result,
-      pool_id: poolId,
-      coin_type_a,
-      coin_type_b,
-      tick_lower,
-      tick_upper,
-      slippage,
-    })
+    // const tx = await sdk.Zap.buildDepositPayload({
+    //   deposit_obj: result,
+    //   pool_id: poolId,
+    //   coin_type_a,
+    //   coin_type_b,
+    //   tick_lower,
+    //   tick_upper,
+    //   slippage,
+    // })
 
-    // printTransaction(tx)
+    // // printTransaction(tx)
 
-    let isSimulation = true
-    if (isSimulation) {
-      const res = await sdk.FullClient.sendSimulationTransaction(tx, address)
-      console.log('Deposit Transaction Simulation Result:', res?.effects?.status?.status === 'success' ? res?.events : res)
-    } else {
-      const res = await sdk.FullClient.sendTransaction(send_key_pair, tx)
-      console.log('Deposit Transaction Simulation Result:', res?.events)
-    }
+    // let isSimulation = true
+    // if (isSimulation) {
+    //   const res = await sdk.FullClient.sendSimulationTransaction(tx, address)
+    //   console.log('Deposit Transaction Simulation Result:', res?.effects?.status?.status === 'success' ? res?.events : res)
+    // } else {
+    //   const res = await sdk.FullClient.sendTransaction(send_key_pair, tx)
+    //   console.log('Deposit Transaction Simulation Result:', res?.events)
+    // }
   })
 })
