@@ -665,7 +665,8 @@ export class ZapModule implements IModule<CetusZapSDK> {
 
       const primaryCoinAInputs = isOnlyCoinA ? CoinAssist.getCoinAmountObjId(coinInputA, amount_a) : swap_out_coin
       const primaryCoinBInputs = isOnlyCoinA ? swap_out_coin : CoinAssist.getCoinAmountObjId(coinInputB, amount_b)
-
+      // reverse fixed_liquidity_coin_a
+      options.deposit_obj.fixed_liquidity_coin_a = !options.deposit_obj.fixed_liquidity_coin_a
       // Add liquidity
       await this.buildAddLiquidityPayload(
         options,
@@ -677,6 +678,8 @@ export class ZapModule implements IModule<CetusZapSDK> {
         tx,
         isOpenPosition
       )
+      // reverse fixed_liquidity_coin_a
+      options.deposit_obj.fixed_liquidity_coin_a = !options.deposit_obj.fixed_liquidity_coin_a
     } else {
       coinInputA = CoinAssist.buildMultiCoinInput(tx, allCoinAsset, coin_type_a, [BigInt(fixed_amount_a)])
       coinInputB = CoinAssist.buildMultiCoinInput(tx, allCoinAsset, coin_type_b, [BigInt(fixed_amount_b)])
