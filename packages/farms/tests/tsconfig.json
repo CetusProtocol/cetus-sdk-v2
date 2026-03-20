@@ -1,16 +1,12 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "commonjs",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node", "vitest"],
     "allowJs": false,
     "declaration": true,
-    "lib": [
-      "DOM",
-      "ES6",
-      "DOM.Iterable",
-      "ScriptHost",
-      "ES2016.Array.Include"
-    ],
+    "lib": ["DOM", "ES6", "DOM.Iterable", "ScriptHost", "ES2016.Array.Include"],
     "outDir": "./dist",
     "strict": true,
     "esModuleInterop": true,
@@ -19,8 +15,5 @@
     "resolveJsonModule": true,
     "experimentalDecorators": true
   },
-  "filesGlob": [
-    "src/**/*",
-    "tests/**/*"
-  ]
+  "filesGlob": ["src/**/*", "tests/**/*"]
 }

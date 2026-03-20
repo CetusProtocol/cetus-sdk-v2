@@ -153,6 +153,6 @@ export type CollectFeeParams = {
 export type CollectClmmRewardParams = {
   clmm_pool_id: string
   position_nft_id: string
-  reward_coins?: TransactionArgument[]
+  reward_coins?: TransactionObjectArgument[]
   clmm_rewarder_types: SuiAddressType[]
 } & CoinPairType

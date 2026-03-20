@@ -1,18 +1,25 @@
 {
   "name": "@cetusprotocol/cross-swap-sdk",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "SDK for cetus cross swap",
   "typings": "dist/index.d.ts",
   "main": "dist/index.js",
-  "module": "dist/index.mjs",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
-    "test": "jest",
+    "test": "vitest",
     "lint": "eslint src/*.ts src/**/*.ts",
     "lint:fix": "eslint src/*.ts src/**/*.ts --fix",
     "build": "pnpm run build:tsup",
     "build:tsup": "npm run build:clean && npm run _build:node",
     "build:clean": "rm -rf dist",
-    "_build:node": "tsup --format cjs,esm --dts",
+    "_build:node": "tsup --format esm --dts",
     "build:doc": "npx typedoc",
     "publish_batch:test": "npm publish --tag experimental",
     "publish:test": "node ../../scripts/version.js burn && npm publish --tag experimental"
@@ -53,7 +60,6 @@
     "@cetusprotocol/common-sdk": "*",
     "@lifi/sdk": ">=3.7.9",
     "@mayanfinance/swap-sdk": ">=10.8.0",
-    "@mysten/sui": "*",
     "@openzeppelin/contracts": "^5.2.0",
     "@solana/buffer-layout": ">=4 || ^3",
     "@solana/wallet-adapter-base": ">=0.9.26",

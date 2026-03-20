@@ -1,5 +1,4 @@
 import { AggregatorClient, Env } from '@cetusprotocol/aggregator-sdk'
-import { SuiClient } from '@mysten/sui/client'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
 import { CetusClmmSDK } from '@cetusprotocol/sui-clmm-sdk'
 import { BaseSdkOptions, Package, SdkWrapper } from '@cetusprotocol/common-sdk'
@@ -10,6 +9,9 @@ import { VaultsModule } from './modules/vaultsModule'
 import { VaultsConfigs } from './types/vaults'
 import { VestConfigs } from './types/vest'
 import { VestModule } from './modules/vestModule'
+import { MigrateModule } from './modules/migrateModule'
+import { SuiGrpcClient } from '@mysten/sui/grpc'
+import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
 /**
  * Represents options and configurations for an SDK.
  */
@@ -42,6 +44,8 @@ export class CetusVaultsSDK extends SdkWrapper<SdkOptions> {
    */
   protected _vaultsModule: VaultsModule
 
+  protected _migrateModule: MigrateModule
+
   protected _clmmSDK: CetusClmmSDK
 
   protected _farmsSDK: CetusFarmsSDK
@@ -60,10 +64,10 @@ export class CetusVaultsSDK extends SdkWrapper<SdkOptions> {
     this._clmmSDK = clmmSDK || CetusClmmSDK.createSDK({ env: options.env, full_rpc_url: options.full_rpc_url })
     this._farmsSDK = CetusFarmsSDK.createSDK({ env: options.env, full_rpc_url: options.full_rpc_url }, this._clmmSDK)
     this._vestModule = new VestModule(this)
-
+    this._migrateModule = new MigrateModule(this)
     this._aggregatorClient = new AggregatorClient({
       signer: normalizeSuiAddress('0x0'),
-      client: options.sui_client || new SuiClient({ url: options.full_rpc_url! }),
+      client: options.sui_client || new SuiJsonRpcClient({ url: options.full_rpc_url!, network: options.env === 'testnet' ? 'testnet' : 'mainnet' }),
       env: options.env === 'testnet' ? Env.Testnet : Env.Mainnet,
       pythUrls: options.pyth_urls,
     })
@@ -93,6 +97,10 @@ export class CetusVaultsSDK extends SdkWrapper<SdkOptions> {
     return this._vaultsModule
   }
 
+  get Migrate(): MigrateModule {
+    return this._migrateModule
+  }
+
   get Vest(): VestModule {
     return this._vestModule
   }
@@ -114,7 +122,7 @@ export class CetusVaultsSDK extends SdkWrapper<SdkOptions> {
 
     this._aggregatorClient = new AggregatorClient({
       signer: normalizeSuiAddress('0x0'),
-      client: new SuiClient({ url: url }),
+      client: new SuiJsonRpcClient({ url: url, network: this._sdkOptions.env === 'testnet' ? 'testnet' : 'mainnet' }),
       env: this._sdkOptions.env === 'testnet' ? Env.Testnet : Env.Mainnet,
       pythUrls: this._sdkOptions.pyth_urls,
     })

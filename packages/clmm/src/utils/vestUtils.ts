@@ -1,4 +1,4 @@
-import { SuiObjectResponse } from '@mysten/sui/client'
+import { SuiObjectResponse } from '@mysten/sui/jsonRpc'
 import { ClmmVestInfo, PositionVesting } from '../types/vest'
 import { asIntN, d, extractStructTagFromType, fixCoinType, getObjectFields, getObjectType } from '@cetusprotocol/common-sdk'
 import { PoolLiquiditySnapshot, PositionSnapshot } from '../types/clmm_type'

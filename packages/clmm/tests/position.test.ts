@@ -17,7 +17,7 @@ describe('Position add Liquidity Module', () => {
   })
 
   test('get owner position list', async () => {
-    const res = await sdk.Position.getPositionList(sdk.getSenderAddress(), [])
+    const res = await sdk.Position.getPositionList('0x44a7e45e8d01e9f521ff4e9ebbb48fc1f175718b5e3c96fb8d58ce87279f265d', [])
     console.log('getPositionList####', res)
     expect(res.length).toBeGreaterThan(0)
   })

@@ -1,17 +1,19 @@
 {
   "name": "@cetusprotocol/test-utils",
-  "version": "1.2.0",
+  "version": "0.0.0-experimental-20260317182900",
   "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "type": "module",
   "files": [
     "dist"
   ],
   "scripts": {
     "lint": "eslint src/*.ts src/**/*.ts",
-    "test": "jest",
+    "test": "vitest",
     "build": "pnpm run build:tsup",
     "build:tsup": "npm run build:clean && npm run _build:node",
     "build:clean": "rm -rf dist",
-    "_build:node": "tsup --format cjs,esm --dts",
+    "_build:node": "tsup --format esm --dts",
     "build:doc": "npx typedoc",
     "publish_batch:test": "npm publish --tag experimental",
     "publish:test": "node ../../scripts/version.js common && npm publish --tag experimental"

@@ -347,19 +347,10 @@ export class SwapModule implements IModule<CetusClmmSDK> {
    * If this parameter is not passed, gas estimation is not performed
    * @returns
    */
-  async createSwapPayload(params: SwapParams, gas_estimate_arg?: SwapGasEstimateArg): Promise<Transaction> {
-    const all_coin_asset = await this._sdk.FullClient.getOwnerCoinAssets(this.sdk.getSenderAddress())
+  async createSwapPayload(params: SwapParams): Promise<Transaction> {
 
-    if (gas_estimate_arg) {
-      const { is_adjust_coin_a, is_adjust_coin_b } = findAdjustCoin(params)
 
-      if ((params.a2b && is_adjust_coin_a) || (!params.a2b && is_adjust_coin_b)) {
-        const tx = await SwapUtils.buildSwapTransactionForGas(this._sdk, params, all_coin_asset, gas_estimate_arg)
-        return tx
-      }
-    }
-
-    return SwapUtils.buildSwapTransaction(this.sdk, params, all_coin_asset)
+    return SwapUtils.buildSwapTransaction(this.sdk, params)
   }
 
   /**
@@ -371,19 +362,9 @@ export class SwapModule implements IModule<CetusClmmSDK> {
    */
   async createSwapWithoutTransferCoinsPayload(
     params: SwapParams,
-    gas_estimate_arg?: SwapGasEstimateArg
   ): Promise<{ tx: Transaction; coin_ab_s: TransactionObjectArgument[] }> {
-    const all_coin_asset = await this._sdk.FullClient.getOwnerCoinAssets(this.sdk.getSenderAddress())
 
-    if (gas_estimate_arg) {
-      const { is_adjust_coin_a, is_adjust_coin_b } = findAdjustCoin(params)
 
-      if ((params.a2b && is_adjust_coin_a) || (!params.a2b && is_adjust_coin_b)) {
-        const res = await SwapUtils.buildSwapTransactionWithoutTransferCoinsForGas(this._sdk, params, all_coin_asset, gas_estimate_arg)
-        return res
-      }
-    }
-
-    return SwapUtils.buildSwapTransactionWithoutTransferCoins(this.sdk, params, all_coin_asset)
+    return SwapUtils.buildSwapTransactionWithoutTransferCoins(this.sdk, params)
   }
 }

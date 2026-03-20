@@ -1,4 +1,4 @@
-import type { SuiTransactionBlockResponse } from '@mysten/sui/dist/cjs/client'
+import type { SuiTransactionBlockResponse } from '@mysten/sui/jsonRpc'
 import { extractStructTagFromType } from '@cetusprotocol/common-sdk'
 
 export class DcaUtils {

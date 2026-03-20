@@ -7,4 +7,5 @@ export default defineConfig({
     minify: true,
     target: 'esnext',
     clean: true,
+    format: ['esm'],
 })

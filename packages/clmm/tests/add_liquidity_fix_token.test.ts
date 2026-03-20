@@ -5,14 +5,13 @@ import { buildTestAccount } from '@cetusprotocol/test-utils'
 import 'isomorphic-fetch'
 import { AddLiquidityFixTokenParams, CustomRangeParams, FullRangeParams } from '../src'
 import { CetusClmmSDK } from '../src/sdk'
-import { SuiClient } from '@mysten/sui/client'
 
 let send_key_pair: Ed25519Keypair
-const poolId = '0xdd83e7fbee4f22b28c212d108379435f299dcc47cd0e4cd196cecb6a78e439d1'
-const position_nft_id = '0x67ff4a016f0d0984ee5a816426f00853da432bacb071c709627eb3ac12419834'
+const poolId = '0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab'
+const position_nft_id = '0xc3d2af9ca5da5433407c5189a16b529d3dc0e835041f6b4e7cd40d9389736f0b'
 
 describe('add_liquidity_fix_token', () => {
-  const sdk = CetusClmmSDK.createSDK({ env: 'testnet' })
+  const sdk = CetusClmmSDK.createSDK({ env: 'mainnet' })
 
   beforeEach(async () => {
     send_key_pair = buildTestAccount()
@@ -68,10 +67,7 @@ describe('add_liquidity_fix_token', () => {
       collect_fee: false,
       pos_id: '',
     }
-    const tx = await sdk.Position.createAddLiquidityFixTokenPayload(addLiquidityPayloadParams, {
-      slippage: slippage,
-      cur_sqrt_price: curSqrtPrice,
-    })
+    const tx = await sdk.Position.createAddLiquidityFixTokenPayload(addLiquidityPayloadParams)
 
     printTransaction(tx)
     const transferTxn = await sdk.FullClient.executeTx(send_key_pair, tx, false)

@@ -1,4 +1,4 @@
-import { SuiObjectResponse, CoinBalance } from '@mysten/sui/client'
+import { SuiObjectResponse, CoinBalance } from '@mysten/sui/jsonRpc'
 import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
 import BN from 'bn.js'
 import {
@@ -184,25 +184,7 @@ export class VaultsUtils {
     })
   }
 
-  static async getSuiCoin(sdk: CetusVaultsSDK, amount: number, tx?: Transaction): Promise<TransactionObjectArgument> {
-    const allCoinAsset = await sdk.FullClient.getOwnerCoinAssets(sdk.getSenderAddress(), GAS_TYPE_ARG)
-    tx = tx || new Transaction()
-    let suiCoin
-    if (amount > 950000000000) {
-      const [firstCoin, ...otherCoins] = allCoinAsset
-      if (otherCoins.length > 0) {
-        tx.mergeCoins(
-          tx.object(firstCoin.coin_object_id),
-          otherCoins.map((coin) => tx!.object(coin.coin_object_id))
-        )
-      }
-      suiCoin = tx.splitCoins(tx.object(firstCoin.coin_object_id), [amount])
-    } else {
-      suiCoin = CoinAssist.buildCoinForAmount(tx, allCoinAsset, BigInt(amount), GAS_TYPE_ARG, false, true).target_coin
-    }
 
-    return suiCoin
-  }
 
   public static buildVaultBalance(wallet_address: string, vault: Vault, lp_token_balance: CoinBalance, clmm_pool: Pool) {
     const liquidity = VaultsUtils.getShareLiquidityByAmount(vault, lp_token_balance.totalBalance)
@@ -313,5 +295,208 @@ export class VaultsUtils {
     }
 
     return vaultVestNFT
+  }
+}
+
+/**
+ * Calculate the swap amount needed to achieve target ratio
+ * @param balanceA token A balance
+ * @param balanceB token B balance
+ * @param current_price current price: B per A (i.e., 1 A = current_price B)
+ *   - This represents how many B tokens you get for 1 A token
+ *   - Example: if 1 A = 2 B, then current_price = "2"
+ * @param target_ratio target ratio: B / A (i.e., target B/A ratio)
+ *   - This represents the desired ratio of B to A after swap
+ *   - Example: if you want B/A = 1.5, then target_ratio = "1.5"
+ * @returns Object containing:
+ *   - swap_direction: 'A_TO_B' or 'B_TO_A'
+ *   - swap_amount: Amount to swap (in the source token)
+ *   - final_amount_a: Final amount of token A after swap
+ *   - final_amount_b: Final amount of token B after swap
+ *
+ * Note: The function automatically determines swap direction based on current ratio vs target ratio:
+ * - If current B/A < target B/A: swap A -> B (to increase B/A ratio)
+ * - If current B/A > target B/A: swap B -> A (to decrease B/A ratio)
+ */
+export function calcExactSwapAmount(
+  balanceA: string,
+  balanceB: string,
+  current_price: string, // B per A
+  target_ratio: string // target B / A
+) {
+  const A0 = d(balanceA)
+  const B0 = d(balanceB)
+  const price = d(current_price)
+  const target = d(target_ratio)
+
+  // -----------------------------
+  // 0. both zero
+  // -----------------------------
+  if (A0.eq(0) && B0.eq(0)) {
+    return {
+      swap_direction: 'A_TO_B',
+      swap_amount: '0',
+      final_amount_a: '0',
+      final_amount_b: '0',
+    }
+  }
+
+  // -----------------------------
+  // 1. determine swap direction
+  // -----------------------------
+  let swapAToB: boolean
+
+  if (A0.gt(0) && B0.gt(0)) {
+    const currentR = B0.div(A0)
+    swapAToB = currentR.lt(target)
+  } else if (A0.gt(0)) {
+    swapAToB = true
+  } else {
+    swapAToB = false
+  }
+
+  // -----------------------------
+  // 2. one-side-zero analytic solve
+  // -----------------------------
+  // A = 0, B > 0, B -> A
+  if (A0.eq(0) && !swapAToB) {
+    // (B0 - x) / (x / price) = target
+    // (B0 - x) * price / x = target
+    // (B0 - x) * price = target * x
+    // B0 * price = target * x + x * price
+    // B0 * price = x * (target + price)
+    // x = B0 * price / (target + price)
+    const x = B0.mul(price).div(target.plus(price))
+
+    if (x.lte(0) || x.gt(B0)) {
+      return {
+        swap_direction: 'B_TO_A',
+        swap_amount: '0',
+        final_amount_a: '0',
+        final_amount_b: B0.toFixed(0),
+      }
+    }
+
+    return {
+      swap_direction: 'B_TO_A',
+      swap_amount: x.toFixed(0),
+      final_amount_a: x.div(price).toFixed(0),
+      final_amount_b: B0.minus(x).toFixed(0),
+    }
+  }
+
+  // B = 0, A > 0, A -> B
+  if (B0.eq(0) && swapAToB) {
+    // (x * price) / (A0 - x) = target
+    // x = A0 * target / (price + target)
+    const x = A0.mul(target).div(price.plus(target))
+
+    if (x.lte(0) || x.gt(A0)) {
+      return {
+        swap_direction: 'A_TO_B',
+        swap_amount: '0',
+        final_amount_a: A0.toFixed(0),
+        final_amount_b: '0',
+      }
+    }
+
+    return {
+      swap_direction: 'A_TO_B',
+      swap_amount: x.toFixed(0),
+      final_amount_a: A0.minus(x).toFixed(0),
+      final_amount_b: x.mul(price).toFixed(0),
+    }
+  }
+
+  // -----------------------------
+  // 3. binary search setup
+  // -----------------------------
+  const maxSwap = swapAToB ? A0 : B0
+
+  if (maxSwap.lte(0)) {
+    return {
+      swap_direction: swapAToB ? 'A_TO_B' : 'B_TO_A',
+      swap_amount: '0',
+      final_amount_a: A0.toFixed(0),
+      final_amount_b: B0.toFixed(0),
+    }
+  }
+
+  const maxR = target
+  const minR = target.mul(0.999)
+
+  let left = d(0)
+  let right = maxSwap
+  let best: Decimal | null = null
+
+  function computeFinal(x: Decimal) {
+    if (swapAToB) {
+      // A -> B: x units of A can be exchanged for x * price units of B
+      const A = A0.minus(x)
+      const B = B0.plus(x.mul(price))
+      return { A, B, R: B.div(A) }
+    } else {
+      // B -> A: x units of B can be exchanged for x / price units of A
+      const A = A0.plus(x.div(price))
+      const B = B0.minus(x)
+      return { A, B, R: B.div(A) }
+    }
+  }
+
+  // -----------------------------
+  // 4. binary search
+  // -----------------------------
+  for (let i = 0; i < 120; i++) {
+    const mid = left.plus(right).div(2)
+    const { A, B, R } = computeFinal(mid)
+
+    if (A.lte(0) || B.lte(0)) {
+      right = mid
+      continue
+    }
+
+    if (R.gt(maxR)) {
+      // R > maxR: ratio too high, need to adjust swap amount
+      if (swapAToB) {
+        // A -> B: reduce swap amount to decrease ratio
+        right = mid
+      } else {
+        // B -> A: increase swap amount to decrease ratio
+        left = mid
+      }
+    } else if (R.lt(minR)) {
+      // R < minR: ratio too low, need to adjust swap amount
+      if (swapAToB) {
+        // A -> B: increase swap amount to increase ratio
+        left = mid
+      } else {
+        // B -> A: reduce swap amount to increase ratio
+        right = mid
+      }
+    } else {
+      best = mid
+      right = mid
+    }
+  }
+
+  // -----------------------------
+  // 5. finalize
+  // -----------------------------
+  if (!best) {
+    return {
+      swap_direction: swapAToB ? 'A_TO_B' : 'B_TO_A',
+      swap_amount: '0',
+      final_amount_a: A0.toFixed(0),
+      final_amount_b: B0.toFixed(0),
+    }
+  }
+
+  const { A, B } = computeFinal(best)
+
+  return {
+    swap_direction: swapAToB ? 'A_TO_B' : 'B_TO_A',
+    swap_amount: best.toFixed(0),
+    final_amount_a: A.toFixed(0),
+    final_amount_b: B.toFixed(0),
   }
 }

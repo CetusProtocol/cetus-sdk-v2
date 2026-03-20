@@ -1,4 +1,4 @@
-import { DevInspectResults } from '@mysten/sui/client'
+import { DevInspectResults } from '@mysten/sui/jsonRpc'
 import type { TransactionArgument, TransactionObjectArgument } from '@mysten/sui/transactions'
 import { Transaction } from '@mysten/sui/transactions'
 import type { CollectRewarderParams } from '@cetusprotocol/sui-clmm-sdk'
@@ -514,12 +514,11 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     clmm_list: CollectRewarderParams[]
   ): Promise<Transaction> {
     const tx = new Transaction()
-    const coinIdMaps: Record<string, BuildCoinResult> = {}
-    const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.ClmmSDK.getSenderAddress(), null)
+    const coinIdMaps: Record<string, TransactionObjectArgument> = {}
 
     for (const item of clmm_list) {
-      this.collectClmmFeeInternal(item, coinIdMaps, tx, allCoinAsset)
-      this.collectClmmRewardInternal(item, coinIdMaps, tx, allCoinAsset)
+      this.collectClmmFeeInternal(item, coinIdMaps, tx)
+      this.collectClmmRewardInternal(item, coinIdMaps, tx)
     }
 
     const { farms } = this.sdk.sdkOptions
@@ -531,11 +530,11 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
       }
 
       if (item.collect_fee) {
-        this.collectFeeInternal(item, coinIdMaps, tx, allCoinAsset)
+        this.collectFeeInternal(item, coinIdMaps, tx)
       }
 
       if (item.clmm_rewarder_types.length > 0) {
-        await this.collectRewardInternal(item, coinIdMaps, tx, allCoinAsset)
+        await this.collectRewardInternal(item, coinIdMaps, tx)
       }
 
       if (item.collect_farms_rewarder) {
@@ -558,11 +557,8 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     }
 
     Object.keys(coinIdMaps).forEach((key) => {
-      const value: any = coinIdMaps[key]
-      const { original_spited_coin } = value
-      if (value.is_mint_zero_coin || (original_spited_coin && original_spited_coin?.$kind === 'GasCoin')) {
-        buildTransferCoin(this._sdk.ClmmSDK, tx!, value.target_coin, key, this._sdk.getSenderAddress())
-      }
+      const value = coinIdMaps[key]
+      buildTransferCoin(this._sdk.ClmmSDK, tx!, value, key, this._sdk.getSenderAddress())
     })
 
     return tx
@@ -570,29 +566,24 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
 
   private async collectRewardInternal(
     item: HarvestFeeAndClmmRewarderParams,
-    coin_id_maps: Record<string, BuildCoinResult>,
+    coin_id_maps: Record<string, TransactionObjectArgument>,
     tx: Transaction,
-    all_coin_asset: CoinAsset[]
   ) {
-    const primaryCoinInputs: TransactionObjectArgument[] = []
     item.clmm_rewarder_types.forEach((type) => {
       const coinType = normalizeCoinType(type)
       let coinInput = coin_id_maps[type]
       if (coinInput === undefined) {
-        coinInput = CoinAssist.buildCoinForAmount(tx!, all_coin_asset!, BigInt(0), coinType, false)
+        coinInput = CoinAssist.buildCoinWithBalance(BigInt(0), coinType, tx!)
         coin_id_maps[coinType] = coinInput
       }
-      primaryCoinInputs.push(coinInput.target_coin)
     })
-
-    await this.collectClmmRewardNoSendPayload(item, tx)
+    await this.collectClmmRewardNoSendPayload(item, tx, coin_id_maps)
   }
 
   private collectFeeInternal(
     item: HarvestFeeAndClmmRewarderParams,
-    coin_id_maps: Record<string, BuildCoinResult>,
+    coin_id_maps: Record<string, TransactionObjectArgument>,
     tx: Transaction,
-    all_coin_asset: CoinAsset[]
   ) {
     const { farms } = this.sdk.sdkOptions
     const { global_config_id } = getPackagerConfigs(farms)
@@ -603,13 +594,13 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
 
     let coinAInput = coin_id_maps[coin_type_a]
     if (coinAInput === undefined) {
-      coinAInput = CoinAssist.buildCoinForAmount(tx!, all_coin_asset!, BigInt(0), coin_type_a, false)
+      coinAInput = CoinAssist.buildCoinWithBalance(BigInt(0), coin_type_a, tx!)
       coin_id_maps[coin_type_a] = coinAInput
     }
 
     let coinBInput = coin_id_maps[coin_type_b]
     if (coinBInput === undefined) {
-      coinBInput = CoinAssist.buildCoinForAmount(tx!, all_coin_asset!, BigInt(0), coin_type_b, false)
+      coinBInput = CoinAssist.buildCoinWithBalance(BigInt(0), coin_type_b, tx!)
       coin_id_maps[coin_type_b] = coinBInput
     }
 
@@ -621,27 +612,26 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
         tx.object(clmmConfig.global_config_id),
         tx.object(item.clmm_pool_id),
         tx.object(item.position_nft_id),
-        coinAInput.target_coin,
-        coinBInput.target_coin,
+        coinAInput,
+        coinBInput,
       ],
     })
   }
 
   private collectClmmRewardInternal(
     item: CollectRewarderParams,
-    coin_id_maps: Record<string, BuildCoinResult>,
+    coin_id_maps: Record<string, TransactionObjectArgument>,
     tx: Transaction,
-    all_coin_asset: CoinAsset[]
   ) {
     const primaryCoinInputs: TransactionObjectArgument[] = []
     item.rewarder_coin_types.forEach((type) => {
       const coinType = normalizeCoinType(type)
       let coinInput = coin_id_maps[coinType]
       if (coinInput === undefined) {
-        coinInput = CoinAssist.buildCoinForAmount(tx!, all_coin_asset!, BigInt(0), coinType, false)
+        coinInput = CoinAssist.buildCoinWithBalance(BigInt(0), coinType, tx!)
         coin_id_maps[coinType] = coinInput
       }
-      primaryCoinInputs.push(coinInput.target_coin)
+      primaryCoinInputs.push(coinInput)
     })
 
     this._sdk.ClmmSDK.Rewarder.createCollectRewarderNoSendPayload(item, tx!, primaryCoinInputs)
@@ -649,22 +639,21 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
 
   private collectClmmFeeInternal(
     item: CollectRewarderParams,
-    coin_id_maps: Record<string, BuildCoinResult>,
+    coin_id_maps: Record<string, TransactionObjectArgument>,
     tx: Transaction,
-    all_coin_asset: CoinAsset[]
   ) {
     if (item.collect_fee) {
       const coin_type_a = normalizeCoinType(item.coin_type_a)
       const coin_type_b = normalizeCoinType(item.coin_type_b)
       let coinAInput = coin_id_maps[coin_type_a]
       if (coinAInput === undefined) {
-        coinAInput = CoinAssist.buildCoinForAmount(tx!, all_coin_asset!, BigInt(0), coin_type_a, false)
+        coinAInput = CoinAssist.buildCoinWithBalance(BigInt(0), coin_type_a, tx!)
         coin_id_maps[coin_type_a] = coinAInput
       }
 
       let coinBInput = coin_id_maps[coin_type_b]
       if (coinBInput === undefined) {
-        coinBInput = CoinAssist.buildCoinForAmount(tx!, all_coin_asset!, BigInt(0), coin_type_b, false)
+        coinBInput = CoinAssist.buildCoinWithBalance(BigInt(0), coin_type_b, tx!)
         coin_id_maps[coin_type_b] = coinBInput
       }
 
@@ -676,8 +665,8 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
           coin_type_b: item.coin_type_b,
         },
         tx!,
-        coinAInput.target_coin,
-        coinBInput.target_coin
+        coinAInput,
+        coinBInput
       )
     }
   }
@@ -699,7 +688,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
 
     if (isCollectFee) {
       if (params.collect_fee || params.clmm_rewarder_types.length > 0) {
-        const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress())
         tx = await this.buildCollectRewarderAndFeeParams(
           {
             clmm_pool_id: params.clmm_pool_id,
@@ -710,7 +698,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
             clmm_rewarder_types: params.clmm_rewarder_types,
           },
           tx,
-          allCoinAsset
         )
       }
     }
@@ -738,7 +725,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     const tx = new Transaction()
 
     // Harvest fee / CLMM rewards
-    const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress())
     await this.buildCollectRewarderAndFeeParams(
       {
         clmm_pool_id: params.clmm_pool_id,
@@ -749,7 +735,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
         clmm_rewarder_types: params.clmm_rewarder_types,
       },
       tx,
-      allCoinAsset
     )
 
     return tx
@@ -776,9 +761,8 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     })
 
     // Add liquidity
-    const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress())
-    const primaryCoinAInputs = CoinAssist.buildCoinForAmount(tx, allCoinAsset, BigInt(params.amount_a), params.coin_type_a, false)
-    const primaryCoinBInputs = CoinAssist.buildCoinForAmount(tx, allCoinAsset, BigInt(params.amount_b), params.coin_type_b, false)
+    const primaryCoinAInputs = CoinAssist.buildCoinWithBalance(BigInt(params.amount_a), params.coin_type_a, tx)
+    const primaryCoinBInputs = CoinAssist.buildCoinWithBalance(BigInt(params.amount_b), params.coin_type_b, tx)
 
     tx.moveCall({
       target: `${integrate.published_at}::${ClmmIntegratePoolV2Module}::add_liquidity_by_fix_coin`,
@@ -787,8 +771,8 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
         tx.object(clmmPoolConfig.global_config_id),
         tx.object(params.clmm_pool_id),
         posId,
-        primaryCoinAInputs.target_coin,
-        primaryCoinBInputs.target_coin,
+        primaryCoinAInputs,
+        primaryCoinBInputs,
         tx.pure.u64(params.amount_a.toString()),
         tx.pure.u64(params.amount_b.toString()),
         tx.pure.bool(params.fix_amount_a),
@@ -826,11 +810,10 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     const farmsConfig = getPackagerConfigs(farms)
     const clmmConfig = getPackagerConfigs(clmm_pool)
 
-    const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress())
 
-    const primaryCoinAInputs = CoinAssist.buildCoinForAmount(tx, allCoinAsset, BigInt(params.amount_limit_a), params.coin_type_a, false)
+    const primaryCoinAInputs = CoinAssist.buildCoinWithBalance(BigInt(params.amount_limit_a), params.coin_type_a, tx)
 
-    const primaryCoinBInputs = CoinAssist.buildCoinForAmount(tx, allCoinAsset, BigInt(params.amount_limit_b), params.coin_type_b, false)
+    const primaryCoinBInputs = CoinAssist.buildCoinWithBalance(BigInt(params.amount_limit_b), params.coin_type_b, tx)
 
     // Harvest rewards
     if (params.collect_rewarder) {
@@ -846,7 +829,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
 
     // Harvest fee / clmm rewards
     if (params.collect_fee || params.clmm_rewarder_types.length > 0) {
-      const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress())
       tx = await this.buildCollectRewarderAndFeeParams(
         {
           clmm_pool_id: params.clmm_pool_id,
@@ -857,9 +839,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
           clmm_rewarder_types: params.clmm_rewarder_types,
         },
         tx,
-        allCoinAsset,
-        primaryCoinAInputs.remain_coins,
-        primaryCoinBInputs.remain_coins
       )
     }
 
@@ -873,8 +852,8 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
         tx.object(params.pool_id),
         tx.object(params.clmm_pool_id),
         tx.object(params.position_nft_id),
-        primaryCoinAInputs.target_coin,
-        primaryCoinBInputs.target_coin,
+        primaryCoinAInputs,
+        primaryCoinBInputs,
         tx.pure.u64(params.amount_limit_a),
         tx.pure.u64(params.amount_limit_b),
         tx.pure.u128(params.delta_liquidity),
@@ -899,11 +878,10 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     const farmsConfig = getPackagerConfigs(farms)
     const clmmConfig = getPackagerConfigs(clmm_pool)
 
-    const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress())
 
-    const primaryCoinAInputs = CoinAssist.buildCoinForAmount(tx, allCoinAsset, BigInt(params.amount_a), params.coin_type_a, false)
+    const primaryCoinAInputs = CoinAssist.buildCoinWithBalance(BigInt(params.amount_a), params.coin_type_a, tx)
 
-    const primaryCoinBInputs = CoinAssist.buildCoinForAmount(tx, allCoinAsset, BigInt(params.amount_b), params.coin_type_b, false)
+    const primaryCoinBInputs = CoinAssist.buildCoinWithBalance(BigInt(params.amount_b), params.coin_type_b, tx)
 
     // Harvest rewards
     if (params.collect_rewarder) {
@@ -919,7 +897,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
 
     // Harvest fee / clmm rewards
     if (params.collect_fee || params.clmm_rewarder_types.length > 0) {
-      const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress())
       tx = await this.buildCollectRewarderAndFeeParams(
         {
           clmm_pool_id: params.clmm_pool_id,
@@ -930,9 +907,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
           clmm_rewarder_types: params.clmm_rewarder_types,
         },
         tx,
-        allCoinAsset,
-        primaryCoinAInputs.remain_coins,
-        primaryCoinBInputs.remain_coins
       )
     }
 
@@ -946,8 +920,8 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
         tx.object(params.pool_id),
         tx.object(params.clmm_pool_id),
         tx.object(params.position_nft_id),
-        primaryCoinAInputs.target_coin,
-        primaryCoinBInputs.target_coin,
+        primaryCoinAInputs,
+        primaryCoinBInputs,
         tx.pure.u64(params.amount_a.toString()),
         tx.pure.u64(params.amount_b.toString()),
         tx.pure.bool(params.fix_amount_a),
@@ -987,7 +961,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     }
     // Harvest fee / clmm rewards
     if (params.clmm_rewarder_types.length > 0) {
-      const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress())
       tx = await this.buildCollectRewarderAndFeeParams(
         {
           clmm_pool_id: params.clmm_pool_id,
@@ -998,7 +971,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
           clmm_rewarder_types: params.clmm_rewarder_types,
         },
         tx,
-        allCoinAsset
       )
     }
     // Close position will unstake position and remove all liquidity
@@ -1074,24 +1046,11 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
       clmm_rewarder_types: string[]
     },
     tx: Transaction,
-    all_coin_assets: CoinAsset[],
-    all_coin_asset_a?: CoinAsset[],
-    all_coin_asset_b?: CoinAsset[]
   ): Promise<Transaction> {
-    if (all_coin_asset_a === undefined) {
-      all_coin_asset_a = [...all_coin_assets]
-    }
-    if (all_coin_asset_b === undefined) {
-      all_coin_asset_b = [...all_coin_assets]
-    }
     const coin_type_a = normalizeCoinType(params.coin_type_a)
     const coin_type_b = normalizeCoinType(params.coin_type_b)
     if (params.collect_fee) {
-      // const primaryCoinAInput = CoinAssist.buildCoinForAmount(tx, allCoinAssetA, BigInt(0), coin_type_a!, false)
-      // allCoinAssetA = primaryCoinAInput.remain_coins
 
-      // const primaryCoinBInput = CoinAssist.buildCoinForAmount(tx, allCoinAssetB, BigInt(0), coin_type_b!, false)
-      // allCoinAssetB = primaryCoinBInput.remain_coins
 
       this.collectFeePayload(
         {
@@ -1106,20 +1065,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
       )
     }
 
-    const primary_coin_inputs: TransactionArgument[] = []
-    params.clmm_rewarder_types.forEach((type) => {
-      switch (normalizeCoinType(type)) {
-        case coin_type_a:
-          primary_coin_inputs.push(CoinAssist.buildCoinForAmount(tx, all_coin_asset_a!, BigInt(0), type, false).target_coin)
-          break
-        case coin_type_b:
-          primary_coin_inputs.push(CoinAssist.buildCoinForAmount(tx, all_coin_asset_b!, BigInt(0), type, false).target_coin)
-          break
-        default:
-          primary_coin_inputs.push(CoinAssist.buildCoinForAmount(tx, all_coin_assets, BigInt(0), type, false).target_coin)
-          break
-      }
-    })
 
     this.collectClmmRewardPayload(
       {
@@ -1128,7 +1073,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
         clmm_rewarder_types: params.clmm_rewarder_types,
         coin_type_a: params.coin_type_a,
         coin_type_b: params.coin_type_b,
-        reward_coins: primary_coin_inputs,
       },
       tx
     )
@@ -1180,9 +1124,8 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     let primaryCoinInputs = params.reward_coins
     if (params.clmm_rewarder_types.length > 0 && primaryCoinInputs === undefined) {
       primaryCoinInputs = []
-      const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress())
       params.clmm_rewarder_types.forEach((type) => {
-        primaryCoinInputs!.push(CoinAssist.buildCoinForAmount(tx!, allCoinAsset!, BigInt(0), type, false).target_coin)
+        primaryCoinInputs!.push(CoinAssist.buildCoinWithBalance(BigInt(0), type, tx!))
       })
     }
 
@@ -1208,16 +1151,19 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     return tx
   }
 
-  private async collectClmmRewardNoSendPayload(params: CollectClmmRewardParams, tx: Transaction): Promise<Transaction> {
+  private async collectClmmRewardNoSendPayload(params: CollectClmmRewardParams, tx: Transaction, coin_id_maps: Record<string, TransactionObjectArgument>): Promise<Transaction> {
     const { farms } = this.sdk.sdkOptions
     const { clmm_pool, integrate } = this.sdk.ClmmSDK.sdkOptions
 
-    let primaryCoinInputs = params.reward_coins
-    if (params.clmm_rewarder_types.length > 0 && primaryCoinInputs === undefined) {
-      primaryCoinInputs = []
-      const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress())
+    let primaryCoinInputs: TransactionObjectArgument[] = []
+    if (params.clmm_rewarder_types.length > 0) {
       params.clmm_rewarder_types.forEach((type) => {
-        primaryCoinInputs!.push(CoinAssist.buildCoinForAmount(tx!, allCoinAsset!, BigInt(0), type, false).target_coin)
+        let coinInput = coin_id_maps[type]
+        if (coinInput === undefined) {
+          coinInput = CoinAssist.buildCoinWithBalance(BigInt(0), type, tx!)
+          coin_id_maps[type] = coinInput
+        }
+        primaryCoinInputs.push(coinInput)
       })
     }
 

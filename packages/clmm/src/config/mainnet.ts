@@ -44,8 +44,8 @@ export const clmmMainnet: SdkOptions = {
    */
   integrate: {
     package_id: '0x996c4d9480708fb8b92aa7acf819fb0497b5ec8e65ba06601cae2fb6db3312c3',
-    published_at: '0xfbb32ac0fa89a3cb0c56c745b688c6d2a53ac8e43447119ad822763997ffb9c3',
-    version: 15,
+    published_at: '0xae9c208cf58fd5ba36737c9ee5dcfa7f152d0fb5a5a99eebb7c881ebc2fe59e0',
+    version: 16,
   },
   stats_pools_url: 'https://api-sui.cetus.zone/v2/sui/stats_pools',
   clmm_vest: {

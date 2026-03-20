@@ -1,18 +1,25 @@
 {
   "name": "@cetusprotocol/dlmm-sdk",
-  "version": "1.0.3",
+  "version": "1.2.2",
   "description": "SDK for cetus dlmm",
   "typings": "dist/index.d.ts",
   "main": "dist/index.js",
-  "module": "dist/index.mjs",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
-    "test": "jest",
+    "test": "vitest",
     "lint": "eslint src/*.ts src/**/*.ts",
     "lint:fix": "eslint src/*.ts src/**/*.ts --fix",
     "build": "pnpm run build:tsup",
     "build:tsup": "npm run build:clean && npm run _build:node",
     "build:clean": "rm -rf dist",
-    "_build:node": "tsup --format cjs,esm --dts",
+    "_build:node": "tsup --format esm --dts",
     "build:doc": "npx typedoc",
     "publish_batch:test": "npm publish --tag experimental",
     "publish:test": "node ../../scripts/version.js burn && npm publish --tag experimental"
@@ -29,9 +36,11 @@
     "@cetusprotocol/test-utils": "workspace:*",
     "blakejs": "^1.2.1"
   },
+  "dependencies": {
+    "@mysten/sui": "2.6.0"
+  },
   "peerDependencies": {
     "@cetusprotocol/common-sdk": "*",
-    "@mysten/sui": "*",
-    "blakejs": "*"
+    "@mysten/sui": "*"
   }
 }

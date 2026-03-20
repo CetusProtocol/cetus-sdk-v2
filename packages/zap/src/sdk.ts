@@ -1,5 +1,4 @@
 import { AggregatorClient, Env } from '@cetusprotocol/aggregator-sdk'
-import { SuiClient } from '@mysten/sui/client'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
 import { CetusClmmSDK } from '@cetusprotocol/sui-clmm-sdk'
 import { BaseSdkOptions, SdkWrapper } from '@cetusprotocol/common-sdk'
@@ -8,6 +7,8 @@ import { zapMainnet } from './config/mainnet'
 import { zapTestnet } from './config/testnet'
 import { ZapModule } from './modules/zapModule'
 import { CompoundModule } from './modules/compoundModule'
+import { SuiGrpcClient } from '@mysten/sui/grpc'
+import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
 /**
  * Represents options and configurations for an SDK.
  */
@@ -73,11 +74,16 @@ export class CetusZapSDK extends SdkWrapper<SdkOptions> {
     /**
      * Initialize the AggregatorClient.
      */
-    this._aggregatorClient = new AggregatorClient({
+    this._aggregatorClient = this.createAggregatorClient()
+  }
+
+
+  private createAggregatorClient() {
+    return new AggregatorClient({
       signer: normalizeSuiAddress('0x0'),
-      client: options.sui_client || new SuiClient({ url: options.full_rpc_url! }),
-      env: options.env === 'testnet' ? Env.Testnet : Env.Mainnet,
-      pythUrls: options.pyth_urls,
+      client: this._sdkOptions.sui_client || new SuiJsonRpcClient({ url: this._sdkOptions.full_rpc_url!, network: this._sdkOptions.env === 'testnet' ? 'testnet' : 'mainnet' }),
+      env: this._sdkOptions.env === 'testnet' ? Env.Testnet : Env.Mainnet,
+      pythUrls: this._sdkOptions.pyth_urls,
     })
   }
 
@@ -100,15 +106,18 @@ export class CetusZapSDK extends SdkWrapper<SdkOptions> {
     this._sdkOptions.providers = providers
   }
 
+  updatePythUrls(pythUrls: string[]) {
+    if (pythUrls.length === 0) {
+      throw new Error('pythUrls is empty')
+    }
+    this._sdkOptions.pyth_urls = pythUrls
+    this._aggregatorClient = this.createAggregatorClient()
+  }
+
   updateFullRpcUrl(url: string): void {
     super.updateFullRpcUrl(url)
     this._farmsSDK.updateFullRpcUrl(url)
-    this._aggregatorClient = new AggregatorClient({
-      signer: normalizeSuiAddress('0x0'),
-      client: new SuiClient({ url: url }),
-      env: this._sdkOptions.env === 'testnet' ? Env.Testnet : Env.Mainnet,
-      pythUrls: this._sdkOptions.pyth_urls,
-    })
+    this._aggregatorClient = this.createAggregatorClient()
   }
 
   /**

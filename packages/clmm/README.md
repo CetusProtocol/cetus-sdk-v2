@@ -73,7 +73,7 @@ const wallet = 'YOUR_WALLET_ADDRESS'
 const sdk = CetusClmmSDK.createSDK({ env })
 ```
 
-If you wish to set your own full node URL or SuiClient, you can do so as follows:
+If you wish to set your own full node URL or SuiJsonRpcClient, you can do so as follows:
 
 ```typescript
 const sdk = CetusClmmSDK.createSDK({ env, sui_client })

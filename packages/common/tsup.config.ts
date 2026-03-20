@@ -6,4 +6,5 @@ export default defineConfig({
     sourcemap: true,
     minify: true,
     target: 'esnext',
+    format: ['esm', 'cjs'],
 })

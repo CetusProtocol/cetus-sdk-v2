@@ -1,4 +1,4 @@
-import { DevInspectResults, SuiClient } from '@mysten/sui/client'
+import { DevInspectResults, SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
 import type { TransactionObjectArgument } from '@mysten/sui/transactions'
 import { Transaction } from '@mysten/sui/transactions'
 import { isValidSuiObjectId, normalizeSuiAddress } from '@mysten/sui/utils'
@@ -105,7 +105,7 @@ export class PositionModule implements IModule<CetusClmmSDK> {
     }
     let client
     if (full_rpc_url) {
-      client = createFullClient(new SuiClient({ url: full_rpc_url }))
+      client = createFullClient(new SuiJsonRpcClient({ url: full_rpc_url, network: this._sdk.sdkOptions.env === 'testnet' ? 'testnet' : 'mainnet' }))
     } else {
       client = fullClient
     }
@@ -472,34 +472,13 @@ export class PositionModule implements IModule<CetusClmmSDK> {
    */
   async createAddLiquidityFixTokenPayload(
     params: AddLiquidityFixTokenParams,
-    gas_estimate_arg?: {
-      slippage: number
-      cur_sqrt_price: BN
-    },
     tx?: Transaction,
     input_coin_a?: TransactionObjectArgument,
     input_coin_b?: TransactionObjectArgument
   ): Promise<Transaction> {
-    const all_coin_asset = await this._sdk.FullClient.getOwnerCoinAssets(this.sdk.getSenderAddress())
 
-    if (gas_estimate_arg) {
-      const { is_adjust_coin_a, is_adjust_coin_b } = findAdjustCoin(params)
-      params = params as AddLiquidityFixTokenParams
-      if ((params.fix_amount_a && is_adjust_coin_a) || (!params.fix_amount_a && is_adjust_coin_b)) {
-        tx = await PositionUtils.buildAddLiquidityFixTokenForGas(
-          this._sdk,
-          all_coin_asset,
-          params,
-          gas_estimate_arg,
-          tx,
-          input_coin_a,
-          input_coin_b
-        )
-        return tx
-      }
-    }
 
-    return PositionUtils.buildAddLiquidityFixToken(this._sdk, all_coin_asset, params, tx, input_coin_a, input_coin_b)
+    return PositionUtils.buildAddLiquidityFixToken(this._sdk, params, tx, input_coin_a, input_coin_b)
   }
 
   /**
@@ -526,28 +505,9 @@ export class PositionModule implements IModule<CetusClmmSDK> {
     const max_amount_a = BigInt(params.max_amount_a)
     const max_amount_b = BigInt(params.max_amount_b)
 
-    let primary_coin_a_inputs: BuildCoinResult
-    let primary_coin_b_inputs: BuildCoinResult
-    if (input_coin_a == null || input_coin_b == null) {
-      const all_coin_asset = await this._sdk.FullClient.getOwnerCoinAssets(this.sdk.getSenderAddress())
-      primary_coin_a_inputs = CoinAssist.buildCoinForAmount(tx, all_coin_asset, max_amount_a, params.coin_type_a, false, true)
-      primary_coin_b_inputs = CoinAssist.buildCoinForAmount(tx, all_coin_asset, max_amount_b, params.coin_type_b, false, true)
-    } else {
-      primary_coin_a_inputs = {
-        target_coin: input_coin_a,
-        remain_coins: [],
-        is_mint_zero_coin: false,
-        target_coin_amount: '0',
-        selected_coins: [],
-      }
-      primary_coin_b_inputs = {
-        target_coin: input_coin_b,
-        remain_coins: [],
-        is_mint_zero_coin: false,
-        target_coin_amount: '0',
-        selected_coins: [],
-      }
-    }
+    let primary_coin_a_inputs: TransactionObjectArgument = input_coin_a || CoinAssist.buildCoinWithBalance(max_amount_a, params.coin_type_a, tx)
+    let primary_coin_b_inputs: TransactionObjectArgument = input_coin_b || CoinAssist.buildCoinWithBalance(max_amount_b, params.coin_type_b, tx)
+
 
     if (needOpenPosition) {
       tx.moveCall({
@@ -558,8 +518,8 @@ export class PositionModule implements IModule<CetusClmmSDK> {
           tx.object(params.pool_id),
           tx.pure.u32(Number(tick_lower)),
           tx.pure.u32(Number(tick_upper)),
-          primary_coin_a_inputs.target_coin,
-          primary_coin_b_inputs.target_coin,
+          primary_coin_a_inputs,
+          primary_coin_b_inputs,
           tx.pure.u64(params.max_amount_a),
           tx.pure.u64(params.max_amount_b),
           tx.pure.u128(params.delta_liquidity),
@@ -567,14 +527,10 @@ export class PositionModule implements IModule<CetusClmmSDK> {
         ],
       })
     } else {
-      const all_coin_asset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress())
       tx = PositionUtils.createCollectRewarderAndFeeParams(
         this._sdk,
         tx,
         params,
-        all_coin_asset,
-        primary_coin_a_inputs.remain_coins,
-        primary_coin_b_inputs.remain_coins
       )
       tx.moveCall({
         target: `${integrate.published_at}::${ClmmIntegratePoolV2Module}::add_liquidity`,
@@ -583,8 +539,8 @@ export class PositionModule implements IModule<CetusClmmSDK> {
           tx.object(getPackagerConfigs(clmm_pool).global_config_id),
           tx.object(params.pool_id),
           tx.object(params.pos_id),
-          primary_coin_a_inputs.target_coin,
-          primary_coin_b_inputs.target_coin,
+          primary_coin_a_inputs,
+          primary_coin_b_inputs,
           tx.pure.u64(params.max_amount_a),
           tx.pure.u64(params.max_amount_b),
           tx.pure.u128(params.delta_liquidity),
@@ -607,9 +563,8 @@ export class PositionModule implements IModule<CetusClmmSDK> {
 
     const typeArguments = [params.coin_type_a, params.coin_type_b]
 
-    const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this.sdk.getSenderAddress())
 
-    tx = PositionUtils.createCollectRewarderAndFeeParams(this._sdk, tx, params, allCoinAsset)
+    tx = PositionUtils.createCollectRewarderAndFeeParams(this._sdk, tx, params)
 
     const args = [
       tx.object(getPackagerConfigs(clmm_pool).global_config_id),
@@ -664,9 +619,8 @@ export class PositionModule implements IModule<CetusClmmSDK> {
 
     const typeArguments = [params.coin_type_a, params.coin_type_b]
 
-    const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this.sdk.getSenderAddress())
 
-    tx = PositionUtils.createCollectRewarderAndFeeParams(this._sdk, tx, params, allCoinAsset)
+    tx = PositionUtils.createCollectRewarderAndFeeParams(this._sdk, tx, params)
 
     tx.moveCall({
       target: `${integrate.published_at}::${ClmmIntegratePoolModule}::close_position`,
@@ -972,7 +926,6 @@ export class PositionModule implements IModule<CetusClmmSDK> {
         pool_id: pool_id,
         pos_id: '',
       },
-      undefined,
       tx,
       input_coin_a,
       input_coin_b

@@ -1,4 +1,4 @@
-import { SuiTransactionBlockResponse } from '@mysten/sui/client'
+import { SuiTransactionBlockResponse } from '@mysten/sui/jsonRpc'
 import { d, extractStructTagFromType, getObjectFields, getObjectType } from '@cetusprotocol/common-sdk'
 import { LimitOrder, LimitOrderStatus, OrderLimitEvent } from '../types/limitOrder'
 export class LimitOrderUtils {

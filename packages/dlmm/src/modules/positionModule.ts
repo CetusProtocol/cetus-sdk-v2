@@ -821,7 +821,7 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
           [DETAILS_KEYS.METHOD_NAME]: 'openPosition',
         })
       }
-      const open_position_id = tx.moveCall({
+      tx.moveCall({
         target: `${dlmm_router.published_at}::add_liquidity::open_position`,
         arguments: [
           typeof pool_id === 'string' ? tx.object(pool_id) : pool_id,
@@ -840,7 +840,7 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
       if (active_id >= lower_bin_id && active_id <= upper_bin_id) {
         this.validateActiveIdSlippage({ pool_id, active_id, max_price_slippage, bin_step, coin_type_a, coin_type_b }, tx)
       }
-      tx.transferObjects([coin_a_obj_id, coin_b_obj_id, open_position_id], this.sdk.getSenderAddress())
+      tx.transferObjects([coin_a_obj_id, coin_b_obj_id], this.sdk.getSenderAddress())
     } else {
       tx.moveCall({
         target: `${dlmm_router.published_at}::add_liquidity::add_liquidity`,

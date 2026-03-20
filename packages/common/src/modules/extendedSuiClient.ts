@@ -1,20 +1,3 @@
-import type {
-  CoinBalance,
-  CoinMetadata,
-  DryRunTransactionBlockResponse,
-  DynamicFieldPage,
-  PaginatedEvents,
-  PaginatedObjectsResponse,
-  PaginatedTransactionResponse,
-  SuiEvent,
-  SuiEventFilter,
-  SuiObjectDataOptions,
-  SuiObjectResponse,
-  SuiObjectResponseQuery,
-  SuiTransactionBlockResponse,
-  TransactionFilter,
-} from '@mysten/sui/client'
-import { SuiClient } from '@mysten/sui/client'
 import type { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import type { Secp256k1Keypair } from '@mysten/sui/keypairs/secp256k1'
 import type { Transaction } from '@mysten/sui/transactions'
@@ -24,29 +7,34 @@ import type { DataPage, PaginationArgs, SuiObjectIdType, SuiResource } from '../
 import { CACHE_TIME_24H, CachedContent, getFutureTime } from '../utils/cachedContent'
 import { extractStructTagFromType } from '../utils/contracts'
 import { deriveDynamicFieldIdByType, ValueBcsType } from '../utils/dynamicField'
-import { CoinAssist } from '../utils'
-import { SuiGraphQLClient } from '@mysten/sui/graphql'
-import { graphql } from '@mysten/sui/graphql/schemas/latest'
-import {ERROR_HANDLING_RPC_LIST} from '../type/sui'
+import { ERROR_HANDLING_RPC_LIST } from '../type/sui'
+import { CoinBalance, CoinMetadata, DryRunTransactionBlockResponse, DynamicFieldPage, PaginatedEvents, PaginatedObjectsResponse, PaginatedTransactionResponse, SuiEvent, SuiEventFilter, SuiJsonRpcClient, SuiObjectDataOptions, SuiObjectResponse, SuiObjectResponseQuery, SuiTransactionBlockResponse, TransactionFilter } from '@mysten/sui/jsonRpc'
+import { GraphQLQueryResult, SuiGraphQLClient } from '@mysten/sui/graphql'
+import { graphql } from '@mysten/sui/graphql/schema'
+import { SuiGrpcClient } from '@mysten/sui/grpc'
+
+
 /**
  * A wrapper around the SuiClient that provides additional methods for querying and sending transactions.
  * This class is designed to be used in conjunction with the SuiClient to provide a more comprehensive API for interacting with the Sui blockchain.
  */
-export class ExtendedSuiClient<T extends SuiClient> {
+export class ExtendedSuiClient<T extends SuiJsonRpcClient> {
   /**
    * The underlying SuiClient instance used for making RPC calls to the Sui network.
    * This client is used to interact with the Sui blockchain and execute various operations.
    */
   public readonly _client: T
   private readonly _cache: Record<string, CachedContent> = {}
+  public readonly _suiGrpcClient: SuiGrpcClient | undefined
   private readonly _env: 'mainnet' | 'testnet' = 'mainnet'
 
-  private readonly _graphQLClient: SuiGraphQLClient | undefined
+  public readonly _graphQLClient: SuiGraphQLClient | undefined
 
-  constructor(client: T, _graphQLClient?: SuiGraphQLClient, env?: 'mainnet' | 'testnet') {
+  constructor(client: T, _graphQLClient?: SuiGraphQLClient, _suiGrpcClient?: SuiGrpcClient, env?: 'mainnet' | 'testnet') {
     this._client = client
     this._env = env || 'mainnet'
     this._graphQLClient = _graphQLClient
+    this._suiGrpcClient = _suiGrpcClient
   }
 
   async fetchCoinMetadata(coin_type: string): Promise<CoinMetadata | null> {
@@ -86,7 +74,7 @@ export class ExtendedSuiClient<T extends SuiClient> {
         coinType: `0x2::coin::CoinMetadata<${coin_type}>`,
       },
     })
-    const id = result.data?.objects.nodes[0]?.address ?? null
+    const id = result.data?.objects?.nodes[0]?.address ?? null
     if (id) {
       this.updateCache(cacheKey, id)
     }
@@ -196,7 +184,7 @@ export class ExtendedSuiClient<T extends SuiClient> {
     query: SuiObjectResponseQuery,
     pagination_args: PaginationArgs = 'all'
   ): Promise<DataPage<SuiObjectResponse>> {
-    const fetchOwnedObjects = async (client: Pick<SuiClient, 'getOwnedObjects'>) => {
+    const fetchOwnedObjects = async (client: Pick<SuiJsonRpcClient, 'getOwnedObjects'>) => {
       let result: SuiObjectResponse[] = []
       let hasNextPage = true
       const queryAll = pagination_args === 'all'
@@ -226,8 +214,8 @@ export class ExtendedSuiClient<T extends SuiClient> {
       let lastError: unknown = error
       for (const rpcUrl of ERROR_HANDLING_RPC_LIST) {
         try {
-          const fallbackClient = createFullClient(new SuiClient({ url: rpcUrl }), this._graphQLClient, this._env)
-          return await fetchOwnedObjects(fallbackClient)
+          const fallbackClient = createFullClient(new SuiJsonRpcClient({ url: rpcUrl, network: this._env }), this._graphQLClient, this._suiGrpcClient, this._env)
+          return await fetchOwnedObjects(fallbackClient as SuiJsonRpcClient)
         } catch (fallbackError) {
           lastError = fallbackError
           continue
@@ -331,9 +319,9 @@ export class ExtendedSuiClient<T extends SuiClient> {
    * @throws {Error} - Throws an error if the sender is empty.
    */
   async calculationTxGas(tx: Transaction): Promise<number> {
-    const { sender } = tx.blockData
+    const { sender } = tx.getData()
 
-    if (sender === undefined) {
+    if (!sender) {
       throw Error('sdk sender is empty')
     }
 
@@ -427,14 +415,14 @@ export class ExtendedSuiClient<T extends SuiClient> {
     while (true) {
       const allCoinObject: any = await (coin_type
         ? this._client.getCoins({
-            owner: sui_address,
-            coinType: coin_type,
-            cursor: nextCursor,
-          })
+          owner: sui_address,
+          coinType: coin_type,
+          cursor: nextCursor,
+        })
         : this._client.getAllCoins({
-            owner: sui_address,
-            cursor: nextCursor,
-          }))
+          owner: sui_address,
+          cursor: nextCursor,
+        }))
 
       allCoinObject.data.forEach((coin: any) => {
         if (BigInt(coin.balance) > 0) {
@@ -486,7 +474,7 @@ export class ExtendedSuiClient<T extends SuiClient> {
    * @param data The data to store in the cache.
    * @param time The time in minutes after which the cache entry should expire.
    */
-  private updateCache(key: string, data: SuiResource, time = CACHE_TIME_24H): void {
+  public updateCache(key: string, data: SuiResource, time = CACHE_TIME_24H): void {
     let cacheData = this._cache[key]
     if (cacheData) {
       cacheData.overdue_time = getFutureTime(time)
@@ -504,7 +492,7 @@ export class ExtendedSuiClient<T extends SuiClient> {
    * @param force_refresh Whether to force a refresh of the cache entry.
    * @returns The cache entry for the given key, or undefined if the cache entry does not exist or is expired.
    */
-  private getCache<T>(key: string, force_refresh = false): T | undefined {
+  public getCache<T>(key: string, force_refresh = false): T | undefined {
     const cacheData = this._cache[key]
     const isValid = cacheData?.isValid()
     if (!force_refresh && isValid) {
@@ -517,12 +505,13 @@ export class ExtendedSuiClient<T extends SuiClient> {
   }
 }
 
-export function createFullClient<T extends SuiClient>(
+export function createFullClient<T extends SuiJsonRpcClient>(
   client: T,
   graphQLClient?: SuiGraphQLClient,
+  suiGrpcClient?: SuiGrpcClient,
   env?: 'mainnet' | 'testnet'
 ): ExtendedSuiClient<T> & T {
-  const fullClient = new ExtendedSuiClient(client, graphQLClient, env)
+  const fullClient = new ExtendedSuiClient(client, graphQLClient, suiGrpcClient, env)
 
   return new Proxy(fullClient, {
     get(target, prop, receiver) {

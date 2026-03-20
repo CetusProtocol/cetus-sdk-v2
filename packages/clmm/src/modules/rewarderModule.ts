@@ -1,4 +1,4 @@
-import { DevInspectResults } from '@mysten/sui/client'
+import { DevInspectResults } from '@mysten/sui/jsonRpc'
 import { Transaction, TransactionArgument, TransactionObjectArgument } from '@mysten/sui/transactions'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
 import BN from 'bn.js'
@@ -285,10 +285,9 @@ export class RewarderModule implements IModule<CetusClmmSDK> {
    * @returns
    */
   async collectRewarderPayload(params: CollectRewarderParams): Promise<Transaction> {
-    const allCoinAsset = await this.sdk.FullClient.getOwnerCoinAssets(this.sdk.getSenderAddress(), null)
     let tx = new Transaction()
 
-    tx = PositionUtils.createCollectRewarderAndFeeParams(this._sdk, tx, params, allCoinAsset)
+    tx = PositionUtils.createCollectRewarderAndFeeParams(this._sdk, tx, params)
     return tx
   }
 
@@ -306,9 +305,8 @@ export class RewarderModule implements IModule<CetusClmmSDK> {
     input_coin_a?: TransactionObjectArgument,
     input_coin_b?: TransactionObjectArgument
   ) {
-    const all_coin_asset = await this.sdk.FullClient.getOwnerCoinAssets(this.sdk.getSenderAddress(), null)
     tx = tx || new Transaction()
-    const coin_id_maps: Record<string, BuildCoinResult> = {}
+    const coin_id_maps: Record<string, TransactionObjectArgument> = {}
     params.forEach((item) => {
       const coin_type_a = normalizeCoinType(item.coin_type_a)
       const coin_type_b = normalizeCoinType(item.coin_type_b)
@@ -316,35 +314,13 @@ export class RewarderModule implements IModule<CetusClmmSDK> {
       if (item.collect_fee) {
         let coin_a_input = coin_id_maps[coin_type_a]
         if (coin_a_input == null) {
-          if (input_coin_a == null) {
-            coin_a_input = CoinAssist.buildCoinForAmount(tx!, all_coin_asset!, BigInt(0), coin_type_a, false)
-          } else {
-            coin_a_input = {
-              target_coin: input_coin_a,
-              remain_coins: [],
-              is_mint_zero_coin: false,
-              target_coin_amount: '0',
-              selected_coins: [],
-            }
-          }
-
+          coin_a_input = coin_a_input || CoinAssist.buildCoinWithBalance(BigInt(0), coin_type_a, tx!)
           coin_id_maps[coin_type_a] = coin_a_input
         }
 
         let coin_b_input = coin_id_maps[coin_type_b]
         if (coin_b_input == null) {
-          if (input_coin_b == null) {
-            coin_b_input = CoinAssist.buildCoinForAmount(tx!, all_coin_asset!, BigInt(0), coin_type_b, false)
-          } else {
-            coin_b_input = {
-              target_coin: input_coin_b,
-              remain_coins: [],
-              is_mint_zero_coin: false,
-              target_coin_amount: '0',
-              selected_coins: [],
-            }
-          }
-
+          coin_b_input = coin_b_input || CoinAssist.buildCoinWithBalance(BigInt(0), coin_type_b, tx!)
           coin_id_maps[coin_type_b] = coin_b_input
         }
 
@@ -356,8 +332,8 @@ export class RewarderModule implements IModule<CetusClmmSDK> {
             coin_type_b: item.coin_type_b,
           },
           tx!,
-          coin_a_input.target_coin,
-          coin_b_input.target_coin
+          coin_a_input,
+          coin_b_input,
         )
       }
       const primaryCoinInputs: TransactionObjectArgument[] = []
@@ -365,10 +341,10 @@ export class RewarderModule implements IModule<CetusClmmSDK> {
         const coinType = normalizeCoinType(type)
         let coinInput = coin_id_maps[type]
         if (coinInput === undefined) {
-          coinInput = CoinAssist.buildCoinForAmount(tx!, all_coin_asset!, BigInt(0), coinType, false)
+          coinInput = CoinAssist.buildCoinWithBalance(BigInt(0), coinType, tx!)
           coin_id_maps[coinType] = coinInput
         }
-        primaryCoinInputs.push(coinInput.target_coin)
+        primaryCoinInputs.push(coinInput)
       })
 
       tx = this.createCollectRewarderNoSendPayload(item, tx!, primaryCoinInputs)
@@ -376,9 +352,7 @@ export class RewarderModule implements IModule<CetusClmmSDK> {
 
     Object.keys(coin_id_maps).forEach((key) => {
       const value = coin_id_maps[key]
-      if (value.is_mint_zero_coin) {
-        buildTransferCoin(this.sdk, tx!, value.target_coin, key, this.sdk.getSenderAddress())
-      }
+      buildTransferCoin(this.sdk, tx!, value, key, this.sdk.getSenderAddress())
     })
 
     return tx

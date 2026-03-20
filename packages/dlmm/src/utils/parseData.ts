@@ -8,7 +8,7 @@ import {
   getObjectType,
   MathUtil,
 } from '@cetusprotocol/common-sdk'
-import { DevInspectResults, SuiEvent, SuiObjectResponse, SuiTransactionBlockResponse } from '@mysten/sui/client'
+import { DevInspectResults, SuiEvent, SuiObjectResponse, SuiTransactionBlockResponse } from '@mysten/sui/jsonRpc'
 import BN from 'bn.js'
 import Decimal from 'decimal.js'
 import { DlmmErrorCode, handleError, DlmmError } from '../errors/errors'
@@ -499,19 +499,21 @@ export function parseCurrentRewardPeriodEmission(periodEmissionList: RewardPerio
   return periodEmissionList[periodEmissionList.length - 1]
 }
 
-export function safeMulAmount(amount: Decimal, rate: Decimal): Decimal {
+export function safeMulAmount(amount: Decimal, rate: Decimal, verify = false): Decimal {
   const result = amount.mul(rate)
-  if (result.gt(0) && result.lt(1)) {
+  const isLessThan1 = result.gt(0) && result.lt(1)
+  if (verify && isLessThan1) {
     throw new DlmmError(`Multiplication ${result} is less than 1`, DlmmErrorCode.AmountTooSmall)
   }
-  return result.floor()
+  return isLessThan1 ? d(0) : result.floor()
 }
 
-export function safeAmount(amount: Decimal): Decimal {
-  if (amount.gt(0) && amount.lt(1)) {
+export function safeAmount(amount: Decimal, verify = false): Decimal {
+  const isLessThan1 = amount.gt(0) && amount.lt(1)
+  if (verify && isLessThan1) {
     throw new DlmmError(`Multiplication ${amount.toString()} is less than 1`, DlmmErrorCode.AmountTooSmall)
   }
-  return amount.floor()
+  return isLessThan1 ? d(0) : amount.floor()
 }
 
 export function getRouterModule(strategy_type: StrategyType) {

@@ -47,9 +47,9 @@ import {
   PoolTransactionInfo,
 } from '../types/dlmm'
 import { MAX_BIN_PER_POSITION } from '../types/constants'
-import { SuiClient } from '@mysten/sui/client'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
 import { bcs } from '@mysten/sui/bcs'
+import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
 
 export class PoolModule implements IModule<CetusDlmmSDK> {
   protected _sdk: CetusDlmmSDK
@@ -347,7 +347,7 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
     const { FullClient: fullClient, sdkOptions } = this._sdk
     let client
     if (full_rpc_url) {
-      client = createFullClient(new SuiClient({ url: full_rpc_url }))
+      client = createFullClient(new SuiJsonRpcClient({ url: full_rpc_url, network: this._sdk.sdkOptions.env === 'testnet' ? 'testnet' : 'mainnet' }))
     } else {
       client = fullClient
     }

@@ -11,7 +11,7 @@ import type {
   SuiObjectRef,
   SuiObjectResponse,
   SuiParsedData,
-} from '@mysten/sui/client'
+} from '@mysten/sui/jsonRpc'
 import type { NFT } from '../type'
 
 /* -------------------------- SuiObjectResponse ------------------------- */

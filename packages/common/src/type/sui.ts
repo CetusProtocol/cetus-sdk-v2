@@ -1,8 +1,9 @@
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client'
+import { getJsonRpcFullnodeUrl, SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
 import type { TransactionArgument } from '@mysten/sui/transactions'
 import Decimal from 'decimal.js'
-import { ExtendedSuiClient } from '../modules/extendedSuiClient'
 import { SuiGraphQLClient } from '@mysten/sui/graphql'
+import { ExtendedSuiClient } from '../modules/extendedSuiClient'
+import { SuiGrpcClient } from '@mysten/sui/grpc'
 
 /**
  * Represents a SUI address, which is a string.
@@ -40,8 +41,8 @@ export const CoinStoreAddress = '0x1::coin::CoinStore'
  */
 export type SuiResource = any
 
-export const FullRpcUrlMainnet = getFullnodeUrl('mainnet')
-export const FullRpcUrlTestnet = getFullnodeUrl('testnet')
+export const FullRpcUrlMainnet = getJsonRpcFullnodeUrl('mainnet')
+export const FullRpcUrlTestnet = getJsonRpcFullnodeUrl('testnet')
 
 export const GraphRpcUrlMainnet = 'https://graphql.mainnet.sui.io/graphql'
 export const GraphRpcUrlTestnet = 'https://graphql.testnet.sui.io/graphql'
@@ -203,13 +204,19 @@ export type BaseSdkOptions = {
   env?: 'mainnet' | 'testnet'
   full_rpc_url?: string
   graph_rpc_url?: string
-  sui_client?: SuiClient
+  sui_client?: SuiJsonRpcClient
   graph_client?: SuiGraphQLClient
+  sui_grpc_client?: SuiGrpcClient
 }
 
-export type FullClient = ExtendedSuiClient<SuiClient> & SuiClient
+export type FullClient = ExtendedSuiClient<SuiJsonRpcClient> & SuiJsonRpcClient
 
 export type TableHandle = {
   id: string
   size: number
 }
+
+export function toSuiObjectId(bytes: number[]): string {
+  return `0x${Buffer.from(bytes).toString('hex')}` // Convert the byte array to a hex string and prepend "0x"
+}
+

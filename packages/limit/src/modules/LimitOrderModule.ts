@@ -1,4 +1,4 @@
-import { DevInspectResults } from '@mysten/sui/client'
+import { DevInspectResults } from '@mysten/sui/jsonRpc'
 import { Transaction } from '@mysten/sui/transactions'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
 import { blake2b } from 'blakejs'
@@ -368,9 +368,8 @@ export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
       indexerId = undefined
     }
     try {
-      const coinAssets = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress(), params.pay_coin_type)
       const tx = new Transaction()
-      const payCoinObj = CoinAssist.buildCoinForAmount(tx, coinAssets, BigInt(params.pay_coin_amount), params.pay_coin_type, false, true)
+      const payCoinObj = CoinAssist.buildCoinWithBalance(BigInt(params.pay_coin_amount), params.pay_coin_type, tx)
 
       tx.moveCall({
         target: `${limit_order.published_at}::limit_order::${indexerId === undefined ? 'create_indexer_and_place_limit_order' : 'place_limit_order'
@@ -380,7 +379,7 @@ export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
           tx.object(global_config_id),
           indexerId === undefined ? tx.object(rate_orders_indexer_id) : tx.object(indexerId),
           tx.object(user_orders_indexer_id),
-          payCoinObj.target_coin,
+          payCoinObj,
           tx.pure.u128(LimitOrderUtils.priceToRate(params.price, params.pay_decimal, params.target_decimal)),
           tx.pure.u64(params.expired_ts),
           tx.object(CLOCK_ADDRESS),

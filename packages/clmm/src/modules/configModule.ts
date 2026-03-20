@@ -1,4 +1,4 @@
-import type { SuiObjectResponse } from '@mysten/sui/client'
+import type { SuiObjectResponse } from '@mysten/sui/jsonRpc'
 import { normalizeSuiObjectId } from '@mysten/sui/utils'
 import type { SuiAddressType, SuiResource } from '@cetusprotocol/common-sdk'
 import {
@@ -378,7 +378,7 @@ export class ConfigModule implements IModule<CetusClmmSDK> {
           } catch {
             value = decodedValue
           }
-        } catch (error) {}
+        } catch (error) { }
       }
       if (transform_extensions) {
         coin[key] = value

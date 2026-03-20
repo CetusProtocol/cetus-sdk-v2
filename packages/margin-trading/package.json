@@ -1,0 +1,58 @@
+{
+  "name": "@cetusprotocol/margin-sdk",
+  "version": "0.0.7",
+  "description": "SDK fon leverage",
+  "typings": "dist/index.d.ts",
+  "main": "dist/index.js",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "browser": "./dist/index.browser.js",
+      "node": "./dist/index.node.js",
+      "import": "./dist/index.browser.js",
+      "default": "./dist/index.browser.js"
+    }
+  },
+  "scripts": {
+    "test": "vitest",
+    "lint": "eslint src/*.ts src/**/*.ts",
+    "lint:fix": "eslint src/*.ts src/**/*.ts --fix",
+    "build": "pnpm run build:tsup",
+    "build:tsup": "npm run build:clean && npm run _build:node",
+    "build:clean": "rm -rf dist",
+    "_build:node": "tsup --format esm --dts",
+    "build:doc": "npx typedoc",
+    "publish_batch:test": "npm publish --tag experimental --access public",
+    "publish:test": "node ../../scripts/version.js leverage && npm publish --tag experimental --access public",
+    "postinstall": "bash ./postinstall-bluefin-sui.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "keywords": [],
+  "author": "test",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@suilend/sdk": "2.0.2",
+    "@suilend/sui-fe": "2.0.10",
+    "@sentry/nextjs": "^10.5.0",
+    "@mysten/sui": "2.6.0",
+    "@pythnetwork/pyth-sui-js": "2.2.0"
+  },
+  "devDependencies": {
+    "@cetusprotocol/common-sdk": "workspace:*",
+    "@cetusprotocol/test-utils": "workspace:*",
+    "@cetusprotocol/sui-clmm-sdk": "workspace:*"
+  },
+  "peerDependencies": {
+    "@cetusprotocol/common-sdk": "*",
+    "axios": "*"
+  },
+  "peerDependenciesMeta": {
+    "axios": {
+      "optional": true
+    }
+  }
+}

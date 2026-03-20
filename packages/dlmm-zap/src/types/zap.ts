@@ -1,6 +1,6 @@
 import { TransactionObjectArgument } from '@mysten/sui/transactions'
 import { BinAmount, BinLiquidityInfo, StrategyType } from '@cetusprotocol/dlmm-sdk'
-import { CoinPairType } from 'packages/common/dist'
+import { CoinPairType } from '@cetusprotocol/common-sdk'
 
 export const defaultSwapSlippage = 0.005
 

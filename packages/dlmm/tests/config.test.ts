@@ -5,11 +5,12 @@ import { CetusDlmmSDK } from '../src/sdk'
 import { parseCurrentRewardPeriodEmission, parseRewardPeriodEmission } from '../src/utils/parseData'
 import { Transaction } from '@mysten/sui/transactions'
 import { CoinAssist, printTransaction } from '@cetusprotocol/common-sdk'
-import { toB64, toBase64 } from '@mysten/sui/utils'
+import { toBase64 } from '@mysten/sui/utils'
 import BN from 'bn.js'
+import { bcs } from '@mysten/sui/bcs'
 
 describe('config', () => {
-  const sdk = CetusDlmmSDK.createSDK({ env: 'testnet' })
+  const sdk = CetusDlmmSDK.createSDK({ env: 'mainnet' })
   let send_key_pair: Ed25519Keypair
   let account: string
 
@@ -70,4 +71,6 @@ describe('config', () => {
     const currentEmission = parseCurrentRewardPeriodEmission(res)
     console.log('🚀 ~ test ~ currentEmission:', currentEmission)
   })
+
+
 })

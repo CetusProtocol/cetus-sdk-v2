@@ -6,6 +6,7 @@ import 'isomorphic-fetch'
 import { CetusFarmsSDK } from '../src/sdk'
 import type { HarvestParams } from '../src/types/farmsType'
 import { ClaimFeeAndClmmRewardParams } from '../src/types/farmsType'
+import { beforeEach, describe, test } from 'vitest'
 let send_key_pair: Ed25519Keypair
 
 const poolId = '0x6bee98b2758317730bb9fe800631ddacc5b892a173c0380730ca9b85d00ed732'
@@ -13,7 +14,7 @@ const clmm_pool_id = '0x8903aa21e3a95fdeef8ab06ef29fd4511ce3bd650a1fdd28a455300d
 const position_nft_id = '0x30715d4711a81aadd55cdc786fd523afa61e7d14e67d7ba783229ac420c21594'
 
 describe('farms Module', () => {
-  const sdk = CetusFarmsSDK.createSDK({ env: 'testnet' })
+  const sdk = CetusFarmsSDK.createSDK({ env: 'mainnet' })
 
   beforeEach(async () => {
     send_key_pair = buildTestAccount()

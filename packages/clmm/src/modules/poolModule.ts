@@ -1,4 +1,4 @@
-import { SuiClient, type DynamicFieldPage, type SuiObjectResponse } from '@mysten/sui/client'
+import { SuiJsonRpcClient, type DynamicFieldPage, type SuiObjectResponse } from '@mysten/sui/jsonRpc'
 import type { TransactionObjectArgument } from '@mysten/sui/transactions'
 import { Transaction } from '@mysten/sui/transactions'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
@@ -506,7 +506,7 @@ export class PoolModule implements IModule<CetusClmmSDK> {
     const { FullClient: fullClient, sdkOptions } = this._sdk
     let client
     if (full_rpc_url) {
-      client = createFullClient(new SuiClient({ url: full_rpc_url }))
+      client = createFullClient(new SuiJsonRpcClient({ url: full_rpc_url, network: this._sdk.sdkOptions.env === 'testnet' ? 'testnet' : 'mainnet' }))
     } else {
       client = fullClient
     }
@@ -601,7 +601,7 @@ export class PoolModule implements IModule<CetusClmmSDK> {
    * @param {CreatePoolAddLiquidityParams}params The parameters for the create and liquidity.
    * @returns {Promise<Transaction>} A promise that resolves to the transaction payload.
    */
-  private async createPoolAndAddLiquidity(params: CreatePoolAddLiquidityParams, tx?: Transaction): Promise<Transaction> {
+  private createPoolAndAddLiquidity(params: CreatePoolAddLiquidityParams, tx?: Transaction): Transaction {
     tx = tx || new Transaction()
     tx.setSender(this.sdk.getSenderAddress())
     const { integrate, clmm_pool } = this.sdk.sdkOptions
@@ -609,9 +609,8 @@ export class PoolModule implements IModule<CetusClmmSDK> {
     const globalPauseStatusObjectId = eventConfig.global_config_id
     const poolsId = eventConfig.pools_id
 
-    const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this.sdk.getSenderAddress())
-    const primaryCoinAInputsR = CoinAssist.buildCoinForAmount(tx, allCoinAsset, BigInt(params.amount_a), params.coin_type_a, false, true)
-    const primaryCoinBInputsR = CoinAssist.buildCoinForAmount(tx, allCoinAsset, BigInt(params.amount_b), params.coin_type_b, false, true)
+    const primaryCoinAInputsR = CoinAssist.buildCoinWithBalance(BigInt(params.amount_a), params.coin_type_a, tx)
+    const primaryCoinBInputsR = CoinAssist.buildCoinWithBalance(BigInt(params.amount_b), params.coin_type_b, tx)
 
     const args = [
       tx.object(globalPauseStatusObjectId),
@@ -621,8 +620,8 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       tx.pure.string(params.uri),
       tx.pure.u32(Number(asUintN(BigInt(params.tick_lower)).toString())),
       tx.pure.u32(Number(asUintN(BigInt(params.tick_upper)).toString())),
-      primaryCoinAInputsR.target_coin,
-      primaryCoinBInputsR.target_coin,
+      primaryCoinAInputsR,
+      primaryCoinBInputsR,
       tx.pure.bool(params.fix_amount_a),
       tx.object(CLOCK_ADDRESS),
     ]
@@ -631,8 +630,8 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       typeArguments: [params.coin_type_a, params.coin_type_b],
       arguments: args,
     })
-    buildTransferCoinToSender(this._sdk, tx, primaryCoinAInputsR.target_coin, params.coin_type_a)
-    buildTransferCoinToSender(this._sdk, tx, primaryCoinBInputsR.target_coin, params.coin_type_b)
+    buildTransferCoinToSender(this._sdk, tx, primaryCoinAInputsR, params.coin_type_a)
+    buildTransferCoinToSender(this._sdk, tx, primaryCoinBInputsR, params.coin_type_b)
 
     return tx
   }
@@ -643,18 +642,17 @@ export class PoolModule implements IModule<CetusClmmSDK> {
    * @param {CreatePoolAddLiquidityParams}params The parameters for the create and liquidity.
    * @returns {Promise<Transaction>} A promise that resolves to the transaction payload.
    */
-  private async createPoolAndAddLiquidityRow(
+  private createPoolAndAddLiquidityRow(
     params: CreatePoolAddLiquidityParams,
     tx?: Transaction
-  ): Promise<CreatePoolAndAddLiquidityRowResult> {
+  ): CreatePoolAndAddLiquidityRowResult {
     tx = tx || new Transaction()
     const { clmm_pool } = this.sdk.sdkOptions
     const eventConfig = getPackagerConfigs(clmm_pool)
     const globalPauseStatusObjectId = eventConfig.global_config_id
     const poolsId = eventConfig.pools_id
-    const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this.sdk.getSenderAddress())
-    const primaryCoinAInputsR = CoinAssist.buildCoinForAmount(tx, allCoinAsset, BigInt(params.amount_a), params.coin_type_a, false, true)
-    const primaryCoinBInputsR = CoinAssist.buildCoinForAmount(tx, allCoinAsset, BigInt(params.amount_b), params.coin_type_b, false, true)
+    const primaryCoinAInputsR = CoinAssist.buildCoinWithBalance(BigInt(params.amount_a), params.coin_type_a, tx)
+    const primaryCoinBInputsR = CoinAssist.buildCoinWithBalance(BigInt(params.amount_b), params.coin_type_b, tx)
 
     const args = [
       tx.object(globalPauseStatusObjectId),
@@ -664,8 +662,8 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       tx.pure.string(params.uri),
       tx.pure.u32(Number(asUintN(BigInt(params.tick_lower)).toString())),
       tx.pure.u32(Number(asUintN(BigInt(params.tick_upper)).toString())),
-      primaryCoinAInputsR.target_coin,
-      primaryCoinBInputsR.target_coin,
+      primaryCoinAInputsR,
+      primaryCoinBInputsR,
       tx.pure.bool(params.fix_amount_a),
       tx.object(CLOCK_ADDRESS),
     ]

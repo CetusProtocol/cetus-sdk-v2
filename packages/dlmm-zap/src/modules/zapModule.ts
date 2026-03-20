@@ -1,5 +1,6 @@
 import { BuildRouterSwapParamsV3, FindRouterParams, PreSwapLpChangeParams } from '@cetusprotocol/aggregator-sdk'
 import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
+
 import BN from 'bn.js'
 import {
   asUintN,
@@ -146,7 +147,7 @@ export class ZapModule implements IModule<CetusDlmmZapSDK> {
       if (price_result) {
         real_price = d(price_result.swap_out_amount).div(price_result.swap_in_amount).toString()
       }
-    } catch (error) {}
+    } catch (error) { }
 
     const { swap_amount, final_amount_a, final_amount_b } = calcExactSwapAmount(
       coin_amount,

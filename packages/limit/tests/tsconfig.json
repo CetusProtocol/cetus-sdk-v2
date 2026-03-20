@@ -2,6 +2,8 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "commonjs",
+    "moduleResolution": "bundler",
+    "types": ["node", "vitest"],
     "allowJs": false,
     "declaration": true,
     "lib": [

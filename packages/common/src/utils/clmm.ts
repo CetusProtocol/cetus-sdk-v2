@@ -1,4 +1,4 @@
-import type { Transaction } from '@mysten/sui/dist/cjs/transactions'
+import type { Transaction } from '@mysten/sui/transactions'
 import BN from 'bn.js'
 import { DETAILS_KEYS } from '../errors/baseError'
 import { CommonErrorCode, handleMessageError } from '../errors/errors'
@@ -313,19 +313,19 @@ export class ClmmPoolUtil {
     const coin_amounts = ClmmPoolUtil.getCoinAmountFromLiquidity(liquidity, cur_sqrt_price, lower_sqrt_price, upper_sqrt_price, round_up)
     const token_limit_a = round_up
       ? d(coin_amounts.coin_amount_a.toString())
-          .mul(1 + slippage)
-          .toString()
+        .mul(1 + slippage)
+        .toString()
       : d(coin_amounts.coin_amount_a.toString())
-          .mul(1 - slippage)
-          .toString()
+        .mul(1 - slippage)
+        .toString()
 
     const token_limit_b = round_up
       ? d(coin_amounts.coin_amount_b.toString())
-          .mul(1 + slippage)
-          .toString()
+        .mul(1 + slippage)
+        .toString()
       : d(coin_amounts.coin_amount_b.toString())
-          .mul(1 - slippage)
-          .toString()
+        .mul(1 - slippage)
+        .toString()
 
     return {
       coin_amount_a: coin_amounts.coin_amount_a,

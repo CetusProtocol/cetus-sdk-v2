@@ -38,20 +38,19 @@ export class DcaModule implements IModule<CetusDcaSDK> {
   }
 
   // create dca order
-  async dcaOpenOrderPayload(params: OpenDcaOrderParams): Promise<Transaction> {
+  dcaOpenOrderPayload(params: OpenDcaOrderParams): Transaction {
     try {
       const { dca } = this._sdk.sdkOptions
       const { global_config_id, indexer_id } = getPackagerConfigs(dca)
       const tx = new Transaction()
-      const coinAssets = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress(), params.in_coin_type)
-      const inCoinObj = CoinAssist.buildCoinForAmount(tx, coinAssets, BigInt(params.in_coin_amount), params.in_coin_type, false, true)
+      const inCoinObj = CoinAssist.buildCoinWithBalance(BigInt(params.in_coin_amount), params.in_coin_type, tx)
 
       tx.moveCall({
         target: `${dca.published_at}::order::open_order`,
         typeArguments: [params.in_coin_type, params.out_coin_type],
         arguments: [
           tx.object(global_config_id),
-          inCoinObj.target_coin,
+          inCoinObj,
           tx.pure.u64(params.cycle_frequency),
           tx.pure.u64(params.cycle_count),
           tx.pure.u64(params.per_cycle_min_out_amount),

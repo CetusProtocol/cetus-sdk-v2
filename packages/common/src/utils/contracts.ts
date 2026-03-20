@@ -1,6 +1,6 @@
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import { Secp256k1Keypair } from '@mysten/sui/keypairs/secp256k1'
-import { fromB64, fromBase64, fromHex, fromHEX, normalizeSuiObjectId } from '@mysten/sui/utils'
+import { fromBase64, fromHex, normalizeSuiObjectId } from '@mysten/sui/utils'
 import type { SuiAddressType, SuiStructTag } from '../type/sui'
 import { CoinAssist, GAS_TYPE_ARG, GAS_TYPE_ARG_LONG } from './coinAssist'
 import { removeHexPrefix } from './hex'
@@ -181,6 +181,6 @@ export function secretKeyToSecp256k1Keypair(secret_key: string | Uint8Array, eco
     const key = Buffer.from(secret_key)
     return Secp256k1Keypair.fromSecretKey(new Uint8Array(key))
   }
-  const hex_key = ecode === 'hex' ? fromHEX(secret_key) : fromB64(secret_key)
+  const hex_key = ecode === 'hex' ? fromHex(secret_key) : fromBase64(secret_key)
   return Secp256k1Keypair.fromSecretKey(hex_key)
 }

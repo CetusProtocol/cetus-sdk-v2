@@ -1,5 +1,6 @@
 // buildTestAccount
 import type { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
+import { describe, beforeEach, test } from 'vitest'
 import { buildTestAccount } from '@cetusprotocol/test-utils'
 import { CetusBurnSDK } from '../src/sdk'
 
@@ -52,7 +53,7 @@ describe('burn', () => {
     console.log('burn: ', transferTxn)
   })
 
-  test('createBurnLPV2Payload', async () => {})
+  test('createBurnLPV2Payload', async () => { })
 
   test('claim', async () => {
     const poolId = '0xec5dbeef2798f13740535c90ccbd622cead7c2081199312bd254bf2e8454c4d7'

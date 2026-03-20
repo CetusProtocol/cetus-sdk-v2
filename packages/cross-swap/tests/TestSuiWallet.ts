@@ -4,7 +4,6 @@
 import { buildTestAccount } from '@cetusprotocol/test-utils'
 import { Transaction } from '@mysten/sui/transactions'
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
-import { SuiClient } from '@mysten/sui/client'
 import type {
   StandardConnectFeature,
   StandardConnectMethod,
@@ -21,6 +20,7 @@ import type {
 } from '@mysten/wallet-standard'
 import { getWallets, ReadonlyWalletAccount, SUI_CHAINS } from '@mysten/wallet-standard'
 import { toBase64 } from '@mysten/sui/utils'
+import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
 
 const WALLET_NAME = 'TestSuiWallet'
 
@@ -31,9 +31,9 @@ export class TestSuiWallet implements Wallet {
 
   // Ed25519Keypair 模拟 provider 的能力
   private provider: Ed25519Keypair | null = null
-  private suiClient: SuiClient
+  private suiClient: SuiJsonRpcClient
 
-  constructor(suiClient: SuiClient) {
+  constructor(suiClient: SuiJsonRpcClient) {
     this.#connecting = false
     this.#connected = false
     this.suiClient = suiClient
@@ -94,7 +94,7 @@ export class TestSuiWallet implements Wallet {
   }
 
   #on: StandardEventsOnMethod = () => {
-    return () => {}
+    return () => { }
   }
 
   #disconnect: StandardDisconnectMethod = async () => {

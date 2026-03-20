@@ -1,4 +1,4 @@
-import type { SuiObjectResponse, SuiTransactionBlockResponse } from '@mysten/sui/client'
+import type { SuiObjectResponse, SuiTransactionBlockResponse } from '@mysten/sui/jsonRpc'
 import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
 import BN from 'bn.js'
 import {

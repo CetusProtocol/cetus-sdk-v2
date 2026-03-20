@@ -14,7 +14,7 @@ import {
 import { printTransaction, toDecimalsAmount } from '@cetusprotocol/common-sdk'
 import { BinUtils } from '../src/utils/binUtils'
 
-const pool_id = '0xd4e815d17d501c9585f0d073c3b6dbf2615ee6ca5ba83af5a8cccada9d665e45'
+const pool_id = '0x64e590b0e4d4f7dfc7ae9fae8e9983cd80ad83b658d8499bf550a9d4f6667076'
 const position_id = '0xf5139870fbc926d1ca1afdc536b4ab457a9c2a696440d10955572f04b95d9e29'
 
 describe('dlmm add liquidity spot', () => {
@@ -97,9 +97,9 @@ describe('dlmm add liquidity spot', () => {
     pool = await sdk.Pool.getPool(pool_id)
     console.log('🚀 ~ beforeEach ~ pool:', pool)
     const { active_id, bin_step } = pool
-    const amount_a = '500000'
-    const amount_b = '247215430'
-    const lower_bin_id = active_id - 10
+    const amount_a = '10000000'
+    const amount_b = '0'
+    const lower_bin_id = active_id + 1
     const upper_bin_id = active_id + 10
 
     const amounts_in_active_bin = await sdk.Position.getActiveBinIfInRange(
@@ -133,15 +133,14 @@ describe('dlmm add liquidity spot', () => {
       upper_bin_id,
       active_id,
       strategy_type: StrategyType.Spot,
-      use_bin_infos: false,
+      use_bin_infos: true,
       max_price_slippage: 0.01,
       bin_step,
     }
     const tx = sdk.Position.addLiquidityPayload(addOption)
-    tx.setGasBudget(10000000000)
-    // printTransaction(tx)
+    printTransaction(tx)
 
-    const res = await sdk.FullClient.executeTx(send_key_pair, tx, false)
+    const res = await sdk.FullClient.executeTx(send_key_pair, tx, true)
     console.log('🚀 ~ test ~ res:', res)
   })
 

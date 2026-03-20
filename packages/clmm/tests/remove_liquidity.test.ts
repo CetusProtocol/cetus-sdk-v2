@@ -4,11 +4,12 @@ import { adjustForCoinSlippage, ClmmPoolUtil, d, Percentage, printTransaction, T
 import { buildTestAccount } from '@cetusprotocol/test-utils'
 import 'isomorphic-fetch'
 import CetusClmmSDK, { ClosePositionParams, RemoveLiquidityParams } from '../src'
+import { Transaction } from '@mysten/sui/transactions'
 
 let send_key_pair: Ed25519Keypair
 
-const poolId = '0x84fc1515fd3d2395b2d67b301dc2b60040e31af7e295f8731c84bd528733252f'
-const position_nft_id = '0xc444d321cb690727904947813c65b8231b9a7668635b012fdf67d6c14b90b6f7'
+const poolId = '0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab'
+const position_nft_id = '0xc3d2af9ca5da5433407c5189a16b529d3dc0e835041f6b4e7cd40d9389736f0b'
 
 describe('remove liquidity', () => {
   const sdk = CetusClmmSDK.createSDK({ env: 'mainnet' })
@@ -42,7 +43,7 @@ describe('remove liquidity', () => {
     const position = await sdk.Position.getPositionById(position_nft_id)
     const lowerTick = position.tick_lower_index
     const upperTick = position.tick_upper_index
-    const coinAmount = new BN(592)
+    const coinAmount = new BN(52)
     const fix_amount_a = true
     const slippage = 0.05
     const curSqrtPrice = new BN(TickMath.tickIndexToSqrtPriceX64(Number(pool.current_tick_index)))
@@ -71,7 +72,7 @@ describe('remove liquidity', () => {
       collect_fee: true,
     }
 
-    const payload = await sdk.Position.removeLiquidityPayload(removeLiquidityParams)
+    const payload = await sdk.Position.removeLiquidityPayload(removeLiquidityParams) as Transaction
 
     printTransaction(payload)
 
@@ -109,7 +110,7 @@ describe('remove liquidity', () => {
       collect_fee: false,
     }
 
-    const removeLiquidityTransactionPayload = await sdk.Position.removeLiquidityPayload(removeLiquidityParams)
+    const removeLiquidityTransactionPayload = await sdk.Position.removeLiquidityPayload(removeLiquidityParams) as Transaction
 
     printTransaction(removeLiquidityTransactionPayload)
 
@@ -151,7 +152,7 @@ describe('remove liquidity', () => {
 
     printTransaction(removeLiquidityTransactionPayload)
 
-    const transferTxn = await sdk.FullClient.executeTx(send_key_pair, removeLiquidityTransactionPayload, true)
+    const transferTxn = await sdk.FullClient.executeTx(send_key_pair, removeLiquidityTransactionPayload, false)
     console.log('removeLiquidity: ', transferTxn)
   })
 })

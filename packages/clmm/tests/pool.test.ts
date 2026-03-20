@@ -6,11 +6,10 @@ import 'isomorphic-fetch'
 import { CetusClmmSDK } from '../src'
 import { CreatePoolCustomRangeParams, FullRangeParams } from '../src/types/clmm_type'
 import { buildTransferCoin } from '../src/utils'
-import { SuiClient } from '@mysten/sui/client'
 import { Pool } from '../src'
 import { symbol } from 'valibot'
-const fs = require('fs')
-const path = require('path')
+import fs from 'node:fs'
+import path from 'node:path'
 
 // import { buildTransferCoin, PositionUtils } from '../dist/index.js'
 // import { CreatePoolCustomRangeParams, FullRangeParams } from '../dist/index.js'
@@ -88,7 +87,7 @@ const tokens = [
 ]
 describe('Pool Module', () => {
   let send_key_pair = buildTestAccount()
-  const sdk = CetusClmmSDK.createSDK({ env: 'mainnet', sui_client: new SuiClient({ url: 'https://fullnode.mainnet.sui.io:443' }) })
+  const sdk = CetusClmmSDK.createSDK({ env: 'mainnet' })
   sdk.setSenderAddress(send_key_pair.getPublicKey().toSuiAddress())
 
   test('getClmmConfigs', async () => {
@@ -130,7 +129,7 @@ describe('Pool Module', () => {
 
   test('getSinglePool', async () => {
     // const pool = await sdk.Pool.getPool('0xcf994611fd4c48e277ce3ffd4d4364c914af2c3cbb05f7bf6facd371de688630')
-    const pool = await sdk.Pool.getPool('0x2e041f3fd93646dcc877f783c1f2b7fa62d30271bdef1f21ef002cebf857bded')
+    const pool = await sdk.Pool.getPool('0xb8a67c149fd1bc7f9aca1541c61e51ba13bdded64c273c278e50850ae3bff073')
     console.log('pool', pool)
   })
 

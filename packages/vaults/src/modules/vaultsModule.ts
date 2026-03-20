@@ -343,14 +343,14 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
         swap_data = use_rebalance
           ? await this.calculateRebalance(rebalance_params)
           : await this.findRouters(
-              pool.id,
-              pool.current_sqrt_price.toString(),
-              a2b ? pool.coin_type_a : pool.coin_type_b,
-              a2b ? pool.coin_type_b : pool.coin_type_a,
-              swap_amount,
-              true,
-              [pool.id]
-            )
+            pool.id,
+            pool.current_sqrt_price.toString(),
+            a2b ? pool.coin_type_a : pool.coin_type_b,
+            a2b ? pool.coin_type_b : pool.coin_type_a,
+            swap_amount,
+            true,
+            [pool.id]
+          )
       }
 
       after_sqrt_price = swap_data.after_sqrt_price
@@ -543,7 +543,7 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
       }
     } catch (error) {
       try {
-        if (pools) {
+        if (pools && pools.length > 0) {
           const res: any = await this._sdk.AggregatorClient.swapInPools({
             from: coin_type_a,
             target: coin_type_b,
@@ -572,11 +572,11 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
               originRes: res,
             }
           }
-          return null
+          throw Error('Aggregator no router')
         }
         return null
       } catch (e) {
-        return null
+        throw Error('Aggregator no router')
       }
     }
   }
@@ -685,7 +685,7 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
     return calculateRebalanceRecursively(amount_left, amount_right, 0)
   }
 
-  private async calculateAmountFromBoth(params: CalculateAmountParams, round_up: boolean): Promise<CalculateAmountResult> {
+  public async calculateAmountFromBoth(params: CalculateAmountParams, round_up: boolean): Promise<CalculateAmountResult> {
     const { vault_id, input_amount, fix_amount_a, slippage } = params
     // Get vault information
     const { vault, pool } = await this.getVaultAndPool(vault_id)
@@ -916,7 +916,7 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
     }
   }
 
-  private async depositInternal(
+  public async depositInternal(
     params: {
       vault_id: string
       coin_type_a: string
@@ -942,30 +942,10 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
     const farmsConfigs = getPackagerConfigs(farms)
     const clmm_pool_configs = getPackagerConfigs(clmm_pool)
 
-    let { primary_coin_a_inputs, primary_coin_b_inputs } = params
+    const { primary_coin_a_inputs, primary_coin_b_inputs } = params
+    const primary_coin_a_input = primary_coin_a_inputs || CoinAssist.buildCoinWithBalance(BigInt(params.amount_a), params.coin_type_a, tx)
+    const primary_coin_b_input = primary_coin_b_inputs || CoinAssist.buildCoinWithBalance(BigInt(params.amount_b), params.coin_type_b, tx)
 
-    if (primary_coin_a_inputs === undefined || primary_coin_b_inputs === undefined) {
-      const all_coin_asset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress())
-      primary_coin_a_inputs = PositionUtils.buildAddLiquidityFixTokenCoinInput(
-        tx,
-        !params.fix_amount_a,
-        params.amount_a,
-        params.slippage,
-        params.coin_type_a,
-        all_coin_asset,
-        false
-      )?.target_coin
-
-      primary_coin_b_inputs = PositionUtils.buildAddLiquidityFixTokenCoinInput(
-        tx,
-        params.fix_amount_a,
-        params.amount_b,
-        params.slippage,
-        params.coin_type_b,
-        all_coin_asset,
-        false
-      )?.target_coin
-    }
 
     const args = [
       tx.object(vaultsConfigs.vaults_manager_id),
@@ -975,8 +955,8 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
       tx.object(params.farming_pool),
       tx.object(clmm_pool_configs.global_config_id),
       tx.object(params.clmm_pool),
-      primary_coin_a_inputs,
-      primary_coin_b_inputs,
+      primary_coin_a_input,
+      primary_coin_b_input,
       tx.pure.u64(params.amount_a),
       tx.pure.u64(params.amount_b),
       tx.pure.bool(params.fix_amount_a),
@@ -1149,15 +1129,11 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
     let { primary_coin_inputs } = params
 
     if (primary_coin_inputs === undefined) {
-      const all_coin_asset = await this._sdk.FullClient.getOwnerCoinAssets(this._sdk.getSenderAddress())
-      primary_coin_inputs = CoinAssist.buildCoinForAmount(
-        tx,
-        all_coin_asset,
+      primary_coin_inputs = CoinAssist.buildCoinWithBalance(
         BigInt(params.ft_amount),
         params.lp_token_type,
-        false,
-        true
-      ).target_coin
+        tx
+      )
     }
 
     const typeArguments = [params.coin_type_a, params.coin_type_b, params.lp_token_type]
@@ -1187,12 +1163,12 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
     }
   }
 
-  private async getVaultAndPool(vault_id: string, refresh_pool = false) {
+  public async getVaultAndPool(vault_id: string, refresh_pool = false) {
     // Get vault information
     const vault = await this.sdk.Vaults.getVault(vault_id)
 
     if (vault === undefined) {
-      throw new Error(`please check config and vault id`)
+      throw new Error(`please check config and vault id ${vault_id}`)
     }
 
     // Get pool information

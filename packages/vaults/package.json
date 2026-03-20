@@ -1,18 +1,25 @@
 {
   "name": "@cetusprotocol/vaults-sdk",
-  "version": "1.5.0",
+  "version": "1.7.2",
   "description": "SDK for cetus vaults",
   "typings": "dist/index.d.ts",
   "main": "dist/index.js",
-  "module": "dist/index.mjs",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
-    "test": "jest",
+    "test": "vitest",
     "lint": "eslint src/*.ts src/**/*.ts",
     "lint:fix": "eslint src/*.ts src/**/*.ts --fix",
     "build": "pnpm run build:tsup",
     "build:tsup": "npm run build:clean && npm run _build:node",
     "build:clean": "rm -rf dist",
-    "_build:node": "tsup --format cjs,esm --dts",
+    "_build:node": "tsup --format esm --dts",
     "build:doc": "npx typedoc",
     "publish_batch:test": "npm publish --tag experimental",
     "publish:test": "node ../../scripts/version.js vaults && npm publish --tag experimental"
@@ -24,6 +31,9 @@
   "keywords": [],
   "author": "test",
   "license": "Apache-2.0",
+  "dependencies": {
+    "@mysten/sui": "2.6.0"
+  },
   "devDependencies": {
     "@cetusprotocol/common-sdk": "workspace:*",
     "@cetusprotocol/farms-sdk": "workspace:*",
@@ -32,9 +42,8 @@
   },
   "peerDependencies": {
     "@cetusprotocol/common-sdk": "*",
-    "@cetusprotocol/aggregator-sdk": ">=1.2.0",
+    "@cetusprotocol/aggregator-sdk": "*",
     "@cetusprotocol/sui-clmm-sdk": "*",
-    "@cetusprotocol/farms-sdk": "*",
-    "@mysten/sui": "*"
+    "@cetusprotocol/farms-sdk": "*"
   }
 }

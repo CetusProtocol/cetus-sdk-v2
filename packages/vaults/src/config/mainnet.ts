@@ -12,8 +12,8 @@ export const vaultsMainnet: SdkOptions = {
      * https://www.moveregistry.com/package/@cetuspackages/vaults
      */
     package_id: '0xd3453d9be7e35efe222f78a810bb3af1859fd1600926afced8b4936d825c9a05',
-    published_at: '0x7d0ef2da63f62ad6af72f17664f3f32e9e8de73ac3bcb59012294a7c5c67b3d3',
-    version: 12,
+    published_at: '0xe1a137080f82faaee1225a2ed93df19b52181d6a93fca26c30e3122de4033930',
+    version: 13,
     config: {
       admin_cap_id: '0x78a42978709c4032fab7b33b782b5bcef64c1c6603250bf23644650b72144375',
       vaults_manager_id: '0x25b82dd2f5ee486ed1c8af144b89a8931cd9c29dee3a86a1bfe194fdea9d04a6',
