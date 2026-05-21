@@ -19,7 +19,7 @@ describe('Compound test', () => {
 
   beforeEach(async () => {
     send_key_pair = buildTestAccount()
-    sdk.setSenderAddress("0x4a66266abc88d2b684b7a6cd264f5dcc518184ffad1ca6fe3899a0bc38db0584")
+    sdk.setSenderAddress("****")
     pool = await sdk.DlmmSDK.Pool.getPool(poolId)
     console.log("🚀 ~ pool:", pool)
     position = await sdk.DlmmSDK.Position.getPosition(posId)

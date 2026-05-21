@@ -17,7 +17,7 @@ describe('top up collateral position test', () => {
   })
 
   test('getPositionList', async () => {
-    const res = await sdk.PositionModules.getPositionList('0x52bfafe1e1022f2ba070f638128f34e8a948eafe5ce778c0702507652cc3f033')
+    const res = await sdk.PositionModules.getPositionList('****')
     console.log('🚀🚀🚀 ~ position.test.ts:21 ~ res:', res)
   })
 

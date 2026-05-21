@@ -1,0 +1,45 @@
+{
+  "name": "llm-clmmv2-sdk",
+  "version": "0.0.0-experimental-20260518193247",
+  "description": "SDK for cetus clmm",
+  "typings": "dist/index.d.ts",
+  "main": "dist/index.js",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint src/*.ts src/**/*.ts",
+    "lint:fix": "eslint src/*.ts src/**/*.ts --fix",
+    "build": "pnpm run build:tsup",
+    "build:tsup": "pnpm run build:clean && pnpm run _build:node",
+    "build:clean": "rm -rf dist",
+    "_build:browser": "tsup --platform browser --format iife --global-name cetusAptosSDK --minify",
+    "_build:node": "tsup --format cjs,esm --dts",
+    "build:doc": "npx typedoc",
+    "publish_batch:test": "npm publish --tag experimental",
+    "publish:test": "node ../../scripts/version.js clmm && npm publish --tag experimental"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "keywords": [],
+  "author": "Cetus",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@cetusprotocol/common-sdk": "workspace:*",
+    "@cetusprotocol/test-utils": "workspace:*",
+    "@mysten/sui": "2.16.3"
+  },
+  "peerDependencies": {
+    "@cetusprotocol/aggregator-sdk": "*",
+    "@cetusprotocol/common-sdk": "*",
+    "@mysten/sui": ">=2.0.0"
+  }
+}

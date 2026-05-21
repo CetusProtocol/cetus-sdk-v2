@@ -31,9 +31,9 @@ const fullClient = createFullClient(suiClient, graphClient, env, jsonRpcClient)
 describe('FullClient', () => {
 
   test('getOwnerCoinBalances', async () => {
-    const res = await fullClient.getOwnerCoinBalances('0x3bd7a9e240ebef9fe683ae6e2eae2ef0b09f0c552b576e1be15762bc9b3d3581')
+    const res = await fullClient.getOwnerCoinBalances('****')
     const res2 = await fullClient._jsonRpcClient?.core.getBalance({
-      owner: '0x410456cfc689666936b6bf80fbec958b69499b9f7183ecba07de577c17248a44',
+      owner: '****',
       coinType: "0x2f46a040b9bc3a584a3be4d7bfbb02a5fb479da17a04c6d2860ed61d95e97f3f::lpcoin::LPCOIN"
     })
     console.log('🚀🚀🚀 ~ client.test.ts:31 ~ res2:', res2)
@@ -77,7 +77,7 @@ describe('FullClient', () => {
 
 
   test("getOwnedObjectsByPage", async () => {
-    const res = await fullClient.getOwnedObjectsByPage('0x0005e9b405ab0424b6494b64d3d5b79b6715d06d284585faffe1ee1a873ba8a3')
+    const res = await fullClient.getOwnedObjectsByPage('****')
     console.log('🚀🚀🚀 ~ client.test.ts:31 ~ res:', res)
   })
 

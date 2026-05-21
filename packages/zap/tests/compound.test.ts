@@ -25,7 +25,7 @@ describe('deposit test', () => {
     send_key_pair = buildTestAccount()
     // address = send_key_pair.getPublicKey().toSuiAddress()
     
-    address = '0x4a66266abc88d2b684b7a6cd264f5dcc518184ffad1ca6fe3899a0bc38db0584'
+    address = '****'
     sdk.setSenderAddress(address)
     
 

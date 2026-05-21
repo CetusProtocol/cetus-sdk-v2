@@ -135,7 +135,7 @@ describe('li.fi CrossSwap', () => {
     const tokens = await sdk.getSupportedTokens(CrossSwapPlatform.MAYAN, [ChainId.SOL_MAYAN])
     const balances = await sdk.getOwnerTokenBalances(
       CrossSwapPlatform.MAYAN,
-      '3kTFG1MTm2VG4DHeNpqby7EkMqCWF2eeetxnKU9pG5x4',
+      '****',
       tokens[ChainId.SOL_MAYAN]
     )
     console.log('🚀 ~ test ~ balances:', balances)
@@ -143,7 +143,7 @@ describe('li.fi CrossSwap', () => {
 
   test('getSolanaBalance', async () => {
     const connection = new Connection('https://cetus-solanam-e396.mainnet.rpcpool.com/')
-    const balance = await connection.getBalance(new PublicKey('3kTFG1MTm2VG4DHeNpqby7EkMqCWF2eeetxnKU9pG5x4'))
+    const balance = await connection.getBalance(new PublicKey('****'))
     console.log('🚀 ~ test ~ balance:', balance)
   })
 

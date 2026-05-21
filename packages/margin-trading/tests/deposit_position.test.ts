@@ -24,7 +24,7 @@ describe('deposit position test', () => {
   })
 
   test('getPositionList', async () => {
-    const res = await sdk.PositionModules.getPositionList('0xc5cea39da987d8fe16bf0c6db51bfbf4897aef0edf9588e035ae175ac416fdd1')
+    const res = await sdk.PositionModules.getPositionList('****')
     console.log('🚀🚀🚀 ~ position.test.ts:21 ~ res:', res)
   })
 

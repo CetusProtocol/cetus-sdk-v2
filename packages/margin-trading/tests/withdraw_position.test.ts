@@ -16,7 +16,7 @@ describe('withdraw position test', () => {
   })
 
   test('getPositionList', async () => {
-    const res = await sdk.PositionModules.getPositionList('0x52bfafe1e1022f2ba070f638128f34e8a948eafe5ce778c0702507652cc3f033')
+    const res = await sdk.PositionModules.getPositionList('****')
   })
 
   test('getPositionInfo', async () => {
@@ -34,7 +34,7 @@ describe('withdraw position test', () => {
       withdraw_max: true,
     })
     printTransaction(payload)
-    const res = await sdk.FullClient.executeTx("0x91146573f34bae3dc0cd7eb5f4c33ec1e179106cc3cb648e33cd4891e519800b", payload, true)
+    const res = await sdk.FullClient.executeTx("****", payload, true)
     console.log('🚀🚀🚀 ~ position.test.ts:21 ~ res:', res)
   })
 
@@ -97,8 +97,8 @@ describe('withdraw position test', () => {
   })
 
   test('long position close with quote', async () => {
-    sdk.setSenderAddress('0x91146573f34bae3dc0cd7eb5f4c33ec1e179106cc3cb648e33cd4891e519800b')
-    sdk.senderAddress = '0x91146573f34bae3dc0cd7eb5f4c33ec1e179106cc3cb648e33cd4891e519800b'
+    sdk.setSenderAddress('****')
+    sdk.senderAddress = '****'
     const payload = await sdk.PositionModules.positionClose({
       position_id: '0x003c1038d010887878eb3d7e1baab3709341994a470e86f42808967c7526aab2',
       is_quote: true,
@@ -107,7 +107,7 @@ describe('withdraw position test', () => {
       swap_clmm_pool: '0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab',
     })
     printTransaction(payload)
-    const res = await sdk.FullClient.executeTx('0x91146573f34bae3dc0cd7eb5f4c33ec1e179106cc3cb648e33cd4891e519800b', payload, true)
+    const res = await sdk.FullClient.executeTx('****', payload, true)
     console.log('🚀🚀🚀 ~ withdraw_position.test.ts:109 ~ res:', res)
   })
 

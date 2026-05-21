@@ -46,7 +46,7 @@ describe('DCA Module', () => {
   })
 
   test('1 getDcaOrders', async () => {
-    const dcaOrderList = await sdk.Dca.getDcaOrders("0x163b88ad540252210b3aceeb37496ac05685f04a37d3c8b7cfa685a574086722")
+    const dcaOrderList = await sdk.Dca.getDcaOrders("****")
     console.log('🚀🚀🚀 ~ file: dca.test.ts:61 ~ test ~ dcaOrderList:', dcaOrderList)
   })
 

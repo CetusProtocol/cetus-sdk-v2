@@ -129,7 +129,7 @@ describe('deposit test', () => {
 
   test('Mode: OnlyCoinA ', async () => {
     const { current_sqrt_price, current_tick_index, tick_spacing, coin_type_a, coin_type_b } = pool!
-    sdk.setSenderAddress('0x935029ca5219502a47ac9b69f556ccf6e2198b5e7815cf50f68846f723739cbd')
+    sdk.setSenderAddress('****')
     const pos: any = undefined //ß await sdk.CetusClmmSDK.Position.getPositionById(posId)
 
     const tick_lower = TickMath.getInitializeTickIndex(current_tick_index - 2000, Number(tick_spacing))

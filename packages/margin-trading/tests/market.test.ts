@@ -10,7 +10,7 @@ describe('market Module', () => {
     env: 'mainnet',
     full_rpc_url: 'https://fullnode.mainnet.sui.io:443',
   })
-  sdk.senderAddress = '0x13f54eaa1844636b2d16321f11b6e6a87b32ff94171ad26ba59c40b5f0e5fc0b'
+  sdk.senderAddress = '****'
 
   beforeEach(async () => {
     send_key_pair = buildTestAccount()

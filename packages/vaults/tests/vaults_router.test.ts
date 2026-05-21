@@ -270,7 +270,7 @@ describe('vaults router', () => {
     printTransaction(tx)
     const res = await sdk.FullClient.devInspectTransactionBlock({
       transactionBlock: tx,
-      sender: '0x2a6174f94a2c1d648de290297be27867527a6aaa263a4e0a567c9cd7656d3651',
+      sender: '****',
     })
     console.log('1110 res: ', res.events.length > 0 ? res.events : res)
   })

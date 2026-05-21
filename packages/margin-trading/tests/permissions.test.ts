@@ -149,7 +149,7 @@ describe('SuiLend Module', () => {
     const tx = new Transaction()
     tx.transferObjects(
       ['0x1d84d375eb46b590f125c3d165bf84d859dfee1d5b13c48e24d2a4ad54546304'],
-      tx.pure.address('0x91146573f34bae3dc0cd7eb5f4c33ec1e179106cc3cb648e33cd4891e519800b')
+      tx.pure.address('****')
     )
     const res = await sdk.FullClient.executeTx(send_key_pair, tx, false)
     console.log('🚀🚀🚀 ~ permissions.test.ts:155 ~ res:', res)
