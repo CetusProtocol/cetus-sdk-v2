@@ -1,4 +1,4 @@
-import { DevInspectResults } from '@mysten/sui/jsonRpc'
+import type { DevInspectResults } from '@mysten/sui/jsonRpc'
 import { Transaction } from '@mysten/sui/transactions'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
 import { blake2b } from 'blakejs'
@@ -9,10 +9,10 @@ import {
   DataPage,
   IModule,
   PaginationArgs,
+  TypeNameRaw,
   composeType,
   extractStructTagFromType,
   fixCoinType,
-  getObjectFields,
   getPackagerConfigs,
 } from '@cetusprotocol/common-sdk'
 import { LimitErrorCode, handleError } from '../errors/errors'
@@ -29,6 +29,7 @@ import {
   PlaceLimitOrderParams,
 } from '../types/limitOrder'
 import { LimitOrderUtils } from '../utils/limitOrder'
+import { bcs } from '@mysten/sui/bcs'
 
 export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
   protected _sdk: CetusLimitOrderSDK
@@ -50,13 +51,13 @@ export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
     const { FullClient } = this._sdk
     try {
       const res = await FullClient.getDynamicFieldsByPage(token_list_handle)
-      const warpIds = res.data.map((item) => item.objectId)
+      const warpIds = res.data.map((item) => item.fieldId)
 
-      const objectRes = await FullClient.batchGetObjects(warpIds, { showContent: true })
+      const objectRes = await FullClient.batchGetObjects(warpIds, { json: true })
       return objectRes.map((item: any) => {
-        const { fields } = item.data.content
+        const fields = item.json
         const info: LimitOrderToken = {
-          coin_type: extractStructTagFromType(fields.name.fields.name).full_address,
+          coin_type: extractStructTagFromType(fields.name.name).full_address,
           min_trade_amount: Number(fields.value),
         }
 
@@ -79,15 +80,15 @@ export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
     const { FullClient } = this._sdk
     try {
       const res = await FullClient.getDynamicFieldsByPage(rate_orders_indexer_handle)
-      const warpIds = res.data.map((item) => item.objectId)
+      const warpIds = res.data.map((item) => item.fieldId)
 
-      const objectRes = await FullClient.batchGetObjects(warpIds, { showContent: true })
+      const objectRes = await FullClient.batchGetObjects(warpIds, { json: true })
 
       return objectRes.map((item: any) => {
-        const { fields } = item.data.content.fields.value
+        const fields = item.json.value
         const info: OrderPool = {
-          pay_coin_type: extractStructTagFromType(fields.pay_coin.fields.name).full_address,
-          target_coin_type: extractStructTagFromType(fields.target_coin.fields.name).full_address,
+          pay_coin_type: extractStructTagFromType(fields.pay_coin.name).full_address,
+          target_coin_type: extractStructTagFromType(fields.target_coin.name).full_address,
           indexer_id: fields.indexer_id,
           indexer_key: fields.indexer_key,
         }
@@ -107,20 +108,27 @@ export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
     const { FullClient } = this._sdk
 
     try {
-      const res: any = await FullClient.getDynamicFieldObject({
+      const res: any = await FullClient.getDynamicField({
         parentId: rate_orders_indexer_handle,
         name: {
           type: '0x2::object::ID',
-          value: this.buildPoolKey(fixCoinType(pay_coin_type, true), fixCoinType(target_coin_type, true)),
+          bcs: bcs.Address.serialize(this.buildPoolKey(fixCoinType(pay_coin_type, true), fixCoinType(target_coin_type, true))).toBytes(),
         },
       })
-      const { fields } = getObjectFields(res).value
+      const bacData = res.dynamicField?.value.bcs
+
+      const parsed = bcs.struct('RateOrdersIndexerSimpleInfo', {
+        indexer_id: bcs.Address,
+        indexer_key: bcs.Address,
+        pay_coin: TypeNameRaw,
+        target_coin: TypeNameRaw,
+      }).parse(bacData)
 
       const info: OrderPool = {
-        pay_coin_type: extractStructTagFromType(fields.pay_coin.fields.name).full_address,
-        target_coin_type: extractStructTagFromType(fields.target_coin.fields.name).full_address,
-        indexer_id: fields.indexer_id,
-        indexer_key: fields.indexer_key,
+        pay_coin_type: fixCoinType(parsed.pay_coin.name, false),
+        target_coin_type: fixCoinType(parsed.target_coin.name, false),
+        indexer_id: parsed.indexer_id,
+        indexer_key: parsed.indexer_key,
       }
       this._sdk.updateCache(`${info.pay_coin_type}_${info.target_coin_type}`, info.indexer_id)
 
@@ -167,13 +175,17 @@ export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
     })
   }
 
-  public parsedQueryUserIndexerEvent(simulate_res: DevInspectResults) {
-    const valueList: any[] = simulate_res.events?.filter((item: any) => {
-      return item.type.includes('limit_order::QueryUserIndexerEvent')
+  public parsedQueryUserIndexerEvent(events: any[]) {
+    const valueList: any[] = events.filter((item: any) => {
+      return item.eventType.includes('limit_order::QueryUserIndexerEvent')
     })
     if (valueList.length > 0) {
-      const { parsedJson } = valueList[0]
-      return parsedJson.orders_table_id
+      // "0x533fab9a116080e2cb1c87f1832c1bf4231ab4c32318ced041e75cc28604bba9::limit_order::QueryUserIndexerEvent"
+      const bcsData = valueList[0].bcs
+      return bcs.struct('QueryUserIndexerEvent', {
+        indexer_id: bcs.Address,
+        orders_table_id: bcs.Address,
+      }).parse(bcsData).orders_table_id
     }
     return undefined
   }
@@ -197,9 +209,9 @@ export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
       const res = await FullClient.getDynamicFieldsByPage(userIndexerHandle, pagination_args)
       dataPage.has_next_page = res.has_next_page
       dataPage.next_cursor = res.next_cursor
-      const orderIds = res.data.map((item) => item.name.value)
+      const orderIds = res.data.map((item) => bcs.Address.parse(item.name.bcs))
 
-      const objectRes = await FullClient.batchGetObjects(orderIds, { showContent: true })
+      const objectRes = await FullClient.batchGetObjects(orderIds, { json: true })
       const data = objectRes.map((item) => LimitOrderUtils.buildLimitOrderInfo(item)).filter((info) => info !== undefined) as LimitOrder[]
       dataPage.data = data
     } catch (error) {
@@ -232,17 +244,17 @@ export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
         config.rate_orders_indexer_id = fields.rate_orders_indexer_id
         config.user_orders_indexer_id = fields.user_orders_indexer_id
 
-        const orderPoolObj = await this._sdk.FullClient.getObject({
-          id: config.rate_orders_indexer_id,
-          options: { showContent: true },
+        const orderPoolObj: any = await this._sdk.FullClient.getObject({
+          objectId: config.rate_orders_indexer_id,
+          include: { json: true },
         })
-        config.rate_orders_indexer_handle = getObjectFields(orderPoolObj).list.fields.id.id
+        config.rate_orders_indexer_handle = orderPoolObj.object.json.list.id
 
-        const useOrderObj = await this._sdk.FullClient.getObject({
-          id: config.user_orders_indexer_id,
-          options: { showContent: true },
+        const useOrderObj: any = await this._sdk.FullClient.getObject({
+          objectId: config.user_orders_indexer_id,
+          include: { json: true },
         })
-        config.user_orders_indexer_handle = getObjectFields(useOrderObj).indexer.fields.id.id
+        config.user_orders_indexer_handle = useOrderObj.object.json.indexer.id
       }
       const globalEventObjs = (await this._sdk.FullClient.queryEventsByPage({ MoveEventType: `${package_id}::config::InitFactoryEvent` }))
         .data
@@ -251,9 +263,9 @@ export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
         const fields = globalEventObjs[0].parsedJson as any
         config.global_config_id = fields.global_config_id
 
-        const globalObj = await this._sdk.FullClient.getObject({ id: config.global_config_id, options: { showContent: true } })
-        const globalObjFields = getObjectFields(globalObj)
-        config.token_list_handle = globalObjFields.token_white_list.fields.id.id
+        const globalObj: any = await this._sdk.FullClient.getObject({ objectId: config.global_config_id, include: { json: true } })
+        const globalObjFields = globalObj.object.json
+        config.token_list_handle = globalObjFields.token_white_list.id
       }
 
       return config
@@ -271,8 +283,8 @@ export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
    */
   async getLimitOrder(order_id: string): Promise<LimitOrder | undefined> {
     try {
-      const res = await this._sdk.FullClient.getObject({ id: order_id, options: { showContent: true } })
-      return LimitOrderUtils.buildLimitOrderInfo(res)
+      const res = await this._sdk.FullClient.getObject({ objectId: order_id, include: { json: true } })
+      return LimitOrderUtils.buildLimitOrderInfo(res.object)
     } catch (error) {
       console.log('Error in getLimitOrder:', error)
       return handleError(LimitErrorCode.LimitOrderIdInValid, error as Error, {
@@ -291,7 +303,7 @@ export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
    */
   async getLimitOrderLogs(order_id: string): Promise<OrderLimitEvent[]> {
     try {
-      const res = await this._sdk.FullClient.queryTransactionBlocks({ filter: { ChangedObject: order_id }, options: { showEvents: true } })
+      const res = await this._sdk.FullClient.queryTransactionBlocksByPage({ affectedAddress: order_id })
       const list: OrderLimitEvent[] = []
       res.data.forEach((item) => {
         list.push(...LimitOrderUtils.buildOrderLimitEvent(item, ['OrderPlacedEvent', 'OrderCanceledEvent', 'FlashLoanEvent']))
@@ -317,7 +329,7 @@ export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
    */
   async getLimitOrderClaimLogs(order_id: string): Promise<OrderLimitEvent[]> {
     try {
-      const res = await this._sdk.FullClient.queryTransactionBlocks({ filter: { ChangedObject: order_id }, options: { showEvents: true } })
+      const res = await this._sdk.FullClient.queryTransactionBlocksByPage({ affectedObject: order_id })
       const list: OrderLimitEvent[] = []
       res.data.forEach((item) => {
         list.push(...LimitOrderUtils.buildOrderLimitEvent(item, ['ClaimTargetCoinEvent']))
@@ -461,11 +473,8 @@ export class LimitOrderModule implements IModule<CetusLimitOrderSDK> {
       const tx = new Transaction()
       this.buildGetUserIndexerHandle(owner_address, tx)
 
-      const res: any = await this._sdk.FullClient.devInspectTransactionBlock({
-        transactionBlock: tx,
-        sender: normalizeSuiAddress(owner_address),
-      })
-      userIndexerHandle = this.parsedQueryUserIndexerEvent(res)
+      const res: any = await this._sdk.FullClient.sendSimulationTransaction(tx, normalizeSuiAddress(owner_address))
+      userIndexerHandle = this.parsedQueryUserIndexerEvent(res.Transaction.events)
       if (userIndexerHandle) {
         this.saveUserIndexerHandleByCache(owner_address, userIndexerHandle)
       }

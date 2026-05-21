@@ -32,7 +32,7 @@ export class DcaUtils {
   }
 
   static buildDcaGlobalConfig(data: any) {
-    if (data && data.id.id) {
+    if (data && data.id) {
       return {
         min_cycle_count: data.min_cycle_count,
         min_cycle_frequency: data.min_cycle_frequency,

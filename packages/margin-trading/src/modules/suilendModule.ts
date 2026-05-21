@@ -4,28 +4,32 @@ import {
   initializeSuilend,
   initializeSuilendRewards,
   initializeObligations,
+} from '@suilend/sdk/lib/initialize'
+import {
   formatRewards,
-  Side,
   getFilteredRewards,
   getStakingYieldAprPercent,
   getDedupedPerDayRewards,
   getDedupedAprRewards,
   getTotalAprPercent,
   getNetAprPercent,
-  PerDayRewardSummary,
-  AprRewardSummary,
-  LST_DECIMALS,
-} from '@suilend/sdk'
+} from '@suilend/sdk/lib/liquidityMining'
+import { Side } from '@suilend/sdk/lib/types'
+import type { PerDayRewardSummary, AprRewardSummary } from '@suilend/sdk/lib/liquidityMining'
 import { AllAppData, Price } from '../types'
 import BigNumber from 'bignumber.js'
 import { calculateBorrowAprPercent, calculateDepositAprPercent, getPriceWithFormattedDecimals } from '../utils/suiLend'
-import { d, getPackagerConfigs, PythPriceModule, removeHexPrefix } from '@cetusprotocol/common-sdk'
+import { d, getPackagerConfigs, removeHexPrefix } from '@cetusprotocol/common-sdk'
+import * as CommonSdk from '@cetusprotocol/common-sdk'
 import { Transaction } from '@mysten/sui/transactions'
 import { Reserve } from '@suilend/sdk/_generated/suilend/reserve/structs'
 import { SUI_DECIMALS, toHex } from '@mysten/sui/utils'
 import Decimal from 'decimal.js'
 import { SuiLendCoinAprResult } from '../types'
 import { handleError, MarginTradingErrorCode } from '../errors/errors'
+import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
+
+const LST_DECIMALS = 9
 
 export class SuiLendModule {
   private sdk: CetusMarginTradingSDK
@@ -37,11 +41,12 @@ export class SuiLendModule {
   // Add suilendClient cache
   private suilendClientCache?: Record<string, SuilendClient>
 
-  private pythPriceModule: PythPriceModule
+  private pythPriceModule: any
 
   constructor(sdk: CetusMarginTradingSDK) {
     this.sdk = sdk
-    this.pythPriceModule = new PythPriceModule(this.sdk.FullClient, {
+    const PythPriceModuleCtor = (CommonSdk as any).PythPriceModule
+    this.pythPriceModule = new PythPriceModuleCtor(this.sdk.FullClient, {
       pyth_package_id: "0x04e20ddf36af412a4096f9014f4a565af9e812db9a05cc40254846cf6ed0ad91",
       pyth_published_at: "0x04e20ddf36af412a4096f9014f4a565af9e812db9a05cc40254846cf6ed0ad91",
       pyth_state_id: "0x1f9310238ee9298fb703c3419030b35b22bb1cc37113e3bb5007c99aec79e5b8",
@@ -63,7 +68,7 @@ export class SuiLendModule {
     }
 
     if (!this.suilendClientCache[cacheKey]) {
-      this.suilendClientCache[cacheKey] = await SuilendClient.initialize(lending_market_id, lending_market_type, this.sdk.FullClient, true)
+      this.suilendClientCache[cacheKey] = await SuilendClient.initialize(lending_market_id, lending_market_type, this.sdk.FullClient._client as any, true)
     }
 
     return this.suilendClientCache[cacheKey]
@@ -114,7 +119,7 @@ export class SuiLendModule {
                   rewardCoinTypes,
                   activeRewardCoinTypes,
                   rewardCoinMetadataMap,
-                } = await initializeSuilend(this.sdk.FullClient, suilendClient)
+                } = await initializeSuilend(this.sdk.FullClient._client as any, suilendClient)
 
                 const { rewardPriceMap } = await initializeSuilendRewards(reserveMap, activeRewardCoinTypes)
 
@@ -276,7 +281,7 @@ export class SuiLendModule {
     const result: Record<string, any> = {}
     for (const appData of Object.values(all_app_data.allLendingMarketData)) {
       const { obligationOwnerCaps, obligations } = await initializeObligations(
-        this.sdk.FullClient,
+        this.sdk.FullClient._client as any,
         appData.suilendClient,
         appData.refreshedRawReserves,
         appData.reserveMap,
@@ -329,7 +334,7 @@ export class SuiLendModule {
 
     const filteredRewards = getFilteredRewards(rewards)
 
-    const stakingYieldAprPercent = getStakingYieldAprPercent(side, reserve.coinType, lstStatsMap, sdeUsdAprPercent, eThirdAprPercent)
+    const stakingYieldAprPercent = getStakingYieldAprPercent(side, reserve.coinType, lstStatsMap, sdeUsdAprPercent, eThirdAprPercent, eEarnAprPercent)
 
     const aprPercent = side === Side.DEPOSIT ? reserve.depositAprPercent : reserve.borrowAprPercent
     let newAprPercent: BigNumber | undefined = aprPercent
@@ -414,7 +419,7 @@ export class SuiLendModule {
       throw new Error(`Obligation not found: ${obligation_id}`)
     }
 
-    const netAprPercent = getNetAprPercent(obligation, userData.rewardMap, lstStatsMap ?? {}, sdeUsdAprPercent, eThirdAprPercent)
+    const netAprPercent = getNetAprPercent(obligation, userData.rewardMap, lstStatsMap ?? {}, sdeUsdAprPercent, eThirdAprPercent, eEarnAprPercent)
 
     return {
       obligation,
@@ -428,7 +433,7 @@ export class SuiLendModule {
   }
 
   // Update contract oracle price
-  refreshReservePrice = async (tx: Transaction, price_object_id: string, reserve_array_index: bigint) => {
+  refreshReservePrice = async (tx: any, price_object_id: string, reserve_array_index: bigint) => {
     const { lending_market_id, lending_market_type } = getPackagerConfigs(this.sdk.sdkOptions?.suilend)
     const cacheKey = `${lending_market_id}_${lending_market_type}`
     if (!this.suilendClientCache) {
@@ -436,7 +441,7 @@ export class SuiLendModule {
     }
     const priceInfoObjectId = await this.pythPriceModule.getPriceFeedObjectId(price_object_id)
 
-    this.suilendClientCache[cacheKey].refreshReservePrices(tx, priceInfoObjectId as string, reserve_array_index)
+    this.suilendClientCache[cacheKey].refreshReservePrices(tx as any, priceInfoObjectId as string, reserve_array_index)
   }
 
   // Get oracle price
@@ -445,12 +450,12 @@ export class SuiLendModule {
 
     const priceMap: Record<string, Price> = {}
     const notFindList = []
-    reserves.forEach((item) => {
-      const data = this.sdk.getCache<Price>(`getLatestPrice_${item.coinType.name}`, force_refresh)
+    reserves.forEach((item: any) => {
+      const data = this.sdk.getCache<Price>(`getLatestPrice_${item.coinType}`, force_refresh)
       if (data && this.priceCheck(data, 60)) {
-        priceMap[item.coinType.name] = data
+        priceMap[item.coinType] = data
       } else {
-        notFindList.push(item.coinType.name)
+        notFindList.push(item.coinType)
       }
     })
     if (notFindList.length == 0) {
@@ -470,7 +475,7 @@ export class SuiLendModule {
     )
     const priceUpdateData = await this.pythPriceModule.getLatestPriceFeeds(priceIdentifiers as string[])
 
-    priceUpdateData?.parsed?.forEach((priceFeed, index) => {
+    priceUpdateData?.parsed?.forEach((priceFeed: any, index: any) => {
 
       if (priceFeed) {
         const { price, expo, publish_time } = priceFeed.price

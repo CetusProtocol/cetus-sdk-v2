@@ -1,21 +1,17 @@
 // buildTestAccount
-import type { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import { buildTestAccount } from '@cetusprotocol/test-utils'
 import { CetusDlmmSDK } from '../src/sdk'
 import { parseCurrentRewardPeriodEmission, parseRewardPeriodEmission } from '../src/utils/parseData'
-import { Transaction } from '@mysten/sui/transactions'
 import { CoinAssist, printTransaction } from '@cetusprotocol/common-sdk'
-import { toBase64 } from '@mysten/sui/utils'
 import BN from 'bn.js'
 import { bcs } from '@mysten/sui/bcs'
 
 describe('config', () => {
   const sdk = CetusDlmmSDK.createSDK({ env: 'mainnet' })
-  let send_key_pair: Ed25519Keypair
   let account: string
 
   beforeEach(async () => {
-    send_key_pair = buildTestAccount()
+    let send_key_pair = buildTestAccount()
     account = send_key_pair.getPublicKey().toSuiAddress()
     sdk.setSenderAddress(account)
   })
@@ -25,23 +21,6 @@ describe('config', () => {
     console.log('🚀 ~ test ~ res:', res)
   })
 
-  test('build rawBytes', async () => {
-    const tx = new Transaction()
-
-    const zeroCoin = CoinAssist.buildCoinWithBalance(
-      BigInt(100),
-      '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
-      tx
-    )
-    tx.transferObjects([zeroCoin], tx.pure.address(account))
-    tx.setSender(account)
-
-    printTransaction(tx)
-    // build rawBytes
-    const data = await tx.build({ client: sdk.FullClient })
-    const rawBytes = toBase64(data)
-    console.log('rawBytes: ', rawBytes)
-  })
 
   test('getBinStepConfigList', async () => {
     const res = await sdk.Config.getBinStepConfigList('0xaf104c430fba556e51395aae4088eaee74982eec6b5599ae3302e18878151f74')

@@ -1,4 +1,3 @@
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import BN from 'bn.js'
 import { adjustForCoinSlippage, ClmmPoolUtil, Percentage, printTransaction, TickMath } from '@cetusprotocol/common-sdk'
 import { buildTestAccount } from '@cetusprotocol/test-utils'
@@ -6,18 +5,16 @@ import 'isomorphic-fetch'
 import { CetusFarmsSDK } from '../src/sdk'
 import type { HarvestParams } from '../src/types/farmsType'
 import { ClaimFeeAndClmmRewardParams } from '../src/types/farmsType'
-import { beforeEach, describe, test } from 'vitest'
-let send_key_pair: Ed25519Keypair
 
 const poolId = '0x6bee98b2758317730bb9fe800631ddacc5b892a173c0380730ca9b85d00ed732'
 const clmm_pool_id = '0x8903aa21e3a95fdeef8ab06ef29fd4511ce3bd650a1fdd28a455300ddf470062'
-const position_nft_id = '0x30715d4711a81aadd55cdc786fd523afa61e7d14e67d7ba783229ac420c21594'
+const position_nft_id = "0xa2f8d44f0d66b7cbec83816c551a3464ec8a60631fc03049a1f0543cec20c674"
 
 describe('farms Module', () => {
   const sdk = CetusFarmsSDK.createSDK({ env: 'mainnet' })
 
   beforeEach(async () => {
-    send_key_pair = buildTestAccount()
+    let send_key_pair = buildTestAccount()
     sdk.ClmmSDK.setSenderAddress(send_key_pair.getPublicKey().toSuiAddress())
   })
 
@@ -26,24 +23,20 @@ describe('farms Module', () => {
     console.log('configs: ', configs)
   })
   test('1 getFarmsPoolList', async () => {
-    const poolData = await sdk.Farms.getFarmsPoolList()
+    const poolData = await sdk.Farms.getFarmsPoolList({ limit: 10 })
     console.log('poolData: ', JSON.stringify(poolData.data, null, 2))
   })
 
   test('2 getFarmsPool', async () => {
-    const poolData = await sdk.Farms.getFarmsPool('0x6744ac18dd36c4bc805606b19f609c46e1404f79e867aa51e78dfa87cd91ca0a')
+    const poolData = await sdk.Farms.getFarmsPool("0x5f9bf70794aafe6f5a9418a217dea4378d562bfbfca41f94a4211f7ff35e4e0e")
     console.log('poolData: ', poolData)
   })
 
   test('1 getOwnedFarmsPositionNFTList', async () => {
-    const nftList = await sdk.Farms.getOwnedFarmsPositionNFTList(sdk.ClmmSDK.getSenderAddress())
+    const nftList = await sdk.Farms.getOwnedFarmsPositionNFTList(sdk.ClmmSDK.getSenderAddress(), [], true)
     console.log('nftList: ', nftList.data)
   })
 
-  test('2 getOwnedFarmsPositionNFTList', async () => {
-    const nftList = await sdk.Farms.getOwnedFarmsPositionNFTList(sdk.getSenderAddress())
-    console.log('nftList: ', nftList)
-  })
 
   test('1 getFarmsPositionNFT', async () => {
     const fpNFT = await sdk.Farms.getFarmsPositionNFT(position_nft_id, true)
@@ -53,8 +46,8 @@ describe('farms Module', () => {
   test('calculateFarmingRewards', async () => {
     const farmingRewards = await sdk.Farms.calculateFarmingRewards([
       {
-        pool_id: '0x1f40acac94f991ad7336841865bbab98a11272d0edc70a2399d1c807d6fab75e',
-        position_nft_id: '0xa6bfc276ad64045b46340e88c93d61056f312d444f53317d463d3c59b8728a32',
+        pool_id: '0x9f5fd63b2a2fd8f698ff6b7b9720dbb2aa14bedb9fc4fd6411f20e5b531a4b89',
+        position_nft_id: '0xa2f8d44f0d66b7cbec83816c551a3464ec8a60631fc03049a1f0543cec20c674',
       },
     ])
     console.log('farmingRewards: ', farmingRewards)

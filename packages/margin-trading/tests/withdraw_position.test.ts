@@ -12,7 +12,7 @@ describe('withdraw position test', () => {
 
   beforeEach(async () => {
     send_key_pair = buildTestAccount()
-    sdk.setSenderAddress("0x91146573f34bae3dc0cd7eb5f4c33ec1e179106cc3cb648e33cd4891e519800b")
+    sdk.setSenderAddress(send_key_pair.toSuiAddress())
   })
 
   test('getPositionList', async () => {
@@ -113,23 +113,25 @@ describe('withdraw position test', () => {
 
   test('short position close with quote', async () => {
     const payload = await sdk.PositionModules.positionClose({
-      position_id: '0x3af2f8cd33f446e9ff4d2c57f8cc9257ec13eaa67db0b7a30f35c0d4dedb5cd3',
-      is_quote: false,
-      slippage: 0.01,
-      leverage: 1,
-      swap_clmm_pool: '0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab',
+      "position_id": "0x46a6c085cd222deeaf01b301150ad2d401d5fdbec74711f5edfeab643a2a13fa",
+      "is_quote": false,
+      "slippage": 0.01,
+      "leverage": 1,
+      "swap_clmm_pool": "0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab",
     })
     printTransaction(payload)
-    const res = await sdk.FullClient.executeTx(send_key_pair, payload, true)
+    const res = await sdk.FullClient.executeTx(send_key_pair, payload, false)
     console.log('🚀🚀🚀 ~ withdraw_position.test.ts:109 ~ res:', res)
   })
 
+
   test('short position close with base', async () => {
     const payload = await sdk.PositionModules.positionClose({
-      position_id: '0xfe163e9b79229c284dbcba0450aa4f1de62098cffd5cd5a97c526ca89411268d',
-      is_quote: true,
-      slippage: 0.05,
-      leverage: 1.45,
+      "position_id": "0xeb4148cb0a2a77c669b6ba6bc1c388b5ec34cb8f05ccacdd1bf499cb4e51f040",
+      "is_quote": false,
+      "slippage": 0.01,
+      "leverage": 1.099774320958929902386719934307972956188780854136426594934260042,
+      "swap_clmm_pool": "0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab"
     })
     printTransaction(payload)
     const res = await sdk.FullClient.executeTx(send_key_pair, payload, true)

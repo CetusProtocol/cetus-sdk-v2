@@ -181,10 +181,12 @@ export type EstimateQuoteOptions = {
   slippage?: number
   mayan_configs?: {
     gas_drop?: number
+    to_address?: string
   }
   lifi_configs?: {
     from_address?: string
     to_address?: string
+    maxPriceImpact?: number
   }
 }
 
@@ -229,6 +231,7 @@ export type CrossSwapQuote = {
   from_token: CrossSwapToken
   to_token: CrossSwapToken
   platform: CrossSwapPlatform
+  to_address?: string
 }
 
 export type CrossSwapRouter = {

@@ -1,14 +1,14 @@
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import BN from 'bn.js'
-import { ClmmPoolUtil, printTransaction, TickMath, toDecimalsAmount } from '@cetusprotocol/common-sdk'
+import { ClmmPoolUtil, d, printTransaction, TickMath, toDecimalsAmount } from '@cetusprotocol/common-sdk'
 import { buildTestAccount } from '@cetusprotocol/test-utils'
 import 'isomorphic-fetch'
 import { AddLiquidityFixTokenParams, CustomRangeParams, FullRangeParams } from '../src'
 import { CetusClmmSDK } from '../src/sdk'
 
 let send_key_pair: Ed25519Keypair
-const poolId = '0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab'
-const position_nft_id = '0xc3d2af9ca5da5433407c5189a16b529d3dc0e835041f6b4e7cd40d9389736f0b'
+const poolId = '0x3a33be7244f166c5426872d66fbfcbacaae5be229444b5bcc707de6d7656233d'
+const position_nft_id = '0xe6cf790521d1c32673de1b5ac39039e9e37046e4001544d61f603d2264e35350'
 
 describe('add_liquidity_fix_token', () => {
   const sdk = CetusClmmSDK.createSDK({ env: 'mainnet' })
@@ -24,18 +24,21 @@ describe('add_liquidity_fix_token', () => {
     console.log('🚀 ~ test ~ pool:', pool)
     console.log('🚀 -----------------------🚀')
 
-    const tick_lower_index = TickMath.getPrevInitializeTickIndex(
-      new BN(pool.current_tick_index).toNumber(),
-      new BN(pool.tick_spacing).toNumber()
-    )
-    const tick_upper_index = TickMath.getNextInitializeTickIndex(
-      new BN(pool.current_tick_index).toNumber(),
-      new BN(pool.tick_spacing).toNumber()
-    )
+    const tick_lower_index = d(pool.current_tick_index).sub(pool.tick_spacing).toNumber()
+    const tick_upper_index = d(pool.current_tick_index).add(pool.tick_spacing).toNumber()
+
     const coinAmount = new BN(100000)
     const fix_amount_a = true
     const slippage = 0.01
-    const curSqrtPrice = new BN(pool.current_sqrt_price)
+    const curSqrtPrice = TickMath.tickIndexToSqrtPriceX64(pool.current_tick_index)
+
+    const curPrice = TickMath.sqrtPriceX64ToPrice(new BN(curSqrtPrice), 6, 6).toString()
+
+
+    const curPrice1 = TickMath.sqrtPriceX64ToPrice(new BN(pool.current_sqrt_price), 6, 6).toString()
+
+    console.log('curPrice: ', curPrice)
+    console.log('curPrice1: ', curPrice1)
 
     const liquidityInput = ClmmPoolUtil.estLiquidityAndCoinAmountFromOneAmounts(
       tick_lower_index,
@@ -79,7 +82,7 @@ describe('add_liquidity_fix_token', () => {
     const position = await sdk.Position.getPositionById(position_nft_id)
     const tick_lower_index = position.tick_lower_index
     const tick_upper_index = position.tick_upper_index
-    const coinAmount = new BN(500)
+    const coinAmount = new BN(200)
     const fix_amount_a = true
     const slippage = 0.1
     const curSqrtPrice = new BN(pool.current_sqrt_price)

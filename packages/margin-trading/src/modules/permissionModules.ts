@@ -14,12 +14,12 @@ export class PermissionModules {
     const config = this._sdk.sdkOptions.margin_trading
     const { global_config_id } = getPackagerConfigs(config)
     const globalConfig: any = await this._sdk.FullClient.getObject({
-      id: global_config_id,
-      options: { showContent: true },
+      objectId: global_config_id,
+      include: { json: true },
     })
     if (globalConfig) {
       // u32Max
-      const permissions = globalConfig.data.content.fields.permissions.toString(2)
+      const permissions = globalConfig.object.json.permissions.toString(2)
       const {
         open_permissions_pause,
         close_permissions_pause,

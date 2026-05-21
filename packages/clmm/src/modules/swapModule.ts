@@ -18,6 +18,7 @@ import { computeSwap, SplitPath, transClmmpoolDataWithoutTicks } from '../types/
 import { ClmmFetcherModule } from '../types/sui'
 import { findAdjustCoin } from '../utils/positionUtils'
 import { SwapUtils } from '../utils/swapUtils'
+import { CalculatedSwapResultEventRaw } from '../utils/parse'
 export const AMM_SWAP_MODULE = 'amm_swap'
 export const POOL_STRUCT = 'Pool'
 
@@ -117,14 +118,11 @@ export class SwapModule implements IModule<CetusClmmSDK> {
       })
     }
 
-    const simulateRes = await this.sdk.FullClient.devInspectTransactionBlock({
-      transactionBlock: tx,
-      sender: normalizeSuiAddress('0x0'),
-    })
-    if (simulateRes.error != null) {
+    const simulateRes: any = await this.sdk.FullClient.sendSimulationTransaction(tx, normalizeSuiAddress('0x0'))
+    if (simulateRes.FailedTransaction != null) {
       handleMessageError(
         ConfigErrorCode.InvalidConfig,
-        `pre swap with multi pools error code: ${simulateRes.error ?? 'unknown error'}, please check config and params`,
+        `pre swap with multi pools error code: ${simulateRes.FailedTransaction.status.error?.message ?? 'unknown error'}, please check config and params`,
         {
           [DETAILS_KEYS.METHOD_NAME]: 'preSwapWithMultiPool',
           [DETAILS_KEYS.REQUEST_PARAMS]: {
@@ -134,8 +132,8 @@ export class SwapModule implements IModule<CetusClmmSDK> {
       )
     }
 
-    const valueData: any = simulateRes.events?.filter((item: any) => {
-      return extractStructTagFromType(item.type).name === `CalculatedSwapResultEvent`
+    const valueData: any[] = simulateRes.Transaction?.events?.filter((item: any) => {
+      return extractStructTagFromType(item.eventType).name === `CalculatedSwapResultEvent`
     })
     if (valueData.length === 0) {
       return null
@@ -152,18 +150,19 @@ export class SwapModule implements IModule<CetusClmmSDK> {
     let tempMaxAmount = params.by_amount_in ? ZERO : U64_MAX
     let tempIndex = 0
     for (let i = 0; i < valueData.length; i += 1) {
-      if (valueData[i].parsedJson.data.is_exceed) {
+      const parsed = CalculatedSwapResultEventRaw.parse(valueData[i].bcs).data
+      if (parsed.is_exceed) {
         continue
       }
 
       if (params.by_amount_in) {
-        const amount = new BN(valueData[i].parsedJson.data.amount_out)
+        const amount = new BN(parsed.amount_out)
         if (amount.gt(tempMaxAmount)) {
           tempIndex = i
           tempMaxAmount = amount
         }
       } else {
-        const amount = new BN(valueData[i].parsedJson.data.amount_out)
+        const amount = new BN(parsed.amount_out)
         if (amount.lt(tempMaxAmount)) {
           tempIndex = i
           tempMaxAmount = amount
@@ -180,7 +179,7 @@ export class SwapModule implements IModule<CetusClmmSDK> {
         coin_type_a: params.coin_type_a,
         coin_type_b: params.coin_type_b,
       },
-      valueData[tempIndex].parsedJson
+      CalculatedSwapResultEventRaw.parse(valueData[tempIndex].bcs).data
     )
   }
 
@@ -204,14 +203,11 @@ export class SwapModule implements IModule<CetusClmmSDK> {
       typeArguments,
     })
 
-    const simulateRes = await this.sdk.FullClient.devInspectTransactionBlock({
-      transactionBlock: tx,
-      sender: normalizeSuiAddress('0x0'),
-    })
-    if (simulateRes.error != null) {
+    const simulateRes: any = await this.sdk.FullClient.sendSimulationTransaction(tx, normalizeSuiAddress('0x0'))
+    if (simulateRes.FailedTransaction != null) {
       return handleMessageError(
         ConfigErrorCode.InvalidConfig,
-        `preSwap error code: ${simulateRes.error ?? 'unknown error'}, please check config and params`,
+        `preSwap error code: ${simulateRes.FailedTransaction.status.error?.message ?? 'unknown error'}, please check config and params`,
         {
           [DETAILS_KEYS.METHOD_NAME]: 'preSwap',
           [DETAILS_KEYS.REQUEST_PARAMS]: {
@@ -221,8 +217,8 @@ export class SwapModule implements IModule<CetusClmmSDK> {
       )
     }
 
-    const valueData: any = simulateRes.events?.filter((item: any) => {
-      return extractStructTagFromType(item.type).name === `CalculatedSwapResultEvent`
+    const valueData: any[] = simulateRes.Transaction?.events?.filter((item: any) => {
+      return extractStructTagFromType(item.eventType).name === `CalculatedSwapResultEvent`
     })
     if (valueData.length === 0) {
       return handleMessageError(
@@ -236,29 +232,28 @@ export class SwapModule implements IModule<CetusClmmSDK> {
         }
       )
     }
-    return this.transformSwapData(params, valueData[0].parsedJson.data)
+    return this.transformSwapData(params, valueData[0].bcs)
   }
 
   private transformSwapData(params: PreSwapParams, data: any) {
-    const estimatedAmountIn = data.amount_in && data.fee_amount ? new BN(data.amount_in).add(new BN(data.fee_amount)).toString() : ''
+    const parsed = CalculatedSwapResultEventRaw.parse(data).data
+    const estimatedAmountIn = parsed.amount_in && parsed.fee_amount ? new BN(parsed.amount_in).add(new BN(parsed.fee_amount)).toString() : ''
     return {
       pool_address: params.pool.id,
       current_sqrt_price: params.current_sqrt_price,
       estimated_amount_in: estimatedAmountIn,
-      estimated_amount_out: data.amount_out,
-      estimated_end_sqrt_price: data.after_sqrt_price,
-      estimated_fee_amount: data.fee_amount,
-      is_exceed: data.is_exceed,
+      estimated_amount_out: parsed.amount_out,
+      estimated_end_sqrt_price: parsed.after_sqrt_price,
+      estimated_fee_amount: parsed.fee_amount,
+      is_exceed: parsed.is_exceed,
       amount: params.amount,
       a2b: params.a2b,
       by_amount_in: params.by_amount_in,
     }
   }
 
-  private transformSwapWithMultiPoolData(params: TransPreSwapWithMultiPoolParams, json_data: any) {
-    const { data } = json_data
+  private transformSwapWithMultiPoolData(params: TransPreSwapWithMultiPoolParams, data: any) {
 
-    console.log('json data. ', data)
 
     const estimatedAmountIn = data.amount_in && data.fee_amount ? new BN(data.amount_in).add(new BN(data.fee_amount)).toString() : ''
     return {

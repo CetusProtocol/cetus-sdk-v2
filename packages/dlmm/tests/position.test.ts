@@ -1,5 +1,4 @@
 // buildTestAccount
-import type { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import { buildTestAccount } from '@cetusprotocol/test-utils'
 import { CetusDlmmSDK } from '../src/sdk'
 import { printTransaction } from '@cetusprotocol/common-sdk'
@@ -9,12 +8,11 @@ const pool_id = '0x94088f9a28a6b355ab3569b9cc32895dbccf4c6716f030d59d3f0cf747305
 const position_id = '0x4c9ff5d666bfd1fc01f102df3c77bd3fdd51f248cad8ef02d250c60ed708a004'
 
 describe('dlmm position', () => {
-  const sdk = CetusDlmmSDK.createSDK({ env: 'testnet' })
-  let send_key_pair: Ed25519Keypair
+  const sdk = CetusDlmmSDK.createSDK({ env: 'mainnet' })
   let account: string
 
   beforeEach(async () => {
-    send_key_pair = buildTestAccount()
+    let send_key_pair = buildTestAccount()
     account = send_key_pair.getPublicKey().toSuiAddress()
     sdk.setSenderAddress(account)
   })
@@ -25,7 +23,7 @@ describe('dlmm position', () => {
   })
 
   test('getPosition', async () => {
-    const res = await sdk.Position.getPosition('0x8d9fee92ddfcf1ec7688124a2bcf5a102acd70e470546170aa2db334f8081eba')
+    const res = await sdk.Position.getPosition('0x68a20c2154ea03c3f796290b080aab73f424fcfb001964f276302c5c2faba552')
     console.log('🚀 ~ test ~ res:', res)
   })
 
@@ -41,13 +39,13 @@ describe('dlmm position', () => {
   })
 
   test('fetchPositionFeeAndReward', async () => {
-    const pool = await sdk.Pool.getPool('0x4bb32fb02ed81c8a3d9702a86df73fff9215e63577c7a8ef3874ada8e01cac37')
+    const pool = await sdk.Pool.getPool('0x64e590b0e4d4f7dfc7ae9fae8e9983cd80ad83b658d8499bf550a9d4f6667076')
     const { id, coin_type_a, coin_type_b, reward_manager } = pool
 
     const res = await sdk.Position.fetchPositionFeeAndReward([
       {
         pool_id: id,
-        position_id: '0x8d9fee92ddfcf1ec7688124a2bcf5a102acd70e470546170aa2db334f8081eba',
+        position_id: '0x68a20c2154ea03c3f796290b080aab73f424fcfb001964f276302c5c2faba552',
         reward_coins: reward_manager.rewards.map((reward) => reward.reward_coin),
         coin_type_a: coin_type_a,
         coin_type_b: coin_type_b,

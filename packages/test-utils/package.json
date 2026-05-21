@@ -1,15 +1,16 @@
 {
   "name": "@cetusprotocol/test-utils",
-  "version": "0.0.0-experimental-20260317182900",
+  "version": "0.0.0-experimental-20260518193247",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "type": "module",
+  "author": "Cetus",
   "files": [
     "dist"
   ],
   "scripts": {
     "lint": "eslint src/*.ts src/**/*.ts",
-    "test": "vitest",
+    "test": "vitest run --include 'packages/test-utils/**'",
     "build": "pnpm run build:tsup",
     "build:tsup": "npm run build:clean && npm run _build:node",
     "build:clean": "rm -rf dist",
@@ -19,9 +20,17 @@
     "publish:test": "node ../../scripts/version.js common && npm publish --tag experimental"
   },
   "devDependencies": {
+    "@mysten/sui": "2.16.3",
     "dotenv": "^10.0.0"
   },
   "peerDependencies": {
-    "@mysten/sui": "*"
+    "@mysten/sui": ">=2.0.0"
+  },
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   }
 }

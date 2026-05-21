@@ -1,10 +1,11 @@
 import { buildTestAccount } from '@cetusprotocol/test-utils'
 import CetusLeverageSDK from '../src'
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import { d, printTransaction } from '@cetusprotocol/common-sdk'
-let send_key_pair: Ed25519Keypair
+import { beforeEach, describe, test } from 'vitest'
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 
 describe('market Module', () => {
+  let send_key_pair: Ed25519Keypair
   const sdk = CetusLeverageSDK.createSDK({
     env: 'mainnet',
     full_rpc_url: 'https://fullnode.mainnet.sui.io:443',
@@ -14,6 +15,11 @@ describe('market Module', () => {
   beforeEach(async () => {
     send_key_pair = buildTestAccount()
     sdk.setSenderAddress(send_key_pair.toSuiAddress())
+  })
+
+  test('getMarginTradingConfig', async () => {
+    const res = await sdk.MarketModules.getMarginTradingConfig()
+    console.log('🚀🚀🚀 ~ market.test.ts:21 ~ res:', res)
   })
 
   test('createMarket', async () => {
@@ -59,12 +65,12 @@ describe('market Module', () => {
   })
 
   test('getMarketInfo', async () => {
-    const res = await sdk.MarketModules.getMarketInfo('0x1979cb9d97355baf7c3cc628029335804a9e0e23167f1996adee06dd24812523')
+    const res = await sdk.MarketModules.getMarketInfo("0xc32409862a9e244a3d9248108797a9bac0045185d21140bd612bf79f83bf1246")
     console.log('🚀🚀🚀 ~ market.test.ts:79 ~ res:', res)
   })
 
   test('getMarketSuilendInfo', async () => {
-    const res = await sdk.MarketModules.getMarketSuilendInfo('0xa828a9057a4c0c9bdc034ded6e9164b52fd85c04d076e05158246302fd7eaccb')
+    const res = await sdk.MarketModules.getMarketSuilendInfo('0xc32409862a9e244a3d9248108797a9bac0045185d21140bd612bf79f83bf1246')
     console.log('🚀🚀🚀 ~ market.test.ts:84 ~ res:', res)
   })
 })

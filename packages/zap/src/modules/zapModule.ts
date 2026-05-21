@@ -230,12 +230,12 @@ export class ZapModule implements IModule<CetusZapSDK> {
 
       const routerParamsV3: BuildRouterSwapParamsV3 = {
         router: swap_result.route_obj,
-        inputCoin: swapCoinObjectId,
+        inputCoin: swapCoinObjectId as any,
         slippage: swap_slippage,
-        txb: tx,
+        txb: tx as any,
       }
 
-      const toCoin = await this._sdk.AggregatorClient.fixableRouterSwapV3(routerParamsV3)
+      const toCoin: any = await this._sdk.AggregatorClient.fixableRouterSwapV3(routerParamsV3)
 
       tx.transferObjects([is_receive_coin_a ? receiveCoinA : receiveCoinB, toCoin], this._sdk.getSenderAddress())
     } else {
@@ -471,7 +471,7 @@ export class ZapModule implements IModule<CetusZapSDK> {
     } else {
       tx = PositionUtils.createCollectRewarderAndFeeParams(
         this._sdk.ClmmSDK,
-        tx,
+        tx as any,
         {
           pool_id,
           pos_id: pos_id as string,
@@ -624,13 +624,13 @@ export class ZapModule implements IModule<CetusZapSDK> {
       const routerParamsV3: BuildRouterSwapParamsV3 = {
         router: route_obj,
         slippage: swap_slippage,
-        txb: tx,
-        inputCoin: swapCoinObject,
+        txb: tx as any,
+        inputCoin: swapCoinObject as any,
       }
       const swap_out_coin = await this._sdk.AggregatorClient.fixableRouterSwapV3(routerParamsV3)
 
-      const primaryCoinAInputs = isOnlyCoinA ? CoinAssist.buildCoinWithBalance(BigInt(amount_a), coin_type_a, tx) : swap_out_coin
-      const primaryCoinBInputs = isOnlyCoinA ? swap_out_coin : CoinAssist.buildCoinWithBalance(BigInt(amount_b), coin_type_b, tx)
+      const primaryCoinAInputs: any = isOnlyCoinA ? CoinAssist.buildCoinWithBalance(BigInt(amount_a), coin_type_a, tx) : swap_out_coin
+      const primaryCoinBInputs: any = isOnlyCoinA ? swap_out_coin : CoinAssist.buildCoinWithBalance(BigInt(amount_b), coin_type_b, tx)
 
       // Add liquidity
       await this.buildAddLiquidityPayload(
@@ -705,8 +705,6 @@ export class ZapModule implements IModule<CetusZapSDK> {
     // Determine which coin is being provided
     const isOnlyCoinA = mode === 'OnlyCoinA'
 
-    // Get all available coins owned by sender
-    const allCoinAsset = await this._sdk.FullClient.getOwnerCoinAssets(this.sdk.getSenderAddress())
 
     // Execute token swap to obtain the other required coin
     const { swap_in_amount, swap_out_amount, route_obj } = swap_result!
@@ -735,14 +733,14 @@ export class ZapModule implements IModule<CetusZapSDK> {
     const routerParamsV3: BuildRouterSwapParamsV3 = {
       router: route_obj,
       slippage: swap_slippage,
-      txb: tx,
-      inputCoin: swapCoinObject,
+      txb: tx as any,
+      inputCoin: swapCoinObject as any,
     }
     const swap_out_coin = await this._sdk.AggregatorClient.fixableRouterSwapV3(routerParamsV3)
 
     // Prepare primary coin inputs for liquidity provision
-    const primaryCoinAInputs = isOnlyCoinA ? CoinAssist.buildCoinWithBalance(BigInt(fixed_amount_a), coin_type_a, tx) : swap_out_coin
-    const primaryCoinBInputs = isOnlyCoinA ? swap_out_coin : CoinAssist.buildCoinWithBalance(BigInt(fixed_amount_b), coin_type_b, tx)
+    const primaryCoinAInputs: any = isOnlyCoinA ? CoinAssist.buildCoinWithBalance(BigInt(fixed_amount_a), coin_type_a, tx) : swap_out_coin
+    const primaryCoinBInputs: any = isOnlyCoinA ? swap_out_coin : CoinAssist.buildCoinWithBalance(BigInt(fixed_amount_b), coin_type_b, tx)
 
     let posId: string | undefined | TransactionObjectArgument = pos_obj?.pos_id
 

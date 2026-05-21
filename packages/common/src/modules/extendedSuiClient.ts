@@ -5,36 +5,47 @@ import { normalizeSuiAddress } from '@mysten/sui/utils'
 import type { CoinAsset } from '../type/clmm'
 import type { DataPage, PaginationArgs, SuiObjectIdType, SuiResource } from '../type/sui'
 import { CACHE_TIME_24H, CachedContent, getFutureTime } from '../utils/cachedContent'
-import { extractStructTagFromType } from '../utils/contracts'
+import { extractStructTagFromType, fixCoinType } from '../utils/contracts'
 import { deriveDynamicFieldIdByType, ValueBcsType } from '../utils/dynamicField'
-import { ERROR_HANDLING_RPC_LIST } from '../type/sui'
-import { CoinBalance, CoinMetadata, DryRunTransactionBlockResponse, DynamicFieldPage, PaginatedEvents, PaginatedObjectsResponse, PaginatedTransactionResponse, SuiEvent, SuiEventFilter, SuiJsonRpcClient, SuiObjectDataOptions, SuiObjectResponse, SuiObjectResponseQuery, SuiTransactionBlockResponse, TransactionFilter } from '@mysten/sui/jsonRpc'
 import { GraphQLQueryResult, SuiGraphQLClient } from '@mysten/sui/graphql'
-import { graphql } from '@mysten/sui/graphql/schema'
+import {
+  CoinMetadataIdQuery,
+  GetTxQuery,
+  GetAllDynamicFieldsQuery,
+  QueryEventsQuery,
+  QueryTransactionsQuery,
+  type TransactionFilterInput,
+} from '../type/graphqlQueries'
+import { ERROR_HANDLING_RPC_LIST } from '../type/sui'
 import { SuiGrpcClient } from '@mysten/sui/grpc'
+import type {
+  CoinMetadata,
+  SuiEvent,
+  SuiEventFilter,
+  PaginatedEvents,
+  SuiJsonRpcClient,
+} from '@mysten/sui/jsonRpc'
+import { SuiClientTypes } from '@mysten/sui/client'
+
 
 
 /**
- * A wrapper around the SuiClient that provides additional methods for querying and sending transactions.
- * This class is designed to be used in conjunction with the SuiClient to provide a more comprehensive API for interacting with the Sui blockchain.
+ * A wrapper around the SuiGrpcClient that provides additional methods for querying and sending transactions.
+ * This class is designed to be used in conjunction with the SuiGrpcClient to provide a more comprehensive API for interacting with the Sui blockchain.
  */
-export class ExtendedSuiClient<T extends SuiJsonRpcClient> {
-  /**
-   * The underlying SuiClient instance used for making RPC calls to the Sui network.
-   * This client is used to interact with the Sui blockchain and execute various operations.
-   */
+export class ExtendedSuiClient<T extends SuiGrpcClient> {
   public readonly _client: T
+  public readonly _jsonRpcClient: SuiJsonRpcClient | undefined
   private readonly _cache: Record<string, CachedContent> = {}
-  public readonly _suiGrpcClient: SuiGrpcClient | undefined
-  private readonly _env: 'mainnet' | 'testnet' = 'mainnet'
+  public readonly _env: 'mainnet' | 'testnet' = 'mainnet'
 
   public readonly _graphQLClient: SuiGraphQLClient | undefined
 
-  constructor(client: T, _graphQLClient?: SuiGraphQLClient, _suiGrpcClient?: SuiGrpcClient, env?: 'mainnet' | 'testnet') {
+  constructor(client: T, _graphQLClient?: SuiGraphQLClient, env?: 'mainnet' | 'testnet', _jsonRpcClient?: SuiJsonRpcClient) {
     this._client = client
     this._env = env || 'mainnet'
     this._graphQLClient = _graphQLClient
-    this._suiGrpcClient = _suiGrpcClient
+    this._jsonRpcClient = _jsonRpcClient
   }
 
   async fetchCoinMetadata(coin_type: string): Promise<CoinMetadata | null> {
@@ -44,8 +55,8 @@ export class ExtendedSuiClient<T extends SuiJsonRpcClient> {
       return cachedData
     }
     const res = await this._client.getCoinMetadata({ coinType: coin_type })
-    this.updateCache(cacheKey, res)
-    return res
+    this.updateCache(cacheKey, res.coinMetadata)
+    return res.coinMetadata
   }
 
   async fetchCoinMetadataId(coin_type: string): Promise<string | null> {
@@ -59,73 +70,200 @@ export class ExtendedSuiClient<T extends SuiJsonRpcClient> {
       return cachedData
     }
 
-    const CoinMetadataIdQuery = graphql(`
-      query coinMetadataId($coinType: String!) {
-        objects(filter: { type: $coinType }, first: 1) {
-          nodes {
-            address
-          }
-        }
-      }
-    `)
     const result = await this._graphQLClient.query({
       query: CoinMetadataIdQuery,
       variables: {
         coinType: `0x2::coin::CoinMetadata<${coin_type}>`,
       },
     })
-    const id = result.data?.objects?.nodes[0]?.address ?? null
+    const data = result.data as { objects?: { nodes?: Array<{ address?: string }> } } | undefined
+    const id = data?.objects?.nodes?.[0]?.address ?? null
     if (id) {
       this.updateCache(cacheKey, id)
     }
     return id
   }
 
-  /**
-   * Gets the SUI transaction response for a given transaction digest.
-   * @param digest - The digest of the transaction for which the SUI transaction response is requested.
-   * @returns A Promise that resolves with the SUI transaction block response or null if the response is not available.
-   */
-  async getSuiTransactionResponse(digest: string): Promise<SuiTransactionBlockResponse | null> {
-    let objects
+  async getSuiTransactionResponse(digest: string): Promise<SuiClientTypes.TransactionResult> {
     try {
-      objects = (await this._client.getTransactionBlock({
+      const result = await this._client.getTransaction({
         digest,
-        options: {
-          showEvents: true,
-          showEffects: true,
-          showBalanceChanges: true,
-          showInput: true,
-          showObjectChanges: true,
+        include: {
+          effects: true,
+          events: true,
+          balanceChanges: true,
+          transaction: true,
+          objectTypes: true,
         },
-      })) as SuiTransactionBlockResponse
-    } catch (error) {
-      objects = (await this._client.getTransactionBlock({
-        digest,
-        options: {
-          showEvents: true,
-          showEffects: true,
-        },
-      })) as SuiTransactionBlockResponse
+      });
+      return result
+    } catch (error: any) {
+      console.log('getSuiTransactionResponse error', error)
+      throw error
     }
+  }
 
-    return objects
+
+  async getTransactionByGraphQL(digest: string): Promise<GraphQLQueryResult<any>> {
+    try {
+      const result = await this._graphQLClient!.query({
+        query: GetTxQuery,
+        variables: {
+          digest,
+        },
+      });
+      return result
+    } catch (error: any) {
+      console.log('getTransactionByGraphQL error', error)
+      throw error
+    }
+  }
+
+
+
+  /**
+   * Query events by type via GraphQL.
+   * Requires GraphQL client.
+   */
+  async queryEventsByGraphQL(
+    type: string,
+    pagination_args: PaginationArgs = 'all'
+  ): Promise<DataPage<Record<string, unknown>>> {
+    if (!this._graphQLClient) {
+      throw new Error('graphQLClient is not set')
+    }
+    const queryAll = pagination_args === 'all'
+    const limit = queryAll ? 50 : pagination_args.limit ?? 50
+    let result: Record<string, unknown>[] = []
+    let nextCursor: string | null = queryAll ? null : pagination_args.cursor ?? null
+    let hasNextPage = true
+
+    do {
+      const res = await this._graphQLClient.query({
+        query: QueryEventsQuery,
+        variables: {
+          type,
+          first: limit,
+          ...(nextCursor ? { after: nextCursor } : {}),
+        },
+      })
+      const data = res.data as {
+        events?: {
+          nodes?: unknown[]
+          pageInfo?: { hasNextPage?: boolean; endCursor?: string }
+        }
+      } | undefined
+      const events = data?.events
+      const nodes = events?.nodes ?? []
+      const pageInfo = events?.pageInfo
+
+      result = [...result, ...(nodes as Record<string, unknown>[])]
+      hasNextPage = pageInfo?.hasNextPage ?? false
+      nextCursor = pageInfo?.endCursor ?? null
+    } while (queryAll && hasNextPage)
+
+    return {
+      data: result,
+      next_cursor: nextCursor,
+      has_next_page: hasNextPage,
+    }
   }
 
   /**
-   * Get events for a given query criteria
-   * @param query
-   * @param pagination_args
-   * @returns
+   * Query transactions by filter via GraphQL.
+   * Filter: sentAddress | affectedAddress | affectedObject | function.
+   * Requires GraphQL client.
    */
-  async queryEventsByPage(query: SuiEventFilter, pagination_args: PaginationArgs = 'all'): Promise<DataPage<SuiEvent>> {
+  async queryTransactionBlocksByPage(
+    filter: TransactionFilterInput,
+    pagination_args: PaginationArgs = 'all',
+    order: 'ascending' | 'descending' | null | undefined = 'descending'
+  ): Promise<DataPage<Record<string, unknown>>> {
+    if (!this._graphQLClient) {
+      throw new Error('graphQLClient is not set')
+    }
+    const hasFilter =
+      filter.sentAddress != null ||
+      filter.affectedAddress != null ||
+      filter.affectedObject != null ||
+      filter.function != null
+    if (!hasFilter) {
+      throw new Error('At least one of sentAddress, affectedAddress, affectedObject, function is required')
+    }
+    const queryAll = pagination_args === 'all'
+    const limit = queryAll ? 50 : pagination_args.limit ?? 50
+    let result: Record<string, unknown>[] = []
+    let nextCursor: string | null = queryAll ? null : pagination_args.cursor ?? null
+    let hasNextPage = true
+    const descending = order !== 'ascending'
+
+    const filterPayload: Record<string, string> = {}
+    if (filter.sentAddress) filterPayload.sentAddress = normalizeSuiAddress(filter.sentAddress)
+    if (filter.affectedAddress) filterPayload.affectedAddress = normalizeSuiAddress(filter.affectedAddress)
+    if (filter.affectedObject) filterPayload.affectedObject = normalizeSuiAddress(filter.affectedObject)
+    if (filter.function) filterPayload.function = filter.function
+
+    do {
+      const res = descending
+        ? await this._graphQLClient.query({
+            query: QueryTransactionsQuery,
+            variables: {
+              filter: filterPayload,
+              last: limit,
+              ...(nextCursor ? { before: nextCursor } : {}),
+            },
+          })
+        : await this._graphQLClient.query({
+            query: QueryTransactionsQuery,
+            variables: {
+              filter: filterPayload,
+              first: limit,
+              ...(nextCursor ? { after: nextCursor } : {}),
+            },
+          })
+      const data = res.data as {
+        transactions?: {
+          nodes?: unknown[]
+          pageInfo?: {
+            hasNextPage?: boolean
+            endCursor?: string
+            hasPreviousPage?: boolean
+            startCursor?: string
+          }
+        }
+      } | undefined
+      const transactions = data?.transactions
+      const nodes = transactions?.nodes ?? []
+      const pageInfo = transactions?.pageInfo
+      const pageNodes = descending ? [...nodes].reverse() : nodes
+
+      result = [...result, ...(pageNodes as Record<string, unknown>[])]
+      hasNextPage = descending ? pageInfo?.hasPreviousPage ?? false : pageInfo?.hasNextPage ?? false
+      nextCursor = descending ? pageInfo?.startCursor ?? null : pageInfo?.endCursor ?? null
+    } while (queryAll && hasNextPage)
+
+    return {
+      data: result,
+      next_cursor: nextCursor,
+      has_next_page: hasNextPage,
+    }
+  }
+
+  /**
+   * Get events for a given query criteria.
+   * Requires GraphQL client; gRPC does not support queryEvents. Use SuiGraphQLClient or SuiJsonRpcClient for this method.
+   */
+  async queryEventsByPage(
+    query: SuiEventFilter,
+    pagination_args: PaginationArgs = 'all'
+  ): Promise<DataPage<SuiEvent>> {
     let result: any = []
     let hasNextPage = true
     const queryAll = pagination_args === 'all'
     let nextCursor = queryAll ? null : pagination_args.cursor
 
     do {
-      const res: PaginatedEvents = await this._client.queryEvents({
+      const res: PaginatedEvents = await this._jsonRpcClient!.queryEvents({
         query,
         cursor: nextCursor,
         limit: queryAll ? null : pagination_args.limit,
@@ -142,67 +280,35 @@ export class ExtendedSuiClient<T extends SuiJsonRpcClient> {
     return { data: result, next_cursor: nextCursor, has_next_page: hasNextPage }
   }
 
-  async queryTransactionBlocksByPage(
-    filter?: TransactionFilter,
-    pagination_args: PaginationArgs = 'all',
-    order: 'ascending' | 'descending' | null | undefined = 'ascending'
-  ): Promise<DataPage<SuiTransactionBlockResponse>> {
-    let result: any = []
-    let hasNextPage = true
-    const queryAll = pagination_args === 'all'
-    let nextCursor = queryAll ? null : pagination_args.cursor
 
-    do {
-      const res: PaginatedTransactionResponse = await this._client.queryTransactionBlocks({
-        filter,
-        cursor: nextCursor,
-        order,
-        limit: queryAll ? null : pagination_args.limit,
-        options: { showEvents: true },
-      })
-      if (res.data) {
-        result = [...result, ...res.data]
-        hasNextPage = res.hasNextPage
-        nextCursor = res.nextCursor
-      } else {
-        hasNextPage = false
-      }
-    } while (queryAll && hasNextPage)
 
-    return { data: result, next_cursor: nextCursor, has_next_page: hasNextPage }
-  }
 
-  /**
-   * Get all objects owned by an address
-   * @param owner
-   * @param query
-   * @param pagination_args
-   * @returns
-   */
   async getOwnedObjectsByPage(
     owner: string,
-    query: SuiObjectResponseQuery,
+    type?: string,
     pagination_args: PaginationArgs = 'all'
-  ): Promise<DataPage<SuiObjectResponse>> {
-    const fetchOwnedObjects = async (client: Pick<SuiJsonRpcClient, 'getOwnedObjects'>) => {
-      let result: SuiObjectResponse[] = []
+  ): Promise<DataPage<SuiClientTypes.Object>> {
+
+    const fetchOwnedObjects = async (client: SuiGrpcClient) => {
+      let result: SuiClientTypes.Object[] = []
       let hasNextPage = true
       const queryAll = pagination_args === 'all'
       let nextCursor = queryAll ? null : pagination_args.cursor
       do {
-        const res: PaginatedObjectsResponse = await client.getOwnedObjects({
+        const res = await client.listOwnedObjects({
           owner,
-          ...query,
-          cursor: nextCursor,
-          limit: queryAll ? null : pagination_args.limit,
+          type: type,
+          cursor: nextCursor ?? undefined,
+          limit: queryAll ? 1000 : pagination_args.limit ?? undefined,
+          include: {
+            content: true,
+            previousTransaction: true,
+            json: true,
+          },
         })
-        if (res.data) {
-          result = [...result, ...res.data]
-          hasNextPage = res.hasNextPage
-          nextCursor = res.nextCursor
-        } else {
-          hasNextPage = false
-        }
+        result = [...result, ...res.objects]
+        hasNextPage = res.hasNextPage
+        nextCursor = res.cursor ?? null
       } while (queryAll && hasNextPage)
 
       return { data: result, next_cursor: nextCursor, has_next_page: hasNextPage }
@@ -212,10 +318,15 @@ export class ExtendedSuiClient<T extends SuiJsonRpcClient> {
       return await fetchOwnedObjects(this._client)
     } catch (error) {
       let lastError: unknown = error
+      const network = this._env === 'testnet' ? 'testnet' : 'mainnet'
       for (const rpcUrl of ERROR_HANDLING_RPC_LIST) {
         try {
-          const fallbackClient = createFullClient(new SuiJsonRpcClient({ url: rpcUrl, network: this._env }), this._graphQLClient, this._suiGrpcClient, this._env)
-          return await fetchOwnedObjects(fallbackClient as SuiJsonRpcClient)
+          const fallbackClient = createFullClient(
+            new SuiGrpcClient({ baseUrl: rpcUrl, network }),
+            this._graphQLClient,
+            this._env
+          )
+          return await fetchOwnedObjects(fallbackClient._client)
         } catch (fallbackError) {
           lastError = fallbackError
           continue
@@ -226,55 +337,84 @@ export class ExtendedSuiClient<T extends SuiJsonRpcClient> {
   }
 
   /**
-   * Return the list of dynamic field objects owned by an object
-   * @param parent_id
-   * @param pagination_args
-   * @returns
+   * Get dynamic fields by object address via GraphQL.
+   * Requires GraphQL client.
    */
-  async getDynamicFieldsByPage(parent_id: SuiObjectIdType, pagination_args: PaginationArgs = 'all'): Promise<DataPage<any>> {
-    let result: any = []
+  async getAllDynamicFields(
+    id: SuiObjectIdType,
+    pagination_args: PaginationArgs = 'all'
+  ): Promise<DataPage<Record<string, unknown>>> {
+    if (!this._graphQLClient) {
+      throw new Error('graphQLClient is not set')
+    }
+    const queryAll = pagination_args === 'all'
+    const limit = queryAll ? 50 : pagination_args.limit ?? 50
+    let result: Record<string, unknown>[] = []
+    let nextCursor: string | null = queryAll ? null : pagination_args.cursor ?? null
+    let hasNextPage = true
+
+    do {
+      const res = await this._graphQLClient.query({
+        query: GetAllDynamicFieldsQuery,
+        variables: {
+          id: normalizeSuiAddress(id),
+          first: limit,
+          ...(nextCursor ? { after: nextCursor } : {}),
+        },
+      })
+      const data = res.data as {
+        address?: {
+          dynamicFields?: {
+            nodes?: unknown[]
+            pageInfo?: { hasNextPage?: boolean; endCursor?: string }
+          }
+        }
+      } | undefined
+      const dynamicFields = data?.address?.dynamicFields
+      const nodes = dynamicFields?.nodes ?? []
+      const pageInfo = dynamicFields?.pageInfo
+
+      result = [...result, ...(nodes as Record<string, unknown>[])]
+      hasNextPage = pageInfo?.hasNextPage ?? false
+      nextCursor = pageInfo?.endCursor ?? null
+    } while (queryAll && hasNextPage)
+
+    return {
+      data: result,
+      next_cursor: nextCursor,
+      has_next_page: hasNextPage,
+    }
+  }
+
+  async getDynamicFieldsByPage(
+    parent_id: SuiObjectIdType,
+    pagination_args: PaginationArgs = 'all'
+  ): Promise<DataPage<SuiClientTypes.DynamicFieldEntry>> {
+    let result: SuiClientTypes.DynamicFieldEntry[] = []
     let has_next_page = true
     const query_all = pagination_args === 'all'
     let nextCursor = query_all ? null : pagination_args.cursor
     do {
-      const res: DynamicFieldPage = await this._client.getDynamicFields({
+      const res: SuiClientTypes.ListDynamicFieldsResponse = await this._client.listDynamicFields({
         parentId: parent_id,
-        cursor: nextCursor,
-        limit: query_all ? null : pagination_args.limit,
+        cursor: nextCursor ?? undefined,
+        limit: query_all ? 1000 : pagination_args.limit ?? undefined,
       })
-
-      if (res.data) {
-        result = [...result, ...res.data]
-        has_next_page = res.hasNextPage
-        nextCursor = res.nextCursor
-      } else {
-        has_next_page = false
-      }
+      result = [...result, ...res.dynamicFields]
+      has_next_page = res.hasNextPage
+      nextCursor = res.cursor ?? null
     } while (query_all && has_next_page)
 
     return { data: result, next_cursor: nextCursor, has_next_page: has_next_page }
   }
 
-  /**
-   * Get dynamic field objects by parent id, value array, type tag, and value bcs type
-   * @param parent_id
-   * @param value_arr
-   * @param typeTag
-   * @param value_bcs_type
-   * @param options
-   * @returns
-   */
   async getDynamicFieldObjects(
     parent_id: string,
     value_arr: string[] | number[],
     typeTag: string,
     value_bcs_type: ValueBcsType,
-    options: SuiObjectDataOptions = {
-      showContent: true,
-      showType: true,
-      showOwner: true,
-    }
-  ): Promise<SuiObjectResponse[]> {
+    include?: SuiClientTypes.ObjectInclude,
+  ): Promise<SuiClientTypes.Object[]> {
     const warpIds = value_arr.map((value) => {
       const dynamic_field_id = deriveDynamicFieldIdByType(parent_id, value, typeTag, value_bcs_type)
       return dynamic_field_id
@@ -283,27 +423,24 @@ export class ExtendedSuiClient<T extends SuiJsonRpcClient> {
     if (warpIds.length === 0) {
       return []
     }
-    const res = await this.batchGetObjects(warpIds, options)
-    return res
+    return this.batchGetObjects(warpIds, include)
   }
 
-  /**
-   * Batch get details about a list of objects. If any of the object ids are duplicates the call will fail
-   * @param ids
-   * @param options
-   * @param limit
-   * @returns
-   */
-  async batchGetObjects(ids: SuiObjectIdType[], options?: SuiObjectDataOptions, limit = 50): Promise<SuiObjectResponse[]> {
-    let object_data_responses: SuiObjectResponse[] = []
+  async batchGetObjects(
+    ids: SuiObjectIdType[],
+    include?: SuiClientTypes.ObjectInclude,
+    limit = 1000
+  ): Promise<SuiClientTypes.Object[]> {
+    let object_data_responses: SuiClientTypes.Object[] = []
 
     try {
       for (let i = 0; i < Math.ceil(ids.length / limit); i++) {
-        const res = await this._client.multiGetObjects({
-          ids: ids.slice(i * limit, limit * (i + 1)),
-          options,
+        const batch = ids.slice(i * limit, limit * (i + 1))
+        const res: any = await this._client.getObjects({
+          objectIds: batch,
+          include,
         })
-        object_data_responses = [...object_data_responses, ...res]
+        object_data_responses = [...object_data_responses, ...res.objects]
       }
     } catch (error) {
       console.log(error)
@@ -312,168 +449,162 @@ export class ExtendedSuiClient<T extends SuiJsonRpcClient> {
     return object_data_responses
   }
 
-  /**
-   * Calculates the gas cost of a transaction block.
-   * @param {Transaction} tx - The transaction block to calculate gas for.
-   * @returns {Promise<number>} - The estimated gas cost of the transaction block.
-   * @throws {Error} - Throws an error if the sender is empty.
-   */
   async calculationTxGas(tx: Transaction): Promise<number> {
-    const { sender } = tx.getData()
+    const sender = (tx as any).getData?.()?.sender ?? (tx as any).blockData?.sender
 
-    if (!sender) {
+    if (sender === undefined || sender === null) {
       throw Error('sdk sender is empty')
     }
 
-    const devResult = await this._client.devInspectTransactionBlock({
-      transactionBlock: tx,
-      sender,
+    tx.setSender(sender)
+    const result = await this._client.simulateTransaction({
+      transaction: tx,
+      include: { effects: true },
     })
-    const { gasUsed } = devResult.effects
-
-    const estimateGas = Number(gasUsed.computationCost) + Number(gasUsed.storageCost) - Number(gasUsed.storageRebate)
+    const txResult = result.Transaction ?? result.FailedTransaction
+    if (!txResult?.effects?.gasUsed) {
+      throw new Error('Simulation did not return effects')
+    }
+    const { gasUsed } = txResult.effects
+    const estimateGas =
+      Number(gasUsed.computationCost) +
+      Number(gasUsed.storageCost) -
+      Number(gasUsed.storageRebate)
     return estimateGas
   }
 
-  /**
-   * Sends a transaction block after signing it with the provided keypair.
-   *
-   * @param {Ed25519Keypair | Secp256k1Keypair} keypair - The keypair used for signing the transaction.
-   * @param {Transaction} tx - The transaction block to send.
-   * @returns {Promise<SuiTransactionBlockResponse | undefined>} - The response of the sent transaction block.
-   */
-  async sendTransaction(keypair: Ed25519Keypair | Secp256k1Keypair, tx: Transaction): Promise<SuiTransactionBlockResponse | undefined> {
+  async sendTransaction(
+    keypair: Ed25519Keypair | Secp256k1Keypair,
+    tx: Transaction
+  ): Promise<SuiClientTypes.TransactionResult | undefined> {
     try {
-      const resultTxn: any = await this._client.signAndExecuteTransaction({
+      const result = await this._client.signAndExecuteTransaction({
         transaction: tx,
         signer: keypair,
-        options: {
-          showEffects: true,
-          showEvents: true,
-        },
+        include: { effects: true, events: true },
       })
-      return resultTxn
+      return result
     } catch (error) {
       console.log('error: ', error)
     }
     return undefined
   }
 
-  /**
-   * Send a simulation transaction.
-   * @param tx - The transaction block.
-   * @param simulation_account - The simulation account.
-   * @returns A promise that resolves to DevInspectResults or undefined.
-   */
-  async sendSimulationTransaction(tx: Transaction, simulation_account: string): Promise<DryRunTransactionBlockResponse | undefined> {
+  async sendSimulationTransaction(
+    tx: Transaction,
+    simulation_account: string,
+    checksEnabled: boolean = true
+  ): Promise<SuiClientTypes.SimulateTransactionResult> {
     try {
       tx.setSender(simulation_account)
-      const simulateRes = await this._client.dryRunTransactionBlock({
-        transactionBlock: await tx.build({
-          client: this._client,
-        }),
+      const result = await this._client.simulateTransaction({
+        transaction: tx,
+        include: { events: true, balanceChanges: true, effects: true, objectChanges: true, commandResults: true },
+        checksEnabled,
       })
-      return simulateRes
+      return result as any
     } catch (error) {
-      console.log('devInspectTransactionBlock error', error)
+      console.log('simulateTransaction error', error)
       throw error
     }
-
-    return undefined
   }
 
-  async executeTx(keypair: Ed25519Keypair | Secp256k1Keypair | string, tx: Transaction, simulate: boolean): Promise<any> {
+  async executeTx(
+    keypair: Ed25519Keypair | Secp256k1Keypair | string,
+    tx: Transaction,
+    simulate: boolean
+  ): Promise<any> {
     try {
       if (simulate) {
         const address =
-          typeof keypair === 'string' ? normalizeSuiAddress(keypair) : normalizeSuiAddress(keypair.getPublicKey().toSuiAddress())
+          typeof keypair === 'string'
+            ? normalizeSuiAddress(keypair)
+            : normalizeSuiAddress(keypair.getPublicKey().toSuiAddress())
         const res = await this.sendSimulationTransaction(tx, address)
-        return res!.events.length > 0 ? res!.events : res
+        return res
       } else {
         if (typeof keypair === 'string') {
           throw new Error('Cannot send transaction with string address - keypair required for signing')
         }
-        const txResult = await this.sendTransaction(keypair, tx)
-        return txResult
+        return await this.sendTransaction(keypair, tx)
       }
     } catch (error) {
       return error
     }
   }
 
-  /**
-   * Gets all coin assets for the given owner and coin type.
-   *
-   * @param sui_address The address of the owner.
-   * @param coin_type The type of the coin.
-   * @returns an array of coin assets.
-   */
   async getOwnerCoinAssets(sui_address: string, coin_type?: string | null): Promise<CoinAsset[]> {
     const allCoinAsset: CoinAsset[] = []
     let nextCursor: string | null | undefined = null
 
-    while (true) {
-      const allCoinObject: any = await (coin_type
-        ? this._client.getCoins({
+    if (coin_type) {
+      while (true) {
+        const res = await this._client.listCoins({
           owner: sui_address,
           coinType: coin_type,
-          cursor: nextCursor,
+          cursor: nextCursor ?? undefined,
         })
-        : this._client.getAllCoins({
-          owner: sui_address,
-          cursor: nextCursor,
-        }))
-
-      allCoinObject.data.forEach((coin: any) => {
-        if (BigInt(coin.balance) > 0) {
-          allCoinAsset.push({
-            coin_type: extractStructTagFromType(coin.coinType).source_address,
-            coin_object_id: coin.coinObjectId,
-            balance: BigInt(coin.balance),
-          })
+        for (const coin of res.objects) {
+          if (BigInt(coin.balance) > 0) {
+            allCoinAsset.push({
+              coin_type: extractStructTagFromType(coin.type).type_arguments[0],
+              coin_object_id: coin.objectId,
+              balance: BigInt(coin.balance),
+            })
+          }
         }
-      })
-      nextCursor = allCoinObject.nextCursor
-
-      if (!allCoinObject.hasNextPage) {
-        break
+        nextCursor = res.cursor ?? null
+        if (!res.hasNextPage) break
       }
+    } else {
+      let cursor: string | null | undefined = null
+      do {
+        const res: SuiClientTypes.ListOwnedObjectsResponse = await this._client.listOwnedObjects({
+          owner: sui_address,
+          cursor: cursor ?? undefined,
+          include: {
+            json: true,
+          },
+        })
+        res.objects.forEach((item: any) => {
+          const type = extractStructTagFromType(item.type)
+          if (item.type.includes('"0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin') && BigInt(item.balance) > 0) {
+            allCoinAsset.push({
+              coin_type: fixCoinType(type.type_arguments[0], false),
+              coin_object_id: item.json.id,
+              balance: BigInt(item.json.balance),
+            })
+          }
+        })
+        cursor = res.cursor ?? null
+        if (!res.hasNextPage) break
+      } while (true)
     }
     return allCoinAsset
   }
 
-  /**
-   * Gets all coin balances for the given owner and coin type.
-   *
-   * @param sui_address The address of the owner.
-   * @param coin_type The type of the coin.
-   * @returns an array of coin balances.
-   */
-  async getOwnerCoinBalances(sui_address: string, coin_type?: string | null): Promise<CoinBalance[]> {
-    let allCoinBalance: CoinBalance[] = []
-
+  async getOwnerCoinBalances(sui_address: string, coin_type?: string | null): Promise<SuiClientTypes.Balance[]> {
     if (coin_type) {
       const res = await this._client.getBalance({
         owner: sui_address,
         coinType: coin_type,
       })
-      allCoinBalance = [res]
-    } else {
-      const res = await this._client.getAllBalances({
-        owner: sui_address,
-      })
-      allCoinBalance = [...res]
+      return [res.balance]
     }
-    return allCoinBalance
+    const allBalances: SuiClientTypes.Balance[] = []
+    let cursor: string | null | undefined = null
+    do {
+      const res = await this._client.listBalances({
+        owner: sui_address,
+        cursor: cursor ?? undefined,
+      })
+      allBalances.push(...res.balances)
+      cursor = res.cursor ?? null
+      if (!res.hasNextPage) break
+    } while (true)
+    return allBalances
   }
 
-  /**
-   * Updates the cache for the given key.
-   *
-   * @param key The key of the cache entry to update.
-   * @param data The data to store in the cache.
-   * @param time The time in minutes after which the cache entry should expire.
-   */
   public updateCache(key: string, data: SuiResource, time = CACHE_TIME_24H): void {
     let cacheData = this._cache[key]
     if (cacheData) {
@@ -485,13 +616,6 @@ export class ExtendedSuiClient<T extends SuiJsonRpcClient> {
     this._cache[key] = cacheData
   }
 
-  /**
-   * Gets the cache entry for the given key.
-   *
-   * @param key The key of the cache entry to get.
-   * @param force_refresh Whether to force a refresh of the cache entry.
-   * @returns The cache entry for the given key, or undefined if the cache entry does not exist or is expired.
-   */
   public getCache<T>(key: string, force_refresh = false): T | undefined {
     const cacheData = this._cache[key]
     const isValid = cacheData?.isValid()
@@ -503,15 +627,16 @@ export class ExtendedSuiClient<T extends SuiJsonRpcClient> {
     }
     return undefined
   }
+
 }
 
-export function createFullClient<T extends SuiJsonRpcClient>(
+export function createFullClient<T extends SuiGrpcClient>(
   client: T,
   graphQLClient?: SuiGraphQLClient,
-  suiGrpcClient?: SuiGrpcClient,
-  env?: 'mainnet' | 'testnet'
+  env?: 'mainnet' | 'testnet',
+  jsonRpcClient?: SuiJsonRpcClient
 ): ExtendedSuiClient<T> & T {
-  const fullClient = new ExtendedSuiClient(client, graphQLClient, suiGrpcClient, env)
+  const fullClient = new ExtendedSuiClient(client, graphQLClient, env, jsonRpcClient)
 
   return new Proxy(fullClient, {
     get(target, prop, receiver) {

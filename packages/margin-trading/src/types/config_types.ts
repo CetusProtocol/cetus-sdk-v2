@@ -12,6 +12,14 @@ export type MarginTradingConfigs = {
   markets_table_id: string
 }
 
+export type TsplConfigs = {
+  versioned_id: string
+  global_config_id: string
+  admin_cap_id: string
+  order_book_registry_id: string
+  order_book_registry_handle: string
+}
+
 export type SuiLendConfigs = {
   lending_market: LendingMarket[]
   lending_market_id: string

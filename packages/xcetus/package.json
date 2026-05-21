@@ -1,6 +1,6 @@
 {
   "name": "@cetusprotocol/xcetus-sdk",
-  "version": "1.2.1",
+  "version": "1.2.3",
   "description": "SDK for cetus xcetus",
   "typings": "dist/index.d.ts",
   "main": "dist/index.js",
@@ -13,7 +13,7 @@
     }
   },
   "scripts": {
-    "test": "vitest",
+    "test": "vitest run --include 'packages/xcetus/**'",
     "lint": "eslint src/*.ts src/**/*.ts",
     "lint:fix": "eslint src/*.ts src/**/*.ts --fix",
     "build": "pnpm run build:tsup",
@@ -29,16 +29,15 @@
     "url": ""
   },
   "keywords": [],
-  "author": "test",
+  "author": "Cetus",
   "license": "Apache-2.0",
-  "dependencies": {
-    "@mysten/sui": "2.6.0"
-  },
   "devDependencies": {
     "@cetusprotocol/common-sdk": "workspace:*",
-    "@cetusprotocol/test-utils": "workspace:*"
+    "@cetusprotocol/test-utils": "workspace:*",
+    "@mysten/sui": "2.16.3"
   },
   "peerDependencies": {
-    "@cetusprotocol/common-sdk": "*"
+    "@cetusprotocol/common-sdk": "*",
+    "@mysten/sui": ">=2.0.0"
   }
 }

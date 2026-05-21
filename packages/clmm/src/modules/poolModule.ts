@@ -1,4 +1,4 @@
-import { SuiJsonRpcClient, type DynamicFieldPage, type SuiObjectResponse } from '@mysten/sui/jsonRpc'
+import { SuiGrpcClient } from '@mysten/sui/grpc'
 import type { TransactionObjectArgument } from '@mysten/sui/transactions'
 import { Transaction } from '@mysten/sui/transactions'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
@@ -32,10 +32,14 @@ import {
   buildTickDataByEvent,
   buildTransferCoinToSender,
 } from '../utils/common'
+import { buildPoolKey as computePoolKey } from '../utils/poolKeyUtils'
+import { NodeIDPoolSimpleInfo } from '../utils/parse'
 
 import type { PageQuery, PaginationArgs, SuiObjectIdType } from '@cetusprotocol/common-sdk'
 import {
   asUintN,
+  buildSuiGrpcClient,
+  buildSuiJsonRpcClient,
   CACHE_TIME_24H,
   ClmmPoolUtil,
   CLOCK_ADDRESS,
@@ -46,8 +50,6 @@ import {
   DataPage,
   DETAILS_KEYS,
   extractStructTagFromType,
-  getObjectFields,
-  getObjectPreviousTransactionDigest,
   getPackagerConfigs,
   IModule,
   isSortedSymbols,
@@ -57,6 +59,9 @@ import {
 } from '@cetusprotocol/common-sdk'
 import { VestUtils } from '../utils/vestUtils'
 import { eventMainnetContractMaps, eventTestnetContractMaps } from '../config'
+import { DynamicFieldPage, SuiObjectResponse } from '@mysten/sui/jsonRpc'
+import { bcs } from '@mysten/sui/bcs'
+import { FetchPositionsEventRaw, FetchTicksResultEventRaw, TickRaw } from '../utils/parse'
 
 type GetTickParams = {
   start: number[]
@@ -87,6 +92,70 @@ export class PoolModule implements IModule<CetusClmmSDK> {
   }
 
   /**
+   * Computes the pool key ID for (coin_type_a, coin_type_b, tick_spacing).
+   * Matches `cetus_clmm::factory::new_pool_key`. Coin types must satisfy coin_type_a > coin_type_b.
+   */
+  buildPoolKey(coin_type_a: string, coin_type_b: string, tick_spacing: number): string {
+    return computePoolKey(coin_type_a, coin_type_b, tick_spacing)
+  }
+
+  /**
+   * Resolves a pool object ID from coin types and tick spacing via the factory pools indexer.
+   */
+  async getPoolAddress(coin_type_a: string, coin_type_b: string, tick_spacing: number): Promise<string | undefined> {
+    try {
+      const poolKey = computePoolKey(coin_type_a, coin_type_b, tick_spacing)
+      const poolsListHandle = await this.getPoolsListHandle()
+      const res: any = await this._sdk.FullClient.getDynamicField({
+        parentId: poolsListHandle,
+        name: {
+          type: '0x2::object::ID',
+          bcs: bcs.Address.serialize(poolKey).toBytes(),
+        },
+      })
+      const poolSimpleInfo = NodeIDPoolSimpleInfo.parse(res.dynamicField.value.bcs)
+      return poolSimpleInfo.value.pool_id
+    } catch (error) {
+      return handleError(PoolErrorCode.FetchError, error as Error, {
+        [DETAILS_KEYS.METHOD_NAME]: 'getPoolAddress',
+        [DETAILS_KEYS.REQUEST_PARAMS]: {
+          coin_type_a,
+          coin_type_b,
+          tick_spacing,
+        },
+      })
+    }
+  }
+
+  /**
+   * Returns the linked table handle that indexes pools by pool key.
+   */
+  private async getPoolsListHandle(force_refresh = false): Promise<string> {
+    const { clmm_pool } = this._sdk.sdkOptions
+    const { pools_id } = getPackagerConfigs(clmm_pool)
+    const cacheKey = `${pools_id}_pools_list_handle`
+    const cacheData = this._sdk.getCache<string>(cacheKey, force_refresh)
+    if (cacheData !== undefined) {
+      return cacheData
+    }
+
+    const object = await this._sdk.FullClient.getObject({
+      objectId: pools_id,
+      include: { type: true, json: true },
+    })
+    const list = (object.object as any)?.json?.list
+    const listHandle = list?.fields?.id?.id ?? list?.id?.id ?? list?.id
+    if (!listHandle) {
+      handleMessageError(PoolErrorCode.InvalidPoolObject, `Invalid pools object: missing list handle.`, {
+        [DETAILS_KEYS.METHOD_NAME]: 'getPoolsListHandle',
+        pools_id,
+      })
+    }
+    this._sdk.updateCache(cacheKey, listHandle, CACHE_TIME_24H)
+    return listHandle
+  }
+
+  /**
    * Gets a list of positions for the given positionHandle.
    * @param {string} position_handle The handle for the position.
    * @returns {DataPage<Position>} A promise that resolves to an array of Position objects.
@@ -112,7 +181,7 @@ export class PoolModule implements IModule<CetusClmmSDK> {
         )
       }
 
-      return item.name.value
+      return bcs.Address.parse(item.name.bcs)
     })
 
     const allPosition: Position[] = await this._sdk.Position.getSimplePositionList(positionObjectIDs)
@@ -188,16 +257,15 @@ export class PoolModule implements IModule<CetusClmmSDK> {
     const objectDataResponses: any[] = await this._sdk.FullClient.batchGetObjects(
       poolImmutables.data.map((item) => item.id),
       {
-        showContent: true,
-        showType: true,
+        json: true,
       }
     )
 
     for (const suiObj of objectDataResponses) {
-      if (suiObj.error != null || suiObj.data?.content?.dataType !== 'moveObject') {
+      if (suiObj instanceof Error) {
         handleMessageError(
           PoolErrorCode.InvalidPoolObject,
-          `getPoolWithPages error code: ${suiObj.error?.code ?? 'unknown error'}, please check config and object ids`,
+          `getPoolWithPages error code: ${suiObj ?? 'unknown error'}, please check config and object ids`,
           {
             [DETAILS_KEYS.METHOD_NAME]: 'getPoolsWithPage',
           }
@@ -220,22 +288,29 @@ export class PoolModule implements IModule<CetusClmmSDK> {
    */
   async getPoolLiquiditySnapshot(pool_id: string, show_details = false): Promise<PoolLiquiditySnapshot> {
     try {
-      const res = await this._sdk.FullClient.getDynamicFieldObject({
+      const bcsRaw = bcs.String.serialize(poolLiquiditySnapshotType).toBytes()
+      const res = await this._sdk.FullClient.getDynamicField({
         parentId: pool_id,
         name: {
-          type: '0x1::string::String',
-          value: poolLiquiditySnapshotType,
+          type: "0x2::dynamic_object_field::Wrapper<0x1::string::String>",
+          bcs: bcsRaw,
         },
       })
-      const fields = VestUtils.parsePoolLiquiditySnapshot(res)
+      const parsed = bcs.Address.parse(res.dynamicField.value.bcs)
+      const obj = await this._sdk.FullClient.getObject({
+        objectId: parsed,
+        include: {
+          json: true,
+        },
+      })
+      const fields = VestUtils.parsePoolLiquiditySnapshot(obj.object)
 
       if (show_details) {
         const posSnapshots = await this._sdk.FullClient.getDynamicFieldsByPage(fields.snapshots.id)
-        const posSnapshotIds = posSnapshots.data.map((item) => item.objectId)
+        const posSnapshotIds = posSnapshots.data.map((item) => item.fieldId)
         if (posSnapshotIds.length > 0) {
           const posSnapshotsData = await this._sdk.FullClient.batchGetObjects(posSnapshotIds, {
-            showContent: true,
-            showType: true,
+            json: true,
           })
 
           const positionSnapshots: PositionSnapshot[] = []
@@ -257,7 +332,7 @@ export class PoolModule implements IModule<CetusClmmSDK> {
   }
 
   async getPositionSnapshot(snapshot_handle: string, pos_ids: string[]): Promise<PositionSnapshot[]> {
-    const res = await this._sdk.FullClient.getDynamicFieldObjects(snapshot_handle, pos_ids, '0x2::object::ID', 'address')
+    const res = await this._sdk.FullClient.getDynamicFieldObjects(snapshot_handle, pos_ids, '0x2::object::ID', 'address', { json: true })
     const positionSnapshots: PositionSnapshot[] = []
     res.forEach((item) => {
       try {
@@ -282,22 +357,11 @@ export class PoolModule implements IModule<CetusClmmSDK> {
     const allPool: Pool[] = []
 
     const objectDataResponses = await this._sdk.FullClient.batchGetObjects(assign_pools, {
-      showContent: true,
-      showType: true,
+      json: true,
     })
 
     for (const suiObj of objectDataResponses) {
-      if (suiObj.error != null || suiObj.data?.content?.dataType !== 'moveObject') {
-        handleMessageError(
-          PoolErrorCode.InvalidPoolObject,
-          `getPools error code: ${suiObj.error?.code ?? 'unknown error'}, please check config and object ids`,
-          {
-            [DETAILS_KEYS.METHOD_NAME]: 'getAssignPools',
-          }
-        )
-      }
-
-      const pool = buildPool(suiObj)
+      const pool = buildPool(suiObj as any)
       allPool.push(pool)
       const cacheKey = `${pool.id}_getPoolObject`
       this._sdk.updateCache(cacheKey, pool, CACHE_TIME_24H)
@@ -319,23 +383,13 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       return cacheData
     }
     const object = (await this._sdk.FullClient.getObject({
-      id: pool_id,
-      options: {
-        showType: true,
-        showContent: true,
+      objectId: pool_id,
+      include: {
+        type: true,
+        json: true,
       },
-    })) as SuiObjectResponse
-
-    if (object.error != null || object.data?.content?.dataType !== 'moveObject') {
-      handleMessageError(
-        PoolErrorCode.InvalidPoolObject,
-        `getPool error code: ${object.error?.code ?? 'unknown error'}, please check config and object id`,
-        {
-          [DETAILS_KEYS.METHOD_NAME]: 'getPool',
-        }
-      )
-    }
-    const pool = buildPool(object)
+    })) as any
+    const pool = buildPool(object.object)
     if (verify_pool_status) {
       const poolStatus = await this.getPoolStatus(pool_id)
       if (poolStatus) {
@@ -445,12 +499,12 @@ export class PoolModule implements IModule<CetusClmmSDK> {
     if (cacheData !== undefined) {
       return cacheData
     }
-    const packageObject = await this._sdk.FullClient.getObject({
-      id: package_id,
-      options: { showPreviousTransaction: true },
+    const packageObject: any = await this._sdk.FullClient.getObject({
+      objectId: package_id,
+      include: { previousTransaction: true },
     })
 
-    const previousTx = getObjectPreviousTransactionDigest(packageObject) as string
+    const previousTx = packageObject.object?.previousTransaction as string
 
     const objects = (await this._sdk.FullClient.queryEventsByPage({ Transaction: previousTx })).data
 
@@ -495,7 +549,6 @@ export class PoolModule implements IModule<CetusClmmSDK> {
   async getPoolTransactionList({
     pool_id,
     pagination_args,
-    order = 'descending',
     full_rpc_url,
   }: {
     pool_id: string
@@ -506,7 +559,7 @@ export class PoolModule implements IModule<CetusClmmSDK> {
     const { FullClient: fullClient, sdkOptions } = this._sdk
     let client
     if (full_rpc_url) {
-      client = createFullClient(new SuiJsonRpcClient({ url: full_rpc_url, network: this._sdk.sdkOptions.env === 'testnet' ? 'testnet' : 'mainnet' }))
+      client = createFullClient(buildSuiGrpcClient(full_rpc_url, this._sdk.sdkOptions.env!), fullClient._graphQLClient, this._sdk.sdkOptions.env, buildSuiJsonRpcClient(full_rpc_url, this._sdk.sdkOptions.env!))
     } else {
       client = fullClient
     }
@@ -520,10 +573,10 @@ export class PoolModule implements IModule<CetusClmmSDK> {
     const user_limit = pagination_args.limit || 10
     const eventContractMaps = sdkOptions.env === 'testnet' ? eventTestnetContractMaps : eventMainnetContractMaps
     do {
-      const res = await client.queryTransactionBlocksByPage({ ChangedObject: pool_id }, { ...query, limit: 50 }, order)
+      const res = await client.queryTransactionBlocksByPage({ affectedObject: pool_id }, { ...query, limit: 50 })
       res.data.forEach((item, index) => {
         data.next_cursor = res.next_cursor
-        const dataList = buildPoolTransactionInfo(item, index, eventContractMaps, pool_id)
+        const dataList = buildPoolTransactionInfo(item as any, index, eventContractMaps, pool_id)
         data.data = [...data.data, ...dataList]
       })
       data.has_next_page = res.has_next_page
@@ -797,25 +850,16 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       typeArguments,
     })
 
-    const simulateRes = await this.sdk.FullClient.devInspectTransactionBlock({
-      transactionBlock: tx,
-      sender: normalizeSuiAddress('0x0'),
-    })
+    const simulateRes: any = await this.sdk.FullClient.sendSimulationTransaction(
+      tx,
+      normalizeSuiAddress('0x0'),
+    )
 
-    if (simulateRes.error != null) {
-      handleMessageError(
-        PoolErrorCode.InvalidTickObjectId,
-        `getTicks error code: ${simulateRes.error ?? 'unknown error'}, please check config and tick object ids`,
-        {
-          [DETAILS_KEYS.METHOD_NAME]: 'getTicks',
-          [DETAILS_KEYS.REQUEST_PARAMS]: params,
-        }
-      )
-    }
 
-    simulateRes.events?.forEach((item: any) => {
-      if (extractStructTagFromType(item.type).name === `FetchTicksResultEvent`) {
-        item.parsedJson.ticks.forEach((tick: any) => {
+    simulateRes.Transaction?.events?.forEach((item: any) => {
+      if (extractStructTagFromType(item.eventType).name === `FetchTicksResultEvent`) {
+        const result = FetchTicksResultEventRaw.parse(item.bcs)
+        result.ticks.forEach((tick: any) => {
           ticks.push(buildTickDataByEvent(tick))
         })
       }
@@ -852,15 +896,15 @@ export class PoolModule implements IModule<CetusClmmSDK> {
         typeArguments,
       })
 
-      const simulateRes = await this.sdk.FullClient.devInspectTransactionBlock({
-        transactionBlock: tx,
-        sender: normalizeSuiAddress('0x0'),
-      })
+      const simulateRes: any = await this.sdk.FullClient.sendSimulationTransaction(
+        tx,
+        normalizeSuiAddress('0x0'),
+      )
 
-      if (simulateRes.error != null) {
+      if (simulateRes.FailedTransaction != null) {
         handleMessageError(
           PositionErrorCode.InvalidPositionRewardObject,
-          `fetch position info error code: ${simulateRes.error ?? 'unknown error'}, please check config and tick object ids`,
+          `fetch position info error code: ${simulateRes.FailedTransaction ?? 'unknown error'}, please check config and tick object ids`,
           {
             [DETAILS_KEYS.METHOD_NAME]: 'fetchPoolPositionInfoList',
             [DETAILS_KEYS.REQUEST_PARAMS]: params,
@@ -869,9 +913,10 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       }
 
       const positionInfos: PositionInfo[] = []
-      simulateRes?.events?.forEach((item: any) => {
-        if (extractStructTagFromType(item.type).name === `FetchPositionsEvent`) {
-          item.parsedJson.positions.forEach((item: any) => {
+      simulateRes?.Transaction?.events?.forEach((item: any) => {
+        if (extractStructTagFromType(item.eventType).name === `FetchPositionsEvent`) {
+          const parsed = FetchPositionsEventRaw.parse(item.bcs)
+          parsed.positions.forEach((item: any) => {
             const positionReward = buildPositionInfo(item)
             positionInfos.push(positionReward)
           })
@@ -901,16 +946,14 @@ export class PoolModule implements IModule<CetusClmmSDK> {
     const limit = 50
     while (true) {
       const allTickId: SuiObjectIdType[] = []
-      const idRes: DynamicFieldPage = await this.sdk.FullClient.getDynamicFields({
+      const idRes: any = await this.sdk.FullClient.listDynamicFields({
         parentId: tick_handle,
         cursor: nextCursor,
         limit,
       })
-      nextCursor = idRes.nextCursor
-      idRes.data.forEach((item) => {
-        if (extractStructTagFromType(item.objectType).module === 'skip_list') {
-          allTickId.push(item.objectId)
-        }
+      nextCursor = idRes.cursor
+      idRes.dynamicFields.forEach((item: any) => {
+        allTickId.push(item.fieldId)
       })
 
       allTickData = [...allTickData, ...(await this.getTicksByRpc(allTickId))]
@@ -930,17 +973,8 @@ export class PoolModule implements IModule<CetusClmmSDK> {
    */
   private async getTicksByRpc(tick_object_id: string[]): Promise<TickData[]> {
     const ticks: TickData[] = []
-    const objectDataResponses = await this.sdk.FullClient.batchGetObjects(tick_object_id, { showContent: true, showType: true })
+    const objectDataResponses = await this.sdk.FullClient.batchGetObjects(tick_object_id, { json: true })
     for (const suiObj of objectDataResponses) {
-      if (suiObj.error != null || suiObj.data?.content?.dataType !== 'moveObject') {
-        handleMessageError(
-          PoolErrorCode.InvalidTickObjectId,
-          `getTicksByRpc error code: ${suiObj.error?.code ?? 'unknown error'}, please check config and tick object ids`,
-          {
-            [DETAILS_KEYS.METHOD_NAME]: 'getTicksByRpc',
-          }
-        )
-      }
 
       const tick = buildTickData(suiObj)
       if (tick != null) {
@@ -957,19 +991,22 @@ export class PoolModule implements IModule<CetusClmmSDK> {
    * @returns {Promise<TickData | null>} A promise that resolves to the tick data.
    */
   async getTickDataByIndex(tick_handle: string, tick_index: number): Promise<TickData> {
-    const name = { type: 'u64', value: asUintN(BigInt(tickScore(tick_index).toString())).toString() }
-    const res = await this.sdk.FullClient.getDynamicFieldObject({
-      parentId: tick_handle,
-      name,
-    })
+    try {
+      const name = { type: 'u64', bcs: bcs.u64().serialize(asUintN(BigInt(tickScore(tick_index).toString()))).toBytes() }
+      const res = await this.sdk.FullClient.getDynamicField({
+        parentId: tick_handle,
+        name,
+      })
 
-    if (res.error != null || res.data?.content?.dataType !== 'moveObject') {
-      handleMessageError(PoolErrorCode.InvalidTickIndex, `get tick by index: ${tick_index} error: ${res.error}`, {
+      const tickData = TickRaw.parse(res.dynamicField.value.bcs)
+
+      return buildTickDataByEvent(tickData)
+    } catch (error) {
+      return handleMessageError(PoolErrorCode.InvalidTickFields, `Invalid tick fields.`, {
         [DETAILS_KEYS.METHOD_NAME]: 'getTickDataByIndex',
       })
     }
 
-    return buildTickData(res)
   }
 
   /**
@@ -979,20 +1016,11 @@ export class PoolModule implements IModule<CetusClmmSDK> {
    */
   async getTickDataByObjectId(tick_id: string): Promise<TickData | null> {
     const res = await this.sdk.FullClient.getObject({
-      id: tick_id,
-      options: { showContent: true },
+      objectId: tick_id,
+      include: { json: true },
     })
 
-    if (res.error != null || res.data?.content?.dataType !== 'moveObject') {
-      handleMessageError(
-        PoolErrorCode.InvalidTickObjectId,
-        `getTicksByRpc error code: ${res.error?.code ?? 'unknown error'}, please check config and tick object ids`,
-        {
-          [DETAILS_KEYS.METHOD_NAME]: 'getTickDataByObjectId',
-        }
-      )
-    }
-    return buildTickData(res)
+    return buildTickData(res.object)
   }
 
   /**
@@ -1000,57 +1028,42 @@ export class PoolModule implements IModule<CetusClmmSDK> {
    * @param {string}partner Partner object id
    * @returns {Promise<CoinAsset[]>} A promise that resolves to an array of coin asset.
    */
-  async getPartnerRefFeeAmount(partner: string, show_display = true): Promise<CoinAsset[]> {
-    const objectDataResponses: any = await this._sdk.FullClient.batchGetObjects([partner], {
-      showOwner: true,
-      showContent: true,
-      showDisplay: show_display,
-      showType: true,
+  async getPartnerRefFeeAmount(partner: string): Promise<CoinAsset[]> {
+    const objectDataResponses: any = await this._sdk.FullClient.getObject({
+      objectId: partner,
+      include: { json: true },
     })
 
-    if (objectDataResponses[0].data?.content?.dataType !== 'moveObject') {
+    if (objectDataResponses instanceof Error) {
       handleMessageError(
         PartnerErrorCode.NotFoundPartnerObject,
-        `get partner by object id: ${partner} error: ${objectDataResponses[0].error}`,
+        `get partner by object id: ${partner} error: ${objectDataResponses.message}`,
         {
           [DETAILS_KEYS.METHOD_NAME]: 'getPartnerRefFeeAmount',
         }
       )
     }
 
-    const balance = (objectDataResponses[0].data.content.fields as any).balances
+    const balanceId = objectDataResponses.object.json.balances.id
 
-    const objects = await this._sdk.FullClient.getDynamicFieldsByPage(balance.fields.id.id)
+    const objects = await this._sdk.FullClient.getDynamicFieldsByPage(balanceId)
 
     const coins: string[] = []
     objects.data.forEach((object) => {
-      if (object.objectId != null) {
-        coins.push(object.objectId)
+      if (object.fieldId != null) {
+        coins.push(object.fieldId)
       }
     })
 
     const refFee: CoinAsset[] = []
     const object = await this._sdk.FullClient.batchGetObjects(coins, {
-      showOwner: true,
-      showContent: true,
-      showDisplay: show_display,
-      showType: true,
+      json: true,
     })
     object.forEach((info: any) => {
-      if (info.error != null || info.data?.content?.dataType !== 'moveObject') {
-        handleMessageError(
-          PartnerErrorCode.InvalidPartnerRefFeeFields,
-          `get coin by object id: ${info.data.objectId} error: ${info.error}`,
-          {
-            [DETAILS_KEYS.METHOD_NAME]: 'getPartnerRefFeeAmount',
-          }
-        )
-      }
-
       const coinAsset: CoinAsset = {
-        coin_type: info.data.content.fields.name,
-        coin_object_id: info.data.objectId,
-        balance: BigInt(info.data.content.fields.value),
+        coin_type: info.json.name,
+        coin_object_id: info.json.id,
+        balance: BigInt(info.json.value),
       }
       refFee.push(coinAsset)
     })
@@ -1084,19 +1097,18 @@ export class PoolModule implements IModule<CetusClmmSDK> {
 
   async getPoolStatus(poolId: string): Promise<PoolStatus | undefined> {
     try {
-      const res: any = await this._sdk.FullClient.getDynamicFieldObject({
+      const res: any = await this._sdk.FullClient.getDynamicField({
         parentId: poolId,
         name: {
-          type: '0x1::string::String',
-          value: 'pool_status',
+          type: "0x2::dynamic_object_field::Wrapper<0x1::string::String>",
+          bcs: bcs.String.serialize('pool_status').toBytes(),
         },
       })
-
-      const fields = getObjectFields(res)
-      const status = fields.position.fields.status
+      const fields = res.data?.json
+      const status = fields.position.status
       if (status) {
         return status as PoolStatus
-      }
+      } else { }
     } catch (error) {
       console.log('🚀 ~ file: poolModule.ts:1093 ~ PoolModule ~ getPoolStatus ~ error:', error)
     }
@@ -1122,7 +1134,7 @@ export class PoolModule implements IModule<CetusClmmSDK> {
       const { global_config_id } = getPackagerConfigs(clmm_pool)
 
       // Get all ref fees for this partner using getPartnerRefFeeAmount
-      const ref_fees = await this.getPartnerRefFeeAmount(partner, true)
+      const ref_fees = await this.getPartnerRefFeeAmount(partner)
 
       // Create new transaction
       const tx = new Transaction()

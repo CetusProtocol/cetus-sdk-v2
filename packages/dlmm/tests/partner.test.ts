@@ -5,10 +5,9 @@ import { CetusDlmmSDK } from '../src/sdk'
 import { BinUtils } from '../src/utils/binUtils'
 import { StrategyType } from '../src/types/dlmm'
 import { d, printTransaction } from '@cetusprotocol/common-sdk'
-import { Transaction } from '@mysten/sui/transactions'
 
 describe('partner', () => {
-  const sdk = CetusDlmmSDK.createSDK({ env: 'testnet', full_rpc_url: 'https://rpc-testnet.suiscan.xyz' })
+  const sdk = CetusDlmmSDK.createSDK({ env: 'testnet' })
   let send_key_pair: Ed25519Keypair
   let account: string
 
@@ -23,8 +22,8 @@ describe('partner', () => {
     console.log('🚀 ~ test ~ partnerList:', partnerList)
   })
 
-  test('getPartner', async () => {
-    const partner = await sdk.Partner.getPartner('0x9d171399393e3cbedffc24269eb606e735fb56fee17c15153eb5e2d5274a3677')
+  test('1 getPartner', async () => {
+    const partner = await sdk.Partner.getPartner('0xf4515832bbd46cff49d16724401c263fa03adb107fb9943fee4d6f28852c4944')
     console.log('🚀 ~ test ~ partner:', partner)
   })
 

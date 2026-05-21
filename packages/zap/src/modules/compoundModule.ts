@@ -1,5 +1,5 @@
 import { CetusZapSDK } from '../sdk'
-import { 
+import {
   ClosePosReturnAmountCoinAParams,
   ClosePosOnlyReturnAmountCoinsParams,
   CollectFeeAndRewardsAndReturnCoinsParams,
@@ -14,10 +14,10 @@ import {
 import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
 import { getPackagerConfigs, CLOCK_ADDRESS, SuiAddressType, ClmmPoolUtil, d, TickMath, fixCoinType, CoinAssist, toDecimalsAmount, fromDecimalsAmount, asUintN } from '@cetusprotocol/common-sdk'
 import BN from 'bn.js'
-import {calculateLiquidityAmountEnough} from '../utils/zap'
-import {calculateLiquidityWithFallback, isEmptyObj, isNotMergeCoin, isSameType} from '../utils/compound'
+import { calculateLiquidityAmountEnough } from '../utils/zap'
+import { calculateLiquidityWithFallback, isEmptyObj, isNotMergeCoin, isSameType } from '../utils/compound'
 import { ClmmIntegratePoolV2Module, PositionUtils, ClmmIntegrateRouterModule } from '@cetusprotocol/sui-clmm-sdk'
-import {BuildRouterSwapParamsV3} from '@cetusprotocol/aggregator-sdk'
+import { BuildRouterSwapParamsV3 } from '@cetusprotocol/aggregator-sdk'
 
 // Constants
 const DEFAULT_SLIPPAGE = 0.005
@@ -59,7 +59,7 @@ export class CompoundModule {
     merge_swap_target_coin_type: string
     not_merge_coins: string[]
   }) {
-    const {pool_id, position_id, coin_type_a, coin_type_b, rewarder_types, merge_swap_target_coin_type, farms_pool_id, not_merge_coins} = params
+    const { pool_id, position_id, coin_type_a, coin_type_b, rewarder_types, merge_swap_target_coin_type, farms_pool_id, not_merge_coins } = params
 
     let coin_amount_a = '0'
     let coin_amount_b = '0'
@@ -95,7 +95,7 @@ export class CompoundModule {
             coin_amount_a = d(coin_amount_a).add(rewarder.amount_owned).toString()
           } else if (fixedCoinType === fixCoinType(coin_type_b) && isNotMergeCoin(not_merge_coins, coin_type_b)) {
             coin_amount_b = d(coin_amount_b).add(rewarder.amount_owned).toString()
-          } else if (fixedCoinType !==fixCoinType(merge_swap_target_coin_type) && (isNotMergeCoin(not_merge_coins, fixedCoinType))) {
+          } else if (fixedCoinType !== fixCoinType(merge_swap_target_coin_type) && (isNotMergeCoin(not_merge_coins, fixedCoinType))) {
             other_rewarder[fixedCoinType] = rewarder.amount_owned
           }
         })
@@ -106,13 +106,13 @@ export class CompoundModule {
     let mergeSwapResult
     if (!isEmptyObj(other_rewarder)) {
       mergeSwapResult = await this.performMergeSwap(other_rewarder, merge_swap_target_coin_type)
-      
+
       if (mergeSwapResult?.totalAmountOut) {
         const amountOutWithSlippage = this.calculateAmountWithSlippage(
-          mergeSwapResult.totalAmountOut.toString(), 
+          mergeSwapResult.totalAmountOut.toString(),
           DEFAULT_SLIPPAGE
         )
-        
+
         if (fixCoinType(merge_swap_target_coin_type) === fixCoinType(coin_type_a)) {
           coin_amount_a = d(coin_amount_a).add(amountOutWithSlippage).toString()
         } else {
@@ -128,16 +128,16 @@ export class CompoundModule {
     }
   }
 
-   /**
-   * Pre-calculate claim merge parameters for harvesting and swapping rewards (Mainly used for test cases)
-   * @param params - Parameters for claim merge calculation including:
-   *                 - coin_type_a/b: Coin types for the trading pair
-   *                 - pool_id: ID of the liquidity pool
-   *                 - position_id: ID of the position
-   *                 - rewarder_types: Array of rewarder coin types
-   *                 - target_coin_type: Target coin type for merge swap
-   * @returns Promise resolving to merge swap result with optimal routing
-   */
+  /**
+  * Pre-calculate claim merge parameters for harvesting and swapping rewards (Mainly used for test cases)
+  * @param params - Parameters for claim merge calculation including:
+  *                 - coin_type_a/b: Coin types for the trading pair
+  *                 - pool_id: ID of the liquidity pool
+  *                 - position_id: ID of the position
+  *                 - rewarder_types: Array of rewarder coin types
+  *                 - target_coin_type: Target coin type for merge swap
+  * @returns Promise resolving to merge swap result with optimal routing
+  */
   async calculateClaimMerge(params: CalculateClaimMergeParams) {
     const { coin_type_a, coin_type_b, pool_id, position_id, rewarder_types, target_coin_type, not_merge_coins, farms_pool_id } = params
     const mergeSwapFroms = []
@@ -171,7 +171,7 @@ export class CompoundModule {
         rewarder_types,
       }])
 
-      if (rewarderResult[0].rewarder_amounts?.length >0) {
+      if (rewarderResult[0].rewarder_amounts?.length > 0) {
         rewarderResult[0].rewarder_amounts.forEach((rewarder) => {
           if (fixCoinType(rewarder.coin_type) === fixCoinType(coin_type_a) && fixCoinType(rewarder.coin_type) === fixCoinType(coin_type_b) && !not_merge_coins.includes(rewarder.coin_type)) {
             mergeSwapFroms.push({
@@ -190,13 +190,13 @@ export class CompoundModule {
         depth: DEFAULT_DEPTH,
         froms: mergeSwapFroms
       }
-  
+
       const client = this._sdk.AggregatorClient
       const mergeRes = await client.findMergeSwapRouters(mergeSwapParams)
       return mergeRes
     }
 
-    return null 
+    return null
   }
 
   /**
@@ -297,16 +297,16 @@ export class CompoundModule {
         amount_b,
         slippage
       })
-      use_amount_a = result.use_amount_a  
+      use_amount_a = result.use_amount_a
       use_amount_b = result.use_amount_b
       fix_amount_a = result.fix_amount_a
       remain_amount = result.remain_amount
       remain_amount_is_a = !fix_amount_a
       fix_amount_a = remain_amount_is_a
-      
+
     }
 
-    
+
     // Remaining amount rebalancing
     const currPrice = TickMath.sqrtPriceX64ToPrice(new BN(current_sqrt_price), coin_decimal_a, coin_decimal_b)
     const swapPrice = mark_price ? d(mark_price) : currPrice
@@ -323,7 +323,7 @@ export class CompoundModule {
         // Calculate the amount of token B to swap based on current ratio
         // ratio_a/ratio_b = x / (remain - x) derived formula
         // x = (ratio_a * remain) / (ratio_a + ratio_b)
-        swapAmount =toDecimalsAmount(d(ratio_a).mul(remain_amount_from_decimals).div(d(ratio_a).add(d(ratio_b))).toFixed(coin_decimal_b), coin_decimal_b)
+        swapAmount = toDecimalsAmount(d(ratio_a).mul(remain_amount_from_decimals).div(d(ratio_a).add(d(ratio_b))).toFixed(coin_decimal_b), coin_decimal_b)
         // receiveAmount = toDecimalsAmount(d(fromDecimalsAmount(swapAmount.toString(), coin_decimal_b)).div(swapPrice).toFixed(coin_decimal_a), coin_decimal_a)
       } else {
         // Remaining amount is token A
@@ -340,7 +340,7 @@ export class CompoundModule {
         const priceRatio = d(mark_price).div(currPrice)
         const adjustedRatioA = ratio_a.mul(priceRatio)
         const adjustedRatioB = ratio_b
-        
+
         // 用调整后的ratio重新计算
         swapAmount = toDecimalsAmount(
           d(adjustedRatioA)
@@ -354,7 +354,7 @@ export class CompoundModule {
         const priceRatio = d(mark_price).div(currPrice)
         const adjustedRatioA = ratio_a
         const adjustedRatioB = ratio_b.div(priceRatio)
-        
+
         swapAmount = toDecimalsAmount(
           d(adjustedRatioB)
             .mul(remain_amount_from_decimals)
@@ -364,7 +364,7 @@ export class CompoundModule {
         )
       }
     }
-    
+
 
 
     // findRouter for actual rebalancing attempt
@@ -386,21 +386,21 @@ export class CompoundModule {
           remain_amount_is_a ? coin_decimal_a : coin_decimal_b,
           remain_amount_is_a ? coin_decimal_b : coin_decimal_a
         )
-  
+
         routerPrice = remain_amount_is_a ? d(swapResult.swap_price) : d(1).div(d(swapResult.swap_price))
-        
+
         // Calculate actual swap out amount with slippage
         const swapAmountOutWithSlippage = this.calculateAmountWithSlippage(swapResult.swap_out_amount, slippage)
-  
+
         afterSwapA = remain_amount_is_a ? d(remain_amount).sub(swapResult.swap_in_amount).toString() : swapAmountOutWithSlippage
-        
+
         afterSwapB = remain_amount_is_a ? swapAmountOutWithSlippage : d(remain_amount).sub(swapResult.swap_in_amount).toString()
-        
+
         realAmountA = d(use_amount_a).add(afterSwapA).toFixed(0)
         realAmountB = d(use_amount_b).add(afterSwapB).toFixed(0)
       } else {
         realAmountA = use_amount_a
-        
+
         realAmountB = use_amount_b
       }
 
@@ -418,7 +418,7 @@ export class CompoundModule {
       // 1. res.is_enough_amount is true means there's remaining amount, need to check if remaining amount is greater than max_remain_rate
       // 2. If remaining amount is greater than max_remain_rate, need to continue calculating swapAmount using actual amount after swap
       // 3. If remaining amount is less than max_remain_rate, return original calculation result
-      
+
       // TODO: This may need adjustment based on situation later
       const remain_ratio = res.remain_amount.div(fix_amount_a ? realAmountB : realAmountA).abs().toString()
       // if (res.is_enough_amount && d(remain_ratio).gt(d(max_remain_rate)) && verify_price_loop < 3) {
@@ -428,11 +428,11 @@ export class CompoundModule {
           mark_price: routerPrice.toString(),
           verify_price_loop: verify_price_loop + 1
         })
-      } 
+      }
 
-      if(!res.is_enough_amount) {
+      if (!res.is_enough_amount) {
         fix_amount_a = !fix_amount_a
-          
+
         res = calculateLiquidityAmountEnough(
           realAmountA,
           realAmountB,
@@ -469,7 +469,7 @@ export class CompoundModule {
         error: (error as Error).message || 'Swap failed'
       }
     }
-  
+
   }
 
   /**
@@ -507,7 +507,7 @@ export class CompoundModule {
       old_pos_origin_amount_a,
       old_pos_origin_amount_b,
     } = params
-    
+
 
     if (only_have_coin_a) {
       if (d(amount_b).gt(0)) { // b needs to be swapped to a
@@ -586,12 +586,12 @@ export class CompoundModule {
             is_a2b: true,
             slippage
           })
-  
+
           const liquidity = ClmmPoolUtil.estimateLiquidityFromCoinAmounts(new BN(current_sqrt_price), tick_lower, tick_upper, {
             coin_amount_a: '0',
             coin_amount_b: d(amount_b).add(swapAmountOutWithSlippage).toString()
           })
-  
+
           return {
             liquidity,
             use_amount_a: '0',
@@ -603,7 +603,7 @@ export class CompoundModule {
             display_swap_amount_in: old_pos_origin_amount_a,
             swap_result: swapResult,
           }
-        } catch(error) {
+        } catch (error) {
           return {
             liquidity: '',
             use_amount_a: '',
@@ -617,7 +617,7 @@ export class CompoundModule {
             error: (error as Error).message || 'Swap failed'
           }
         }
-        
+
       } else {
         const liquidity = ClmmPoolUtil.estimateLiquidityFromCoinAmounts(new BN(current_sqrt_price), tick_lower, tick_upper, {
           coin_amount_a: '0',
@@ -649,13 +649,13 @@ export class CompoundModule {
     delta_liquidity: string
     not_close?: boolean
   }, tx: Transaction) {
-    const { pool_id, farms_pool_id, pos_id, coin_type_a,coin_type_b, min_amount_a, min_amount_b, not_close } = params
+    const { pool_id, farms_pool_id, pos_id, coin_type_a, coin_type_b, min_amount_a, min_amount_b, not_close } = params
     const { farms } = this._sdk.FarmsSDK.sdkOptions
     const farmsConfig = getPackagerConfigs(farms)
     const { clmm_pool } = this._sdk.ClmmSDK.sdkOptions
     const clmmConfig = getPackagerConfigs(clmm_pool)
 
-    
+
 
     let coinBalanceA
     let coinBalanceB
@@ -706,9 +706,9 @@ export class CompoundModule {
       coinBalanceA = coinA
       coinBalanceB = coinB
     }
-    
 
-    
+
+
 
     const returnAmountA = CoinAssist.fromBalance(coinBalanceA, coin_type_a, tx)
     const returnAmountB = CoinAssist.fromBalance(coinBalanceB, coin_type_b, tx)
@@ -728,9 +728,9 @@ export class CompoundModule {
    *                 - min_amount_a/b: Minimum amounts to return
    * @param tx - Transaction object to add operations to
    * @returns Object containing coin_a and coin_b transaction objects
-   */ 
+   */
   async closePosOnlyReturnAmountCoins(params: ClosePosOnlyReturnAmountCoinsParams, tx: Transaction) {
-    const {pool_id, farms_pool_id, pos_id, coin_type_a, coin_type_b, min_amount_a, min_amount_b, delta_liquidity, not_close} = params
+    const { pool_id, farms_pool_id, pos_id, coin_type_a, coin_type_b, min_amount_a, min_amount_b, delta_liquidity, not_close } = params
     const { clmm_pool, integrate } = this._sdk.ClmmSDK.sdkOptions
     const typeArguments = [params.coin_type_a, params.coin_type_b]
     const clmmConfig = getPackagerConfigs(clmm_pool)
@@ -747,7 +747,7 @@ export class CompoundModule {
 
     const { fee_a, fee_b, other_rewarder } = await this.collectFeeAndRewardsAndReturnCoins(params, tx)
     tx.transferObjects([fee_a, fee_b], this.sdk.getSenderAddress())
-    for(let key in other_rewarder) {
+    for (let key in other_rewarder) {
       tx.transferObjects([other_rewarder[key]], this.sdk.getSenderAddress())
     }
 
@@ -764,18 +764,18 @@ export class CompoundModule {
         typeArguments,
         arguments: args,
       })
-  
+
       returnAmountA = CoinAssist.fromBalance(amount_a, params.coin_type_a, tx)
       returnAmountB = CoinAssist.fromBalance(amount_b, params.coin_type_b, tx)
 
-      if (!not_close){
+      if (!not_close) {
         tx.moveCall({
           target: `${clmm_pool.published_at}::pool::close_position`,
           typeArguments: [coin_type_a, coin_type_b],
           arguments: [tx.object(getPackagerConfigs(clmm_pool).global_config_id), tx.object(pool_id), tx.object(pos_id)],
         })
       }
-      
+
     } else {
 
       const res = await this.closeAndHarvestFarmsPos(params as any, tx)
@@ -805,7 +805,7 @@ export class CompoundModule {
     const { clmm_pool } = this._sdk.ClmmSDK.sdkOptions
     const farmsConfig = getPackagerConfigs(farms)
     const clmmConfig = getPackagerConfigs(clmm_pool)
-    
+
     let fee_a: any
     let fee_b: any
     if (!farms_pool_id) {
@@ -815,7 +815,7 @@ export class CompoundModule {
         coin_type_a: params.coin_type_a,
         coin_type_b: params.coin_type_b,
       }, tx)
-      
+
       if (feeRes.fee_a) {
         fee_a = CoinAssist.fromBalance(feeRes.fee_a, coin_type_a, tx)
       }
@@ -823,7 +823,7 @@ export class CompoundModule {
         fee_b = CoinAssist.fromBalance(feeRes.fee_b, coin_type_b, tx)
       }
     } else {
-      
+
       const [coinBalanceA, coinBalanceB] = tx.moveCall({
         target: `${farms.published_at}::pool::collect_fee`,
         typeArguments: [params.coin_type_a, params.coin_type_b],
@@ -849,18 +849,18 @@ export class CompoundModule {
     if (rewarder_coin_types.length > 0) {
       if (!farms_pool_id) {
         params.rewarder_coin_types.forEach((type: SuiAddressType, index: number) => {
-          const  rewarder = this._sdk.ClmmSDK.Rewarder.createCollectRewarderAndReturnCoinPayload({
-              pool_id: params.pool_id,
-              pos_id: clmm_pos_id || params.pos_id,
-              coin_type_a: coin_type_a,
-              coin_type_b: coin_type_b,
-              rewarder_coin_type: type,
-              
-            }, tx)
-        
+          const rewarder = this._sdk.ClmmSDK.Rewarder.createCollectRewarderAndReturnCoinPayload({
+            pool_id: params.pool_id,
+            pos_id: clmm_pos_id || params.pos_id,
+            coin_type_a: coin_type_a,
+            coin_type_b: coin_type_b,
+            rewarder_coin_type: type,
+
+          }, tx)
+
           // const returnCoin = CoinAssist.fromBalance(rewarder, `0x${fixCoinType(type)}`, tx)
           const returnCoin = CoinAssist.fromBalance(rewarder, type, tx)
-  
+
           if (isSameType(type, coin_type_a)) {
             tx.mergeCoins(fee_a, [returnCoin])
           } else if (isSameType(type, coin_type_b)) {
@@ -870,7 +870,7 @@ export class CompoundModule {
           }
         })
       } else {
-        const primaryCoinInputs: any = []        
+        const primaryCoinInputs: any = []
         for (let i = 0; i < rewarder_coin_types.length; i++) {
           const item = rewarder_coin_types[i]
           const coin = CoinAssist.buildCoinWithBalance(BigInt(0), item, tx)
@@ -891,7 +891,7 @@ export class CompoundModule {
                 tx.object(params.pos_id),
                 tx.object(clmmConfig.global_vault_id),
                 primaryCoinInputs[index],
-                
+
                 tx.pure.bool(true),
                 tx.object(CLOCK_ADDRESS),
               ],
@@ -927,7 +927,7 @@ export class CompoundModule {
     slippage: number
     not_merge_coins: string[]
   }, tx = new Transaction()) {
-    const {farms_pool_id, coin_type_a, coin_type_b, pool_id, pos_id, delta_liquidity, min_amount_a, min_amount_b, not_close} = params
+    const { farms_pool_id, coin_type_a, coin_type_b, pool_id, pos_id, delta_liquidity, min_amount_a, min_amount_b, not_close } = params
     const { clmm_pool } = this._sdk.ClmmSDK.sdkOptions
     const typeArguments = [coin_type_a, coin_type_b]
     const clmmConfig = getPackagerConfigs(clmm_pool)
@@ -935,8 +935,8 @@ export class CompoundModule {
     let returnAmountA
     let returnAmountB
 
-    const {coin_a, coin_b} = await this.claimFeeAndRewardsAndMergeRewards(params, rewarderMergeOption, tx)
-    
+    const { coin_a, coin_b } = await this.claimFeeAndRewardsAndMergeRewards(params, rewarderMergeOption, tx)
+
     if (farms_pool_id) {
       const res = await this.closeAndHarvestFarmsPos(params as any, tx)
       returnAmountA = res.returnAmountA
@@ -955,23 +955,23 @@ export class CompoundModule {
         arguments: args,
       })
 
-      if (!not_close){
+      if (!not_close) {
         tx.moveCall({
           target: `${clmm_pool.published_at}::pool::close_position`,
           typeArguments: [coin_type_a, coin_type_b],
           arguments: [tx.object(getPackagerConfigs(clmm_pool).global_config_id), tx.object(pool_id), tx.object(pos_id)],
         })
       }
-  
+
       returnAmountA = CoinAssist.fromBalance(amount_a, params.coin_type_a, tx)
       returnAmountB = CoinAssist.fromBalance(amount_b, params.coin_type_b, tx)
     }
-    
-    
+
+
     if (coin_a) {
       tx.mergeCoins(coin_a, [returnAmountA])
     }
-    
+
     if (coin_b) {
       tx.mergeCoins(coin_b, [returnAmountB])
     }
@@ -1001,7 +1001,7 @@ export class CompoundModule {
     routerPrice: string
     swapAmountOutWithSlippage: string
   }> {
-    const { pool_id, current_sqrt_price, from_coin_type, target_coin_type, amount, from_coin_decimal, target_coin_decimal, is_a2b,slippage } = params
+    const { pool_id, current_sqrt_price, from_coin_type, target_coin_type, amount, from_coin_decimal, target_coin_decimal, is_a2b, slippage } = params
 
     const swapResult = await this._sdk.Zap.findRouters(
       pool_id,
@@ -1016,7 +1016,7 @@ export class CompoundModule {
     const swapAmountOutWithSlippage = this.calculateAmountWithSlippage(swapResult.swap_out_amount, slippage)
 
     const routerPrice = is_a2b ? d(swapResult.swap_price).toString() : d(1).div(d(swapResult.swap_price)).toString()
-  
+
     return {
       swapResult,
       routerPrice,
@@ -1052,7 +1052,7 @@ export class CompoundModule {
     slippage: number
     not_merge_coins: string[]
   }, tx = new Transaction()) {
-    const {coin_type_a, coin_type_b} = baseParams
+    const { coin_type_a, coin_type_b } = baseParams
 
     const { fee_a, fee_b, other_rewarder } = await this.collectFeeAndRewardsAndReturnCoins(baseParams, tx)
     let coin_a: any = fee_a
@@ -1060,19 +1060,19 @@ export class CompoundModule {
 
     const mergeInputCoinMap: any = {}
     if (!isEmptyObj(other_rewarder)) {
-      for(let key in other_rewarder) {
+      for (let key in other_rewarder) {
         const coin = other_rewarder[key]
-        
+
         // if (rewarderMergeOption && !rewarderMergeOption.not_merge_coins.includes(key)) {
         if (rewarderMergeOption && isNotMergeCoin(rewarderMergeOption.not_merge_coins, key)) {
           if (fixCoinType(key) === fixCoinType(coin_type_a)) {
-            if (coin_a){
+            if (coin_a) {
               tx.mergeCoins(coin_a, [coin])
             } else {
               coin_a = coin
-            }  
+            }
           } else if (fixCoinType(key) === fixCoinType(coin_type_b)) {
-            if (coin_b){
+            if (coin_b) {
               tx.mergeCoins(coin_b, [coin])
             } else {
               coin_b = coin
@@ -1085,13 +1085,13 @@ export class CompoundModule {
           }
         } else {
           if (fixCoinType(coin_type_a) === fixCoinType(key)) {
-            if (coin_a){
+            if (coin_a) {
               tx.mergeCoins(coin_a, [coin])
             } else {
               coin_a = coin
-            }  
+            }
           } else if (fixCoinType(coin_type_b) === fixCoinType(key)) {
-            if (coin_b){
+            if (coin_b) {
               tx.mergeCoins(coin_b, [coin])
             } else {
               coin_b = coin
@@ -1105,28 +1105,36 @@ export class CompoundModule {
 
     const client = this._sdk.AggregatorClient
     if (!isEmptyObj(mergeInputCoinMap) && rewarderMergeOption?.merge_routers) {
-      const inputCoins: any = rewarderMergeOption?.merge_routers.allRoutes?.map((item: any) => {  
-        
-        const from  = item.paths[0].from     
+      const inputCoins: any = rewarderMergeOption?.merge_routers.allRoutes?.map((item: any) => {
+
+        const from = item.paths[0].from
         return mergeInputCoinMap[fixCoinType(from)]
       })
 
 
-      const targetCoin = await client.mergeSwap({
+      const targetCoin: any = await client.mergeSwap({
         router: rewarderMergeOption?.merge_routers,
         inputCoins,
         slippage: rewarderMergeOption!.slippage,
-        txb: tx,
+        txb: tx as any,
       })
 
       const merge_target_coin_type = rewarderMergeOption?.merge_routers.allRoutes[0].paths[rewarderMergeOption?.merge_routers.allRoutes[0].paths.length - 1].target
 
       if (fixCoinType(merge_target_coin_type) === fixCoinType(coin_type_a)) {
-        coin_a ? tx.mergeCoins(coin_a, [targetCoin]) : coin_a = targetCoin
+        if (coin_a) {
+          tx.mergeCoins(coin_a, [targetCoin])
+        } else {
+          coin_a = targetCoin
+        }
       } else {
-        coin_b ? tx.mergeCoins(coin_b, [targetCoin]) : coin_b = targetCoin
+        if (coin_b) {
+          tx.mergeCoins(coin_b, [targetCoin])
+        } else {
+          coin_b = targetCoin
+        }
       }
-      
+
     }
 
     return {
@@ -1152,8 +1160,8 @@ export class CompoundModule {
   async createClaimMergePayload(params: CreateClaimMergePayloadParams) {
     const { coin_type_a, coin_type_b, not_merge_coins, merge_routers, slippage, target_coin_type } = params
     const tx = new Transaction()
-    const { fee_a, fee_b, other_rewarder } = await this.collectFeeAndRewardsAndReturnCoins(params, tx)    
-    
+    const { fee_a, fee_b, other_rewarder } = await this.collectFeeAndRewardsAndReturnCoins(params, tx)
+
     const inputCoinMap: any = {}
     let coin_a
     let coin_b
@@ -1175,7 +1183,7 @@ export class CompoundModule {
     }
 
     if (!isEmptyObj(other_rewarder)) {
-      for(let key in other_rewarder) {
+      for (let key in other_rewarder) {
         const coin = other_rewarder[key]
         if (isNotMergeCoin(not_merge_coins, key) && !isSameType(target_coin_type, key)) {
           if (isSameType(key, coin_type_a)) {
@@ -1197,7 +1205,7 @@ export class CompoundModule {
             }
           }
         } else {
-          
+
           tx.transferObjects([coin], this.sdk.getSenderAddress())
         }
       }
@@ -1217,33 +1225,33 @@ export class CompoundModule {
     }
 
     const inputCoins: any = merge_routers.allRoutes?.map((item: any) => {
-      const from  = item.paths[0].from     
+      const from = item.paths[0].from
       return inputCoinMap[fixCoinType(from)]
     })
 
 
     if (inputCoins.length !== Object.values(inputCoinMap)?.length) {
-      for(const key in inputCoinMap) {
+      for (const key in inputCoinMap) {
         const coin = inputCoinMap[key]
-        const isMergeInput = merge_routers?.allRoutes?.filter((item: any) => isSameType(item?.paths[0]?.from,  key))?.length > 0
-        if(!isMergeInput) {
+        const isMergeInput = merge_routers?.allRoutes?.filter((item: any) => isSameType(item?.paths[0]?.from, key))?.length > 0
+        if (!isMergeInput) {
           tx.transferObjects([coin], this.sdk.getSenderAddress())
         }
       }
     }
 
     const client = this._sdk.AggregatorClient
-    
 
-    const targetCoin = await client.mergeSwap({
+
+    const targetCoin: any = await client.mergeSwap({
       router: merge_routers,
       inputCoins,
       slippage,
-      txb: tx,
+      txb: tx as any,
     })
-      
+
     tx.transferObjects([targetCoin], this.sdk.getSenderAddress())
-    return tx    
+    return tx
   }
 
   /**
@@ -1257,14 +1265,14 @@ export class CompoundModule {
    */
   async createCompoundRebalanceAddPayload(params: CreateCompoundRebalanceAddPayload) {
     const client = this._sdk.AggregatorClient
-    const tx = params?.tx ||new Transaction()
-    const {baseParams, rebalancePre, rewarderMergeOption} = params
-    const {pool_id, pos_id, coin_type_a, coin_type_b, rewarder_coin_types, farms_pool_id} = baseParams
+    const tx = params?.tx || new Transaction()
+    const { baseParams, rebalancePre, rewarderMergeOption } = params
+    const { pool_id, pos_id, coin_type_a, coin_type_b, rewarder_coin_types, farms_pool_id } = baseParams
     const { merge_routers, slippage, not_merge_coins } = rewarderMergeOption
     const { liquidity, use_amount_a, use_amount_b, fix_amount_a, remain_amount, swap_result } = rebalancePre
 
     // Harvest rewards and fees, then merge swap rewards to a or b
-    const {coin_a, coin_b} = await this.claimFeeAndRewardsAndMergeRewards(baseParams, rewarderMergeOption, tx)
+    const { coin_a, coin_b } = await this.claimFeeAndRewardsAndMergeRewards(baseParams, rewarderMergeOption, tx)
     if (swap_result?.route_obj) {
       // Perform partial swap based on pre-calculated rebalance result
       const swapAmountIn = swap_result?.swap_in_amount || '0'
@@ -1273,17 +1281,17 @@ export class CompoundModule {
       const routerParamsV3: BuildRouterSwapParamsV3 = {
         router: swap_result.route_obj,
         slippage,
-        txb: tx,
+        txb: tx as any,
         inputCoin: swapInputCoin,
       }
 
-      
-      const swapOutCoin = await client.fixableRouterSwapV3(routerParamsV3)
+
+      const swapOutCoin: any = await client.fixableRouterSwapV3(routerParamsV3)
       const { clmm_pool, integrate } = this._sdk.ClmmSDK.sdkOptions
       const swapAmountOutWithSlippage = this.calculateAmountWithSlippage(swap_result?.swap_out_amount, slippage)
       tx.moveCall({
         target: `${integrate.published_at}::${ClmmIntegrateRouterModule}::check_coin_threshold`,
-        typeArguments: [fromIsCoinA ? coin_type_b: coin_type_a],
+        typeArguments: [fromIsCoinA ? coin_type_b : coin_type_a],
         arguments: [swapOutCoin, tx.pure.u64(swapAmountOutWithSlippage)],
       })
       // const returnSwapOutCoin = CoinAssist.fromBalance(swapOutCoin, fix_amount_a ? coin_type_b : coin_type_a, tx)
@@ -1325,10 +1333,10 @@ export class CompoundModule {
    * @param tx - Transaction object to add operations to (creates new one if not provided)
    * @returns Transaction object with move position operations
    */
-  async createMovePositionPayload(params: CreateMovePositionPayloadParams,tx = new Transaction()) {
+  async createMovePositionPayload(params: CreateMovePositionPayloadParams, tx = new Transaction()) {
     const client = this._sdk.AggregatorClient
-    const {newPos, oldPos, rebalancePre, slippage, rewarderMergeOption, have_claim} = params
-    const {pool_id, pos_id, coin_type_a, coin_type_b, rewarder_coin_types} = oldPos
+    const { newPos, oldPos, rebalancePre, slippage, rewarderMergeOption, have_claim } = params
+    const { pool_id, pos_id, coin_type_a, coin_type_b, rewarder_coin_types } = oldPos
     const { use_amount_a, use_amount_b, fix_amount_a, swap_result } = rebalancePre
 
     let coin_a, coin_b
@@ -1346,7 +1354,7 @@ export class CompoundModule {
         delta_liquidity: oldPos.liquidity,
         not_close: oldPos?.not_close
       }, tx)
-      
+
     } else {
       res = await this.closePosReturnCoinWithMerge({
         pool_id,
@@ -1373,10 +1381,10 @@ export class CompoundModule {
       const routerParamsV3: BuildRouterSwapParamsV3 = {
         router: swap_result.route_obj,
         slippage,
-        txb: tx,
+        txb: tx as any,
         inputCoin: swapInputCoin,
       }
-      const swapOutCoin = await client.fixableRouterSwapV3(routerParamsV3)
+      const swapOutCoin: any = await client.fixableRouterSwapV3(routerParamsV3)
       // const returnSwapOutCoin = CoinAssist.fromBalance(swapOutCoin, fromIsCoinA ? coin_type_b : coin_type_a, tx)
 
       if (fromIsCoinA) {
@@ -1399,7 +1407,7 @@ export class CompoundModule {
       coin_type_a,
       coin_type_b,
       pool_id,
-      farms_pool_id:  newPos?.farms_pool_id,
+      farms_pool_id: newPos?.farms_pool_id,
       pos_id: newPosId,
       fixed_amount_a: fix_amount_a ? use_amount_a : MAX_U64,
       fixed_amount_b: fix_amount_a ? MAX_U64 : use_amount_b,
@@ -1414,29 +1422,29 @@ export class CompoundModule {
     } else {
       txb.transferObjects([newPosId], this.sdk.getSenderAddress())
     }
-    
-    
+
+
 
     return txb
   }
 
 
-   /**
-   * Builds a transaction payload for opening a new position
-   * @param options - Deposit options including:
-   *                  - pool_id: ID of the liquidity pool
-   *                  - coin_type_a/b: Coin types for the trading pair
-   *                  - tick_lower/upper: Price range boundaries
-   * @param tx - Transaction object to add operations to
-   * @returns Transaction object with open position operations
-   */
-   private buildOpenPositionPayload(options: {
+  /**
+  * Builds a transaction payload for opening a new position
+  * @param options - Deposit options including:
+  *                  - pool_id: ID of the liquidity pool
+  *                  - coin_type_a/b: Coin types for the trading pair
+  *                  - tick_lower/upper: Price range boundaries
+  * @param tx - Transaction object to add operations to
+  * @returns Transaction object with open position operations
+  */
+  private buildOpenPositionPayload(options: {
     pool_id: string,
     coin_type_a: string,
     coin_type_b: string,
     tick_lower: number,
     tick_upper: number
-   }, tx: Transaction): TransactionObjectArgument {
+  }, tx: Transaction): TransactionObjectArgument {
     const { pool_id, coin_type_a, coin_type_b, tick_lower, tick_upper } = options
     const { clmm_pool } = this._sdk.ClmmSDK.sdkOptions
     const clmmConfig = getPackagerConfigs(clmm_pool)
@@ -1512,7 +1520,7 @@ export class CompoundModule {
         ],
       })
     }
-    
+
 
     return tx
   }

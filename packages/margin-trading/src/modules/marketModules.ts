@@ -10,7 +10,8 @@ import {
 } from '../types'
 import { Transaction } from '@mysten/sui/transactions'
 import { wrapMarketInfo } from '../utils'
-import { getFilteredRewards, getStakingYieldAprPercent, getTotalAprPercent, Side } from '@suilend/sdk'
+import { getFilteredRewards, getStakingYieldAprPercent, getTotalAprPercent } from '@suilend/sdk/lib/liquidityMining'
+import { Side } from '@suilend/sdk/lib/types'
 import { handleError, MarginTradingErrorCode } from '../errors/errors'
 
 export class MarketModules {
@@ -91,10 +92,11 @@ export class MarketModules {
       const initGlobalConfigEvent: any = await this._sdk.FullClient.queryEventsByPage({ MoveEventType: `${package_id}::config::InitEvent` })
       const initMarketEvent: any = await this._sdk.FullClient.queryEventsByPage({ MoveEventType: `${package_id}::market::InitEvent` })
       const markets = initMarketEvent.data[0].parsedJson.markets_id
-      const marketsObject: any = await this._sdk.FullClient.getObject({ id: markets, options: { showContent: true } })
-      const marketsTableId = marketsObject.data.content.fields.list.fields.id.id
+      const marketsObject: any = await this._sdk.FullClient.getObject({ objectId: markets, include: { json: true } })
+      const marketsFields = marketsObject.object.json
+      const marketsTableId = marketsFields.list.id
       return {
-        versioned_id: initVersionedEvent.data[0].parsedJson.versioned_id,
+        versioned_id: initVersionedEvent.data[0].parsedJson.versioned,
         admin_cap_id: initAdminCapEvent.data[0].parsedJson.admin_cap_id,
         global_config_id: initGlobalConfigEvent.data[0].parsedJson.global_config_id,
         markets,
@@ -129,10 +131,10 @@ export class MarketModules {
     try {
       const moveEventType = `${package_id}::market::CreateMarketEvent`
       const objects = await this._sdk.FullClient.queryEventsByPage({ MoveEventType: moveEventType })
-      const warpIds = objects.data.map((object) => (object.parsedJson as any).market_id)
+      const warpIds = objects.data.map((object: any) => (object.parsedJson as any).market_id)
       if (warpIds.length > 0) {
-        const res = await this._sdk.FullClient.batchGetObjects(warpIds, { showContent: true, showType: true })
-        res.forEach((item) => {
+        const res = await this._sdk.FullClient.batchGetObjects(warpIds, { json: true })
+        res.forEach((item: any) => {
           const marketInfo = wrapMarketInfo(item)
           const cacheKey = `margin_trading_market_info_${marketInfo.market_id}`
           this._sdk.updateCache(cacheKey, marketInfo)
@@ -160,12 +162,10 @@ export class MarketModules {
     }
     try {
       const result = await this._sdk.FullClient.getObject({
-        id: market_id,
-        options: {
-          showContent: true,
-        },
+        objectId: market_id,
+        include: { json: true },
       })
-      const marketInfo = wrapMarketInfo(result)
+      const marketInfo = wrapMarketInfo(result.object)
       this._sdk.updateCache(cacheKey, marketInfo, CACHE_TIME_5MIN)
       return marketInfo
     } catch (error) {
@@ -214,7 +214,7 @@ export class MarketModules {
         Side.DEPOSIT,
         baseDepositAprPercent,
         getFilteredRewards(baseRewards.deposit),
-        getStakingYieldAprPercent(Side.DEPOSIT, base_token, lstStatsMap, sdeUsdAprPercent, eThirdAprPercent)
+        getStakingYieldAprPercent(Side.DEPOSIT, base_token, lstStatsMap, sdeUsdAprPercent, eThirdAprPercent, eEarnAprPercent)
       )
       const baseTotalBorrowAprPercent = getTotalAprPercent(Side.BORROW, baseBorrowAprPercent, getFilteredRewards(baseRewards.borrow))
 
@@ -222,7 +222,7 @@ export class MarketModules {
         Side.DEPOSIT,
         quoteDepositAprPercent,
         getFilteredRewards(quoteRewards.deposit),
-        getStakingYieldAprPercent(Side.DEPOSIT, base_token, lstStatsMap, sdeUsdAprPercent, eThirdAprPercent)
+        getStakingYieldAprPercent(Side.DEPOSIT, base_token, lstStatsMap, sdeUsdAprPercent, eThirdAprPercent, eEarnAprPercent)
       )
       const quoteTotalBorrowAprPercent = getTotalAprPercent(Side.BORROW, quoteBorrowAprPercent, getFilteredRewards(quoteRewards.borrow))
 

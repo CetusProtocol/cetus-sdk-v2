@@ -1,4 +1,7 @@
-import { AprRewardSummary, linearlyInterpolate, ParsedReserve, PerDayRewardSummary, Side } from "@suilend/sdk";
+import { linearlyInterpolate } from "@suilend/sdk/utils";
+import type { AprRewardSummary, PerDayRewardSummary } from "@suilend/sdk/lib/liquidityMining";
+import type { ParsedReserve } from "@suilend/sdk/parsers/reserve";
+import { Side } from "@suilend/sdk/lib/types";
 import { CetusMarginTradingSDK } from "../sdk";
 import { NORMALIZED_flSUI_COINTYPE, NORMALIZED_jugSUI_COINTYPE, NORMALIZED_LBTC_COINTYPE, formatLtvPercent } from '@suilend/sui-fe'
 import BigNumber from "bignumber.js";

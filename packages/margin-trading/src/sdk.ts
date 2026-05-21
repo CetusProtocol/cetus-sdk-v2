@@ -1,5 +1,5 @@
 // External dependencies - Sui related
-import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
+import { SuiGrpcClient } from '@mysten/sui/grpc'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
 import { SuiPriceServiceConnection } from '@pythnetwork/pyth-sui-js'
 
@@ -16,24 +16,26 @@ import { PermissionModules } from './modules/permissionModules'
 import { PositionModules } from './modules/positionModules'
 import { SuiLendModule } from './modules/suilendModule'
 import { SwapModules } from './modules/swapModules'
-import { LeverageThresholdConfig, MarginTradingConfigs, MarketLeverageThresholds, SuiLendConfigs } from './types'
-import { SuiGrpcClient } from '@mysten/sui/grpc'
+import { TsplModules } from './modules/tsplModules'
+import type { LeverageThresholdConfig, MarginTradingConfigs, MarketLeverageThresholds, SuiLendConfigs, TsplConfigs } from './types'
 
 export interface SdkOptions extends BaseSdkOptions {
   full_rpc_url: string
   env: 'mainnet' | 'testnet'
   aggregator_url: string
   margin_trading: Package<MarginTradingConfigs>
+  tspl: Package<TsplConfigs>
   suilend: Package<SuiLendConfigs>
 }
 
 export class CetusMarginTradingSDK extends SdkWrapper<SdkOptions> {
   // Modules
-  protected _marketModules: MarketModules
+  protected _marketModules?: MarketModules
   protected _permissionModules: PermissionModules
-  protected _positionModules: PositionModules
-  protected _suilendModule: SuiLendModule
+  protected _positionModules?: PositionModules
+  protected _suilendModule?: SuiLendModule
   protected _swapModules: SwapModules
+  protected _tsplModules: TsplModules
 
   // Clients and utilities
   protected _aggregatorClient: AggregatorClient
@@ -47,16 +49,17 @@ export class CetusMarginTradingSDK extends SdkWrapper<SdkOptions> {
     super(options)
 
     // Initialize modules
-    this._suilendModule = new SuiLendModule(this)
     this._permissionModules = new PermissionModules(this)
-    this._marketModules = new MarketModules(this)
-    this._positionModules = new PositionModules(this)
     this._swapModules = new SwapModules(this)
+    this._tsplModules = new TsplModules(this)
 
     // Initialize clients
     this._aggregatorClient = new AggregatorClient({
       signer: normalizeSuiAddress('0x0'),
-      client: options.sui_client || new SuiJsonRpcClient({ url: options.full_rpc_url!, network: options.env === 'testnet' ? 'testnet' : 'mainnet' }),
+      client: options.sui_client || new SuiGrpcClient({
+        baseUrl: options.full_rpc_url!, network: options.env === 'testnet' ?
+          "testnet" : "mainnet"
+      }),
       env: options.env === 'testnet' ? Env.Testnet : Env.Mainnet,
     })
 
@@ -84,7 +87,11 @@ export class CetusMarginTradingSDK extends SdkWrapper<SdkOptions> {
 
   // Module getters
   get SuiLendModule(): SuiLendModule {
-    return this._suilendModule
+    if (!this._suilendModule) {
+      this._suilendModule = new SuiLendModule(this)
+    }
+
+    return this._suilendModule!
   }
 
   get PermissionModules(): PermissionModules {
@@ -92,15 +99,27 @@ export class CetusMarginTradingSDK extends SdkWrapper<SdkOptions> {
   }
 
   get MarketModules(): MarketModules {
-    return this._marketModules
+    if (!this._marketModules) {
+      this._marketModules = new MarketModules(this)
+    }
+
+    return this._marketModules!
   }
 
   get PositionModules(): PositionModules {
-    return this._positionModules
+    if (!this._positionModules) {
+      this._positionModules = new PositionModules(this)
+    }
+
+    return this._positionModules!
   }
 
   get SwapModules(): SwapModules {
     return this._swapModules
+  }
+
+  get TsplModules(): TsplModules {
+    return this._tsplModules
   }
 
   // Client getters

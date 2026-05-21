@@ -5,6 +5,7 @@ import { BurnErrorCode, handleError } from '../errors/errors'
 import type { CetusBurnSDK } from '../sdk'
 import type { BurnParams, CollectFeeParams, CollectRewardParams, RedeemVestParams } from '../types/burn'
 import { BurnUtils } from '../utils'
+import { bcs } from '@mysten/sui/bcs'
 
 export class BurnModule implements IModule<CetusBurnSDK> {
   protected _sdk: CetusBurnSDK
@@ -27,19 +28,19 @@ export class BurnModule implements IModule<CetusBurnSDK> {
       // TODO positionTableId is a constant, it can be written in the configuration later
       const { manager_id } = getPackagerConfigs(burn)
       const object: any = await this._sdk.FullClient.getObject({
-        id: manager_id,
-        options: {
-          showType: true,
-          showContent: true,
+        objectId: manager_id,
+        include: {
+          json: true,
+          type: true,
         },
       })
 
-      const positionTableId = object?.data?.content?.fields?.position?.fields?.id?.id
+      const positionTableId = object.object?.json?.position.id
 
       const positionTableData = await this._sdk.FullClient.getDynamicFieldsByPage(positionTableId)
 
       const burnPools = positionTableData?.data?.map((item: any) => {
-        return item?.name?.value
+        return bcs.Address.parse(item.name.bcs)
       })
 
       return burnPools
@@ -65,14 +66,14 @@ export class BurnModule implements IModule<CetusBurnSDK> {
       return posHandle
     }
     try {
-      const posHandleRes: any = await this._sdk.FullClient.getDynamicFieldObject({
+      const posHandleRes: any = await this._sdk.FullClient.getDynamicField({
         parentId: burn_pool_handle,
         name: {
           type: '0x2::object::ID',
-          value: pool_id,
+          bcs: bcs.Address.serialize(pool_id).toBytes(),
         },
       })
-      posHandle = posHandleRes.data.content.fields.value.fields.id.id
+      posHandle = bcs.Address.parse(posHandleRes.dynamicField.value.bcs)
 
       if (posHandle) {
         this._sdk.updateCache(cacheKey, posHandle)
@@ -105,20 +106,20 @@ export class BurnModule implements IModule<CetusBurnSDK> {
       const positionTableData = await this._sdk.FullClient.getDynamicFieldsByPage(posHandle as string)
 
       const warpPosIds = positionTableData?.data?.map((item: any) => {
-        return item.objectId
+        return item.fieldId
       })
 
       if (warpPosIds.length > 0) {
-        const warpPosRes = await this._sdk.FullClient.batchGetObjects(warpPosIds, { showContent: true })
+        const warpPosRes = await this._sdk.FullClient.batchGetObjects(warpPosIds, { json: true })
 
         const burnedPositionIds = warpPosRes.map((item: any) => {
-          return item.data.content.fields.value.fields.burned_position_id
+          return item.json.value.burned_position_id
         })
 
-        const burnedPositionsRes = await this._sdk.FullClient.batchGetObjects(burnedPositionIds, { showContent: true })
+        const burnedPositionsRes = await this._sdk.FullClient.batchGetObjects(burnedPositionIds, { json: true })
 
         const burnPositionList = burnedPositionsRes?.map((item: any) => {
-          const info = BurnUtils.buildBurnPositionNFT(item?.data?.content?.fields)
+          const info = BurnUtils.buildBurnPositionNFT(item?.json)
           return info
         })
         return burnPositionList
@@ -142,18 +143,9 @@ export class BurnModule implements IModule<CetusBurnSDK> {
   async getBurnPositionList(account_address: string) {
     const { package_id } = this._sdk.sdkOptions.burn
     try {
-      const ownerRes = await this._sdk.FullClient.getOwnedObjectsByPage(account_address, {
-        options: { showType: true, showContent: true, showOwner: true, showDisplay: true },
-        filter: {
-          MatchAny: [
-            {
-              StructType: `${package_id}::lp_burn::CetusLPBurnProof`,
-            },
-          ],
-        },
-      })
+      const ownerRes = await this._sdk.FullClient.getOwnedObjectsByPage(account_address, `${package_id}::lp_burn::CetusLPBurnProof`)
       const burnPositionList = ownerRes?.data?.map((item: any) => {
-        const info = BurnUtils.buildBurnPositionNFT(item?.data?.content?.fields)
+        const info = BurnUtils.buildBurnPositionNFT(item?.json)
         return info
       })
       return burnPositionList
@@ -172,10 +164,10 @@ export class BurnModule implements IModule<CetusBurnSDK> {
    */
   async getBurnPosition(pos_id: string) {
     try {
-      const object: any = await this._sdk.FullClient.getObject({ id: pos_id, options: { showContent: true, showType: true } })
+      const object: any = await this._sdk.FullClient.getObject({ objectId: pos_id, include: { json: true, type: true } })
 
-      if (object?.data?.content?.fields) {
-        const info = BurnUtils.buildBurnPositionNFT(object?.data?.content?.fields)
+      if (object?.object?.json) {
+        const info = BurnUtils.buildBurnPositionNFT(object?.object?.json)
         return info
       }
 

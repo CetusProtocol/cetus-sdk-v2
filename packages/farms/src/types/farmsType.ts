@@ -143,6 +143,14 @@ export type RemoveLiquidityParams = {
   clmm_rewarder_types: string[]
 } & CoinPairType
 
+export type RemoveAllLiquidityParams = {
+  pool_id: string
+  position_nft_id: string
+  clmm_pool_id: string
+  clmm_rewarder_types: string[]
+  delta_liquidity: string
+} & CoinPairType
+
 export type CollectFeeParams = {
   clmm_pool_id: string
   position_nft_id: string

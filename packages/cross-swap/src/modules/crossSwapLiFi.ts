@@ -158,7 +158,7 @@ export class LiFiCrossSwapModule extends CrossSwapLiFi {
       toAddress: lifi_configs?.to_address,
       options: {
         slippage: slippage,
-        maxPriceImpact: 0.8,
+        maxPriceImpact: lifi_configs?.maxPriceImpact,
         order: 'CHEAPEST',
       },
     }

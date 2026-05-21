@@ -130,7 +130,7 @@ describe('mayan CrossSwap', () => {
   })
 
   test('3 CrossSwap evm -> sui', async () => {
-    const chain = sdk.getChain(CrossSwapPlatform.MAYAN, ChainId.ARB)
+    const chain = sdk.getChain(CrossSwapPlatform.MAYAN, ChainId.POL)
     const { evm_signer, evm_address } = await buildEvmConfig(chain)
 
     sdk.setCrossSwapConfigs(CrossSwapPlatform.MAYAN, {
@@ -139,14 +139,14 @@ describe('mayan CrossSwap', () => {
       },
     })
 
-    const from_token = '0x0000000000000000000000000000000000000000'
-    const to_token = '0x2::sui::SUI'
+    const from_token = '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359'
+    const to_token = '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC'
 
     const res = await sdk.estimateQuote(CrossSwapPlatform.MAYAN, {
-      amount: toDecimalsAmount('200', 18).toString(),
+      amount: toDecimalsAmount('100', 6).toString(),
       from_token,
       to_token,
-      from_chain_id: ChainId.ARB,
+      from_chain_id: ChainId.POL,
       to_chain_id: ChainId.SUI_MAYAN,
     })
     console.log('🚀 ~ test ~ res:', JSON.stringify(res, null, 2))

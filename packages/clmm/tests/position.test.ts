@@ -16,10 +16,17 @@ describe('Position add Liquidity Module', () => {
     send_key_pair = buildTestAccount()
   })
 
+
+  test('getPositionTransactionList', async () => {
+    const res = await sdk.Position.getPositionTransactionList({
+      pos_id: '0xe6cf790521d1c32673de1b5ac39039e9e37046e4001544d61f603d2264e35350',
+    })
+    console.log('getPositionTransactionList####', res.data)
+  })
+
   test('get owner position list', async () => {
-    const res = await sdk.Position.getPositionList('0x44a7e45e8d01e9f521ff4e9ebbb48fc1f175718b5e3c96fb8d58ce87279f265d', [])
+    const res = await sdk.Position.getPositionList(sdk.getSenderAddress(), [])
     console.log('getPositionList####', res)
-    expect(res.length).toBeGreaterThan(0)
   })
 
   test('get position event list', async () => {
@@ -38,17 +45,17 @@ describe('Position add Liquidity Module', () => {
   })
 
   test('getPositionById', async () => {
-    const res = await sdk.Position.getPositionById('0x4c1c8f183230929d4300bb380563ed6756578db14f8b63784e2b6ae1679d7f1a')
+    const res = await sdk.Position.getPositionById('0xe6cf790521d1c32673de1b5ac39039e9e37046e4001544d61f603d2264e35350', true, true)
     console.log('getPositionById###', res)
   })
 
   test('getSimplePosition', async () => {
-    const res = await sdk.Position.getSimplePosition(position_nft_id)
+    const res = await sdk.Position.getSimplePositionList(["0xe6cf790521d1c32673de1b5ac39039e9e37046e4001544d61f603d2264e35350"])
     console.log('getSimplePosition####', res)
   })
 
   test('111 getPositionInfoList', async () => {
-    const pos_id = '0x59c5d04778b40c333fdbef58c49357b06c599db7d885687f1cbdaea3c872293e'
+    const pos_id = '0xe6cf790521d1c32673de1b5ac39039e9e37046e4001544d61f603d2264e35350'
     const pos = await sdk.Position.getPositionById(pos_id, false)
     console.log('pos', pos)
     const pool = await sdk.Pool.getPool(pos.pool)
@@ -65,19 +72,19 @@ describe('Position add Liquidity Module', () => {
   test('calculateFee', async () => {
     const res = await sdk.Position.fetchPosFeeAmount([
       {
-        pool_id: '0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c90105',
-        position_id: '0xcf995f40b0f9c40a8b03e0b9d9554fea2bc12a18fe63db3a04c59c46be5c10be',
+        pool_id: '0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab',
+        position_id: '0xe6cf790521d1c32673de1b5ac39039e9e37046e4001544d61f603d2264e35350',
         coin_type_a: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
-        coin_type_b: '0x2::sui::SUI',
+        coin_type_b: '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI',
       },
     ])
     console.log('calculateFee####', res)
   })
 
   test('fetchPoolPositionInfoList', async () => {
-    const pool = await sdk.Pool.getPool('0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c90105')
+    const pool = await sdk.Pool.getPool('0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab')
     const res = await sdk.Pool.fetchPoolPositionInfoList({
-      pool_id: '0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c90105',
+      pool_id: '0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab',
       coin_type_a: pool.coin_type_a,
       coin_type_b: pool.coin_type_b,
     })

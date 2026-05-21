@@ -1,16 +1,14 @@
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import { d, printTransaction } from '@cetusprotocol/common-sdk'
 import { buildTestAccount } from '@cetusprotocol/test-utils'
 import Decimal from 'decimal.js'
 import 'isomorphic-fetch'
 import { CetusDcaSDK } from '../src/sdk'
-let send_key_pair: Ed25519Keypair
 
 describe('DCA Module', () => {
   const sdk = CetusDcaSDK.createSDK({ env: 'mainnet' })
 
   beforeAll(async () => {
-    send_key_pair = buildTestAccount()
+    let send_key_pair = buildTestAccount()
     sdk.setSenderAddress(send_key_pair.getPublicKey().toSuiAddress())
   })
 
@@ -47,8 +45,8 @@ describe('DCA Module', () => {
     console.log('redeemDividendPayload: ', result)
   })
 
-  test('getDcaOrders', async () => {
-    const dcaOrderList = await sdk.Dca.getDcaOrders(sdk.getSenderAddress())
+  test('1 getDcaOrders', async () => {
+    const dcaOrderList = await sdk.Dca.getDcaOrders("0x163b88ad540252210b3aceeb37496ac05685f04a37d3c8b7cfa685a574086722")
     console.log('🚀🚀🚀 ~ file: dca.test.ts:61 ~ test ~ dcaOrderList:', dcaOrderList)
   })
 
@@ -67,7 +65,7 @@ describe('DCA Module', () => {
   })
 
   test('getDcaOrdersMakeDeal', async () => {
-    const order_id = '0x45b567654b09d291f3c99566922b7d63a0bce2bfe4660040c32531e269553eee'
+    const order_id = '0xfa349d63302951d075c8207376d4bf724b1ce4dab8f5870200a66da94acf5fbd'
     const dcaOrderList = await sdk.Dca.getDcaOrdersMakeDeal(order_id)
     console.log('🚀🚀🚀 ~ file: dca.test.ts:81 ~ test ~ dcaOrderList:', dcaOrderList)
   })

@@ -7,8 +7,8 @@ import { zapMainnet } from './config/mainnet'
 import { zapTestnet } from './config/testnet'
 import { ZapModule } from './modules/zapModule'
 import { CompoundModule } from './modules/compoundModule'
-import { SuiGrpcClient } from '@mysten/sui/grpc'
 import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
+import { SuiGrpcClient } from '@mysten/sui/grpc'
 /**
  * Represents options and configurations for an SDK.
  */
@@ -79,11 +79,15 @@ export class CetusZapSDK extends SdkWrapper<SdkOptions> {
 
 
   private createAggregatorClient() {
+    const { env = 'mainnet', full_rpc_url, sui_client, pyth_urls } = this._sdkOptions
     return new AggregatorClient({
       signer: normalizeSuiAddress('0x0'),
-      client: this._sdkOptions.sui_client || new SuiJsonRpcClient({ url: this._sdkOptions.full_rpc_url!, network: this._sdkOptions.env === 'testnet' ? 'testnet' : 'mainnet' }),
-      env: this._sdkOptions.env === 'testnet' ? Env.Testnet : Env.Mainnet,
-      pythUrls: this._sdkOptions.pyth_urls,
+      client: sui_client || new SuiGrpcClient({
+        baseUrl: full_rpc_url!, network: env === 'testnet' ?
+          "testnet" : "mainnet"
+      }),
+      env: env === 'testnet' ? Env.Testnet : Env.Mainnet,
+      pythUrls: pyth_urls,
     })
   }
 
@@ -117,7 +121,15 @@ export class CetusZapSDK extends SdkWrapper<SdkOptions> {
   updateFullRpcUrl(url: string): void {
     super.updateFullRpcUrl(url)
     this._farmsSDK.updateFullRpcUrl(url)
-    this._aggregatorClient = this.createAggregatorClient()
+    this._aggregatorClient = new AggregatorClient({
+      signer: normalizeSuiAddress('0x0'),
+      client: new SuiGrpcClient({
+        baseUrl: url, network: this._sdkOptions.env === 'testnet' ?
+          "testnet" : "mainnet"
+      }),
+      env: this._sdkOptions.env === 'testnet' ? Env.Testnet : Env.Mainnet,
+      pythUrls: this._sdkOptions.pyth_urls,
+    })
   }
 
   /**

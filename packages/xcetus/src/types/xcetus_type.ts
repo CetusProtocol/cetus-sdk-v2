@@ -63,12 +63,15 @@ export type VeNFT = {
 export type LockCetus = {
   id: SuiObjectIdType
   type: SuiAddressType
+  version: LockCetusVersion
   locked_start_time: number
   locked_until_time: number
   lock_day: number
   cetus_amount: string
   xcetus_amount: string
 }
+
+export type LockCetusVersion = 'v1' | 'v2'
 
 export type ConvertParams = {
   amount: string

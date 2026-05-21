@@ -5,25 +5,24 @@ import 'isomorphic-fetch'
 import { CetusXcetusSDK } from '../src/sdk'
 import { XCetusUtil } from '../src/utils/xcetus'
 let send_key_pair: Ed25519Keypair
-const account_id = '0x3992ecfe4eca00d482210cddfceb063608f45f3ca41ce7eedea33f27870eb55a'
-const venft_id = '0x653edd0c372ee7b5fc38e7934caab30b8a45b1680d727f127b05140806034067'
-const lock_id = '0x005ba9202a5d9e41c73155a1b4e473a0283191954fb47fe3f927c7026aefec40'
-const redeem_lock_id = '0x6c7cb48929308e7213747c0710ea38db89e3067aa7c80645a0b41dca596fa375'
+const venft_id = '0x99b689e39ead59937ef61de28fc1f921f22e64be87b476b654df5f845e18c424'
+const lock_id = '0x3fa15320485e18c68483394589a54d5b1d09efc216eb67350824d825b5330a43'
+const redeem_lock_id = '0x3fa15320485e18c68483394589a54d5b1d09efc216eb67350824d825b5330a43'
 describe('xcetus Module', () => {
   const sdk = CetusXcetusSDK.createSDK({ env: 'mainnet' })
 
   beforeEach(async () => {
     send_key_pair = buildTestAccount()
-    sdk.setSenderAddress(send_key_pair.toSuiAddress())
+    sdk.setSenderAddress("0x4a66266abc88d2b684b7a6cd264f5dcc518184ffad1ca6fe3899a0bc38db0584")
   })
 
   test('getOwnerVeNFT', async () => {
-    const ownerVeNFT = await sdk.XCetusModule.getOwnerVeNFT(account_id)
+    const ownerVeNFT = await sdk.XCetusModule.getOwnerVeNFT(sdk.getSenderAddress())
     console.log('ownerVeNFT: ', ownerVeNFT)
   })
 
   test('getOwnerRedeemLockList', async () => {
-    const lockCetus = await sdk.XCetusModule.getOwnerRedeemLockList('0xc5cea39da987d8fe16bf0c6db51bfbf4897aef0edf9588e035ae175ac416fdd1')
+    const lockCetus = await sdk.XCetusModule.getOwnerRedeemLockList(sdk.getSenderAddress())
     console.log('lockCetus: ', lockCetus)
   })
 
@@ -57,9 +56,9 @@ describe('xcetus Module', () => {
   })
 
   test('redeemLockPayload', async () => {
-    const payload = sdk.XCetusModule.redeemLockPayload({
+    const payload = sdk.XCetusModule.redeemLockV2Payload({
       venft_id: venft_id,
-      amount: '1000',
+      amount: '20000',
       lock_day: 30,
     })
 
@@ -84,41 +83,27 @@ describe('xcetus Module', () => {
     }
   })
 
-  test('redeemDividendPayload', async () => {})
+  test('redeemDividendPayload', async () => { })
 
-  test('redeemDividendV2Payload', async () => {})
+  test('redeemDividendV2Payload', async () => { })
 
   test('redeemDividendV3Payload', async () => {
-    const dividendManager = await sdk.XCetusModule.getDividendManager()
-    const { venft_dividends_id_v2 } = getPackagerConfigs(sdk.sdkOptions.xcetus_dividends)
-
     const veNFTDividendInfo = await sdk.XCetusModule.getVeNFTDividendInfo(venft_id)
-
-    if (veNFTDividendInfo) {
-      const payload = await sdk.XCetusModule.redeemDividendV3Payload(venft_id, veNFTDividendInfo.rewards)
-      printTransaction(payload)
-      try {
-        const res = await sdk.FullClient.devInspectTransactionBlock({ transactionBlock: payload, sender: send_key_pair.toSuiAddress() })
-        // const result = await sdk.ClmmSDK.fullClient.sendTransaction(send_key_pair, payload)
-        // console.log('redeemDividendV3Payload: ', result)
-      } catch (error) {
-        console.log('🚀🚀🚀 ~ file: xcetus.test.ts:216 ~ test ~ error:', error)
-      }
-    }
+    console.log('veNFTDividendInfo: ', veNFTDividendInfo)
   })
 
-  test('redeemDividendXTokenPayload', async () => {})
+  test('redeemDividendXTokenPayload', async () => { })
 
-  test('buildCetusCoinType', async () => {})
+  test('buildCetusCoinType', async () => { })
 
-  test('buildXTokenCoinType', async () => {})
+  test('buildXTokenCoinType', async () => { })
 
   test('cancelRedeemPayload', async () => {
     const lockCetus = await sdk.XCetusModule.getLockCetus(redeem_lock_id)
     console.log('lockCetus: ', lockCetus)
 
     if (lockCetus && XCetusUtil.isLocked(lockCetus)) {
-      const payload = sdk.XCetusModule.cancelRedeemPayload({
+      const payload = sdk.XCetusModule.cancelRedeemV2Payload({
         venft_id: venft_id,
         lock_id: redeem_lock_id,
       })
@@ -128,16 +113,19 @@ describe('xcetus Module', () => {
     }
   })
 
-  test('getInitConfigs', async () => {})
+  test('getInitConfigs', async () => { })
 
   test('getLockUpManager', async () => {
     const lockUpManagerEvent = await sdk.XCetusModule.getLockUpManager()
     console.log(lockUpManagerEvent)
   })
 
-  test('getDividendConfigs', async () => {})
+  test('getDividendConfigs', async () => {
+    const dividendConfigs = await sdk.XCetusModule.getDividendConfigs()
+    console.log('dividendConfigs: ', dividendConfigs)
+  })
 
-  test('getDividendManager', async () => {})
+  test('getDividendManager', async () => { })
 
   test('getXcetusManager', async () => {
     const xcetusManager = await sdk.XCetusModule.getXcetusManager()
@@ -150,19 +138,27 @@ describe('xcetus Module', () => {
   })
 
   test('redeemNum', async () => {
-    const n = 15
-    const amountInput = 20000
+    const n = 30
+    const amountInput = 10000
     const amount = await sdk.XCetusModule.redeemNum(amountInput, n)
     const rate = d(n).sub(15).div(165).mul(0.5).add(0.5)
     const amount1 = rate.mul(amountInput)
     console.log('amount : ', amount, amount1, rate)
   })
 
-  test('reverseRedeemNum', async () => {})
+  test('reverseRedeemNum', async () => {
+    const amount = sdk.XCetusModule.reverseRedeemNum('5454', 30)
+    console.log('amount: ', amount)
+  })
 
-  test('getXCetusAmount', async () => {})
+  test('getXCetusAmount', async () => { })
 
-  test('getVeNftAmount', async () => {})
+  test('getVeNftAmount', async () => {
+    const xcetusManager = await sdk.XCetusModule.getXcetusManager()
+    console.log('xcetusManager: ', xcetusManager)
+    const veNftAmount = await sdk.XCetusModule.getVeNftAmount(xcetusManager!.nfts.handle, venft_id)
+    console.log('veNftAmount: ', veNftAmount)
+  })
 
   test('getPhaseDividendInfo', async () => {
     const phaseDividendInfo = await sdk.XCetusModule.getPhaseDividendInfo('10')
@@ -193,5 +189,12 @@ describe('xcetus Module', () => {
     const nextTime = XCetusUtil.getNextStartTime(dividendManager)
 
     console.log('nextTime: ', nextTime)
+  })
+
+  test('getEffectiveXCetusAmount', async () => {
+    const ownerVeNFT = await sdk.XCetusModule.getOwnerVeNFT(send_key_pair.getPublicKey().toSuiAddress())
+    console.log('ownerVeNFT: ', ownerVeNFT)
+    const effectiveXCetusAmount = await sdk.XCetusModule.getEffectiveXCetusAmount(ownerVeNFT!)
+    console.log('effectiveXCetusAmount: ', effectiveXCetusAmount)
   })
 })

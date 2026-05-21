@@ -3,6 +3,7 @@ import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import { d, printTransaction } from '@cetusprotocol/common-sdk'
 import { calcIncrementalLeverage } from '../src/utils/suiLend'
 import { CetusMarginTradingSDK } from '../src/sdk'
+import { Transaction } from '@mysten/sui/transactions'
 
 let send_key_pair: Ed25519Keypair
 
@@ -33,7 +34,8 @@ describe('open position test', () => {
   })
 
   test('open long position with base', async () => {
-    const payload = await sdk.PositionModules.openPosition({
+    const tx = new Transaction()
+    const position_cap = await sdk.PositionModules.openPosition({
       market_id: '0x7c62cbfa1884c02eec32cfa6a1e4325550fb6dda9579b030c3bae3031b80e0e4',
       is_long: true,
       is_quote: true,
@@ -42,14 +44,16 @@ describe('open position test', () => {
         .toString(),
       leverage: 1.2,
       slippage: 0.01,
-    })
-    printTransaction(payload)
-    const res = await sdk.FullClient.executeTx(send_key_pair, payload, false)
+    }, tx)
+    tx.transferObjects([position_cap], tx.pure.address(send_key_pair.toSuiAddress()))
+    printTransaction(tx)
+    const res = await sdk.FullClient.executeTx(send_key_pair, tx, false)
     console.log('🚀🚀🚀 ~ position.test.ts:21 ~ res:', res)
   })
 
   test('open long position with quote', async () => {
-    const payload = await sdk.PositionModules.openPosition({
+    const tx = new Transaction()
+    const position_cap = await sdk.PositionModules.openPosition({
       market_id: '0xb906d310417a2803187a575b0b7211e9fb11dc14decec60d1ec0762bd3b16ff4',
       is_long: true,
       is_quote: true,
@@ -58,14 +62,16 @@ describe('open position test', () => {
         .toString(),
       leverage: 2.0,
       slippage: 0.01,
-    })
-    printTransaction(payload)
-    const res = await sdk.FullClient.executeTx(send_key_pair, payload, true)
+    }, tx)
+    tx.transferObjects([position_cap], tx.pure.address(send_key_pair.toSuiAddress()))
+    printTransaction(tx)
+    const res = await sdk.FullClient.executeTx(send_key_pair, tx, true)
     console.log('🚀🚀🚀 ~ position.test.ts:21 ~ res:', res)
   })
 
   test('open short position with quote', async () => {
-    const payload = await sdk.PositionModules.openPosition({
+    const tx = new Transaction()
+    const position_cap = await sdk.PositionModules.openPosition({
       market_id: '0xb906d310417a2803187a575b0b7211e9fb11dc14decec60d1ec0762bd3b16ff4',
       is_long: false,
       is_quote: true,
@@ -74,14 +80,16 @@ describe('open position test', () => {
         .toString(),
       leverage: 1.5,
       slippage: 0.01,
-    })
-    printTransaction(payload)
-    const res = await sdk.FullClient.executeTx(send_key_pair, payload, true)
+    }, tx)
+    tx.transferObjects([position_cap], tx.pure.address(send_key_pair.toSuiAddress()))
+    printTransaction(tx)
+    const res = await sdk.FullClient.executeTx(send_key_pair, tx, true)
     console.log('🚀🚀🚀 ~ position.test.ts:21 ~ res:', res)
   })
 
   test('open short position with base', async () => {
-    const payload = await sdk.PositionModules.openPosition({
+    const tx = new Transaction()
+    const position_cap = await sdk.PositionModules.openPosition({
       market_id: '0xa828a9057a4c0c9bdc034ded6e9164b52fd85c04d076e05158246302fd7eaccb',
       is_long: false,
       is_quote: false,
@@ -90,7 +98,8 @@ describe('open position test', () => {
         .toString(),
       leverage: 2.0,
       slippage: 0.01,
-    })
+    }, tx)
+    tx.transferObjects([position_cap], tx.pure.address(send_key_pair.toSuiAddress()))
     // printTransaction(payload)
     // const res = await sdk.FullClient.executeTx(send_key_pair, payload, true)
     // console.log('🚀🚀🚀 ~ position.test.ts:21 ~ res:', res)

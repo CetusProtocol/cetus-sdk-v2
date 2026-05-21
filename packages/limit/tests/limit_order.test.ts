@@ -1,9 +1,7 @@
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import { buildTestAccount } from '@cetusprotocol/test-utils'
 import 'isomorphic-fetch'
 import { LimitOrderStatus, LimitOrderUtils } from '../src'
 import { CetusLimitOrderSDK } from '../src/sdk'
-let send_key_pair: Ed25519Keypair
 
 const pool = {
   pay_coin_type: '0x26b3bc67befc214058ca78ea9a2690298d731a2d4309485ec3d40198063c4abc::usdc::USDC',
@@ -15,7 +13,7 @@ describe('Limit Order Module', () => {
   const sdk = CetusLimitOrderSDK.createSDK({ env: 'mainnet' })
 
   beforeAll(async () => {
-    send_key_pair = buildTestAccount()
+    const send_key_pair = buildTestAccount()
     sdk.setSenderAddress(send_key_pair.getPublicKey().toSuiAddress())
   })
 
@@ -29,7 +27,7 @@ describe('Limit Order Module', () => {
     console.log('getLimitOrderPoolList: ', poolList)
   })
 
-  test('getLimitOrderPool', async () => {
+  test('1 getLimitOrderPool', async () => {
     const pool = await sdk.LimitOrder.getLimitOrderPool(
       '0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN',
       '0xaf8cd5edc19c4512f4259f0bee101a40d41ebed738ade5874359610ef8eeced5::coin::COIN'
@@ -55,13 +53,13 @@ describe('Limit Order Module', () => {
     console.log('getLimitOrderConfigs: ', configs)
   })
 
-  test('getLimitOrder', async () => {
-    const order = await sdk.LimitOrder.getLimitOrder('0x24aaffb2f9785c110da3b670e0f50e8a30ba679e8dbdc6c15321b46834877818')
+  test('22 getLimitOrder', async () => {
+    const order = await sdk.LimitOrder.getLimitOrder('0xc83fc8deadc78f9b37fd76feb95cffca27719723739f2e04ee43113ead23bff9')
     console.log('order: ', order)
   })
 
   test('getLimitOrderLogs', async () => {
-    const order = await sdk.LimitOrder.getLimitOrderLogs('0x24aaffb2f9785c110da3b670e0f50e8a30ba679e8dbdc6c15321b46834877818')
+    const order = await sdk.LimitOrder.getLimitOrderLogs('0xc83fc8deadc78f9b37fd76feb95cffca27719723739f2e04ee43113ead23bff9')
     console.log('order: ', order)
   })
 

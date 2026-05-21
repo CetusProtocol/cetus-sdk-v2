@@ -4,11 +4,11 @@ import {
   DETAILS_KEYS,
   extractStructTagFromType,
   fixCoinType,
-  getObjectFields,
-  getObjectType,
   MathUtil,
+  OptionU64Raw,
+  TypeNameRaw,
 } from '@cetusprotocol/common-sdk'
-import { DevInspectResults, SuiEvent, SuiObjectResponse, SuiTransactionBlockResponse } from '@mysten/sui/jsonRpc'
+import type { DevInspectResults, SuiEvent, SuiObjectResponse, SuiTransactionBlockResponse } from '@mysten/sui/jsonRpc'
 import BN from 'bn.js'
 import Decimal from 'decimal.js'
 import { DlmmErrorCode, handleError, DlmmError } from '../errors/errors'
@@ -68,39 +68,39 @@ export function parseDlmmBasePool(data: SuiEvent): DlmmBasePool {
  * @param data - The DLMM pool data
  * @returns The DLMM pool
  */
-export function parseDlmmPool(data: SuiObjectResponse): DlmmPool {
+export function parseDlmmPool(data: any): DlmmPool {
   try {
-    const fields = getObjectFields(data)
-    const type = getObjectType(data) as string
+    const fields = data.json
+    const type = data.type
     const formatType = extractStructTagFromType(type)
 
     const bin_manager: BinManager = {
-      bin_step: fields.bin_manager.fields.bin_step,
-      bin_manager_handle: fields.bin_manager.fields.bins.fields.id.id,
-      size: fields.bin_manager.fields.bins.fields.size,
+      bin_step: fields.bin_manager.bin_step,
+      bin_manager_handle: fields.bin_manager.bins.id,
+      size: fields.bin_manager.bins.size,
     }
 
     const position_manager: PositionManager = {
-      bin_step: fields.position_manager.fields.bin_step,
-      position_index: fields.position_manager.fields.position_index,
-      position_handle: fields.position_manager.fields.positions.fields.id.id,
-      size: fields.position_manager.fields.positions.fields.size,
+      bin_step: fields.position_manager.bin_step,
+      position_index: fields.position_manager.position_index,
+      position_handle: fields.position_manager.positions.id,
+      size: fields.position_manager.positions.size,
     }
 
-    const reward_manager_fields = fields.reward_manager.fields
+    const reward_manager_fields = fields.reward_manager
 
     const rewards = reward_manager_fields.rewards.map((reward: any) => {
-      const current_reward_rate = reward.fields.current_emission_rate
+      const current_reward_rate = reward.current_emission_rate
       const emissions_per_second = MathUtil.fromX64(new BN(current_reward_rate))
       const emissions_per_day = Math.floor(emissions_per_second.toNumber() * 60 * 60 * 24).toString()
 
       const info: Reward = {
-        reward_coin: fixCoinType(reward.fields.reward_coin.fields.name, false),
+        reward_coin: fixCoinType(reward.reward_coin, false),
         emissions_per_second: emissions_per_second.toString(),
         emissions_per_day,
         period_emission_rates: {
-          id: reward.fields.period_emission_rates.fields.id.id,
-          size: reward.fields.period_emission_rates.fields.size,
+          id: reward.period_emission_rates.id,
+          size: reward.period_emission_rates.size,
         },
       }
       return info
@@ -109,23 +109,23 @@ export function parseDlmmPool(data: SuiObjectResponse): DlmmPool {
       is_public: reward_manager_fields.is_public,
       emergency_reward_pause: reward_manager_fields.emergency_reward_pause,
       vault: {
-        id: reward_manager_fields.vault.fields.id.id,
-        size: reward_manager_fields.vault.fields.size,
+        id: reward_manager_fields.vault.id,
+        size: reward_manager_fields.vault.size,
       },
       rewards,
       last_updated_time: reward_manager_fields.last_updated_time,
     }
 
     const variable_parameters: VariableParameters = {
-      volatility_accumulator: fields.v_parameters.fields.volatility_accumulator,
-      volatility_reference: fields.v_parameters.fields.volatility_reference,
-      index_reference: asIntN(BigInt(fields.v_parameters.fields.index_reference.fields.bits)),
-      last_update_timestamp: fields.v_parameters.fields.last_update_timestamp,
-      bin_step_config: fields.v_parameters.fields.bin_step_config.fields,
+      volatility_accumulator: fields.v_parameters.volatility_accumulator,
+      volatility_reference: fields.v_parameters.volatility_reference,
+      index_reference: asIntN(BigInt(fields.v_parameters.index_reference.bits)),
+      last_update_timestamp: fields.v_parameters.last_update_timestamp,
+      bin_step_config: fields.v_parameters.bin_step_config,
     }
 
     const pool: DlmmPool = {
-      id: fields.id.id,
+      id: fields.id,
       bin_step: Number(fields.bin_step),
       coin_type_a: fixCoinType(formatType.type_arguments[0], false),
       coin_type_b: fixCoinType(formatType.type_arguments[1], false),
@@ -133,8 +133,8 @@ export function parseDlmmPool(data: SuiObjectResponse): DlmmPool {
       index: Number(fields.index),
       bin_manager,
       variable_parameters,
-      active_id: asIntN(BigInt(fields.active_id.fields.bits)),
-      permissions: fields.permissions.fields,
+      active_id: asIntN(BigInt(fields.active_id.bits)),
+      permissions: fields.permissions,
       balance_a: fields.balance_a,
       balance_b: fields.balance_b,
       base_fee_rate: fields.base_fee_rate,
@@ -155,20 +155,20 @@ export function parseDlmmPool(data: SuiObjectResponse): DlmmPool {
   }
 }
 
-export function parsePartner(data: SuiObjectResponse): Partner {
-  const fields = getObjectFields(data)
-  const type = getObjectType(data) as string
+export function parsePartner(data: any): Partner {
+  const fields = data.json
+  const type = data.type
   const formatType = extractStructTagFromType(type)
 
   const partner: Partner = {
-    id: fields.id.id,
+    id: fields.id,
     name: fields.name,
     ref_fee_rate: d(fields.ref_fee_rate).div(BASIS_POINT).toNumber(),
     start_time: Number(fields.start_time),
     end_time: Number(fields.end_time),
     balances: {
-      id: fields.balances.fields.id.id,
-      size: fields.balances.fields.size,
+      id: fields.balances.id,
+      size: fields.balances.size,
     },
     type: formatType.full_address,
   }
@@ -176,17 +176,17 @@ export function parsePartner(data: SuiObjectResponse): Partner {
   return partner
 }
 
-export function parseDlmmPosition(data: SuiObjectResponse): DlmmPosition {
+export function parseDlmmPosition(data: any): DlmmPosition {
   try {
-    const fields = getObjectFields(data)
+    const fields = data.json
     const position: DlmmPosition = {
       uri: fields.uri,
       index: fields.index,
-      id: fields.id.id,
+      id: fields.id,
       name: fields.name,
       pool_id: fields.pool_id,
-      lower_bin_id: asIntN(BigInt(fields.lower_bin_id.fields.bits)),
-      upper_bin_id: asIntN(BigInt(fields.upper_bin_id.fields.bits)),
+      lower_bin_id: asIntN(BigInt(fields.lower_bin_id.bits)),
+      upper_bin_id: asIntN(BigInt(fields.upper_bin_id.bits)),
       liquidity_shares: fields.liquidity_shares,
       description: fields.description,
       coin_type_a: fixCoinType(fields.coin_type_a, false),
@@ -264,9 +264,9 @@ export function parseLiquidityShares(
   }
 }
 
-export function parseBinInfoList(res: DevInspectResults): BinAmount[] {
+export function parseBinInfoList(res: any): BinAmount[] {
   try {
-    const bcsCoinAmount = bcs.struct('BinAmount', {
+    const bcsCoinAmount = bcs.vector(bcs.struct('BinAmount', {
       id: bcs.struct('I32', {
         bits: bcs.u32(),
       }),
@@ -277,9 +277,9 @@ export function parseBinInfoList(res: DevInspectResults): BinAmount[] {
       rewards_growth_global: bcs.vector(bcs.u128()),
       fee_a_growth_global: bcs.u128(),
       fee_b_growth_global: bcs.u128(),
-    })
+    }))
 
-    const bin_amounts = bcs.vector(bcsCoinAmount).parse(Uint8Array.from(res.results![1].returnValues![0][0]))
+    const bin_amounts = bcsCoinAmount.parse(res)
 
     return bin_amounts.map((bin_amount) => {
       const bin_id = asIntN(BigInt(bin_amount.id.bits))
@@ -299,7 +299,7 @@ export function parseBinInfoList(res: DevInspectResults): BinAmount[] {
 
 export function parseBinInfo(fields: any): BinAmount {
   try {
-    const bin_id = asIntN(BigInt(fields.id.fields.bits))
+    const bin_id = asIntN(BigInt(typeof fields.id === 'number' ? fields.id : fields.id.bits))
     const bin_amount: BinAmount = {
       bin_id,
       amount_a: fields.amount_a,
@@ -319,50 +319,59 @@ export function parseBinInfo(fields: any): BinAmount {
   }
 }
 
-export function parsedDlmmPosFeeData(simulate_res: DevInspectResults) {
+export function parsedDlmmPosFeeData(events: any[]) {
   const feeData: Record<string, PositionFee> = {}
-  const feeValueData: any[] = simulate_res.events?.filter((item: any) => {
-    return item.type.includes('pool::CollectFeeEvent')
+  const feeValueData: any[] = events?.filter((item: any) => {
+    return item.eventType.includes('pool::CollectFeeEvent')
   })
 
   for (let i = 0; i < feeValueData.length; i += 1) {
-    const { parsedJson } = feeValueData[i]
+    const { bcs: bcsFee } = feeValueData[i]
+    const parsed = bcs.struct('CollectFeeEvent', {
+      pool: bcs.Address,
+      position: bcs.Address,
+      fee_a: bcs.u64(),
+      fee_b: bcs.u64(),
+    }).parse(bcsFee)
     const posObj = {
-      position_id: parsedJson.position,
-      fee_owned_a: parsedJson.fee_a,
-      fee_owned_b: parsedJson.fee_b,
+      position_id: parsed.position,
+      fee_owned_a: parsed.fee_a,
+      fee_owned_b: parsed.fee_b,
     }
-    feeData[parsedJson.position] = posObj
+    feeData[parsed.position] = posObj
   }
 
   return feeData
 }
 
-export function parsedDlmmPosRewardData(simulate_res: DevInspectResults) {
+export function parsedDlmmPosRewardData(events: any[]) {
   const rewarderData: Record<string, PositionReward> = {}
-  const rewarderValueData: any[] = simulate_res.events?.filter((item: any) => {
-    return item.type.includes('pool::CollectRewardEvent')
+  const rewarderValueData: any[] = events?.filter((item: any) => {
+    return item.eventType.includes('pool::CollectRewardEvent')
   })
 
   for (let i = 0; i < rewarderValueData.length; i += 1) {
-    const { parsedJson } = rewarderValueData[i]
-    const position_id = parsedJson.position
-    const reward_coin = parsedJson.reward
-    const reward_amount = parsedJson.amount
+    const { bcs: bcsReward } = rewarderValueData[i]
+    const parsed = bcs.struct('CollectRewardEvent', {
+      pool: bcs.Address,
+      position: bcs.Address,
+      reward: TypeNameRaw,
+      amount: bcs.u64(),
+    }).parse(bcsReward)
     const rewardInfo: RewardInfo = {
-      coin_type: fixCoinType(reward_coin.name, false),
-      reward_owned: reward_amount,
+      coin_type: fixCoinType(parsed.reward.name, false),
+      reward_owned: parsed.amount,
     }
-    let rewarder = rewarderData[position_id]
+    let rewarder = rewarderData[parsed.position]
     if (rewarder) {
       rewarder.rewards.push(rewardInfo)
     } else {
       rewarder = {
-        position_id,
+        position_id: parsed.position,
         rewards: [rewardInfo],
       }
     }
-    rewarderData[position_id] = rewarder
+    rewarderData[parsed.position] = rewarder
   }
 
   return rewarderData
@@ -414,20 +423,22 @@ export function parseStrategyType(strategy_type: StrategyType): number {
   }
 }
 export const poolFilterEvenTypes = ['RemoveLiquidityEvent', 'SwapEvent', 'AddLiquidityEvent', 'ClosePositionEvent']
-export function parsePoolTransactionInfo(data: SuiTransactionBlockResponse, txIndex: number, package_id: string, pool_id: string) {
+export function parsePoolTransactionInfo(rawData: any, txIndex: number, package_id: string, pool_id: string) {
   const list: PoolTransactionInfo[] = []
-  const { timestampMs, events } = data
+  const events = rawData.effects.events.nodes
 
-  events?.forEach((event: any, index) => {
-    const { name: type, address: package_address } = extractStructTagFromType(event.type)
-    if (poolFilterEvenTypes.includes(type) && package_address === package_id && pool_id === event.parsedJson.pool) {
+  events?.forEach((data: any, index: number) => {
+    const isoTime = data.timestamp
+    const { json: event, type: eventType } = data.contents
+    const { name: type, address: package_address } = extractStructTagFromType(eventType.repr)
+    if (poolFilterEvenTypes.includes(type) && package_id === package_address && pool_id === event.pool) {
       const info: PoolTransactionInfo = {
-        tx: event.id.txDigest,
-        sender: event.sender,
-        type: event.type,
-        block_time: timestampMs || '0',
+        tx: rawData.digest,
+        sender: data.sender.address,
+        type: eventType.repr,
+        block_time: new Date(isoTime).getTime().toString(),
         index: `${txIndex}_${index}`,
-        parsed_json: event.parsedJson,
+        parsed_json: event,
       }
       list.push(info)
     }
@@ -435,7 +446,6 @@ export function parsePoolTransactionInfo(data: SuiTransactionBlockResponse, txIn
 
   return list
 }
-
 export function generateRewardSchedule(baseTime: number, maxIntervals: number, timeInterval: number): number[] {
   const result: number[] = []
 
@@ -555,3 +565,59 @@ export function buildPoolKey(coin_type_a: string, coin_type_b: string, bin_step:
 
   return `0x${Buffer.from(hash).toString('hex')}`
 }
+
+
+
+export const PoolSimpleInfoRaw = bcs.struct('PoolSimpleInfo', {
+  pool_id: bcs.Address,
+  pool_key: bcs.Address,
+  coin_type_a: TypeNameRaw,
+  coin_type_b: TypeNameRaw,
+  bin_step: bcs.u16(),
+  base_factor: bcs.u16(),
+})
+
+const ID = bcs.bytes(32);
+
+export const NodeIDPoolSimpleInfo = bcs.struct('Node<ID, PoolSimpleInfo>', {
+  prev: bcs.option(ID),
+  next: bcs.option(ID),
+  value: PoolSimpleInfoRaw,
+});
+
+
+
+// Bin
+export const Bin = bcs.struct('Bin', {
+  // I32：按 4 字节整数解析
+  id: bcs.u32(),
+  amount_a: bcs.u64(),
+  amount_b: bcs.u64(),
+  price: bcs.u128(),
+  liquidity_share: bcs.u128(),
+  rewards_growth_global: bcs.vector(bcs.u128()),
+  fee_a_growth_global: bcs.u128(),
+  fee_b_growth_global: bcs.u128(),
+});
+
+// BinGroup
+export const BinGroup = bcs.struct('BinGroup', {
+  idx: bcs.u32(),
+  used_bins_mask: bcs.u16(),
+  bins: bcs.vector(Bin),
+});
+
+// BinGroupRef
+export const BinGroupRefRaw = bcs.struct('BinGroupRef', {
+  pool_id: bcs.Address,
+  group: BinGroup,
+});
+
+
+export const SkipListNodeBinGroupRefRaw = bcs.struct('SkipListNode<BinGroupRef>', {
+  score: bcs.u64(),
+  prev: bcs.vector(OptionU64Raw),
+  next: OptionU64Raw,
+  value: BinGroupRefRaw,
+});
+

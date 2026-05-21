@@ -59,13 +59,6 @@ describe('APR function test', () => {
   })
 
   test('test estPositionAPRWithDeltaMethod', async () => {
-    const lowerUserPrice = 0.85
-    const upperUserPrice = 0.99
-    const lowerHistPrice = 0.06
-    const upperHistPrice = 1
 
-    const res = estPositionAPRWithMultiMethod(lowerUserPrice, upperUserPrice, lowerHistPrice, upperHistPrice)
-
-    console.log('res: ', res)
   })
 })

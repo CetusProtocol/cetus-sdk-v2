@@ -1,5 +1,10 @@
 {
   "extends": "../../tsconfig.json",
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist"],
+  "compilerOptions": {
+    "paths": {
+      "@cetusprotocol/common-sdk": ["../../node_modules/@cetusprotocol/common-sdk/dist/index.d.ts"]
+    }
+  }
 }

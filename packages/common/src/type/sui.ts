@@ -1,9 +1,10 @@
-import { getJsonRpcFullnodeUrl, SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
 import type { TransactionArgument } from '@mysten/sui/transactions'
 import Decimal from 'decimal.js'
 import { SuiGraphQLClient } from '@mysten/sui/graphql'
 import { ExtendedSuiClient } from '../modules/extendedSuiClient'
+import { getJsonRpcFullnodeUrl } from '@mysten/sui/jsonRpc'
 import { SuiGrpcClient } from '@mysten/sui/grpc'
+import { bcs, BcsType } from '@mysten/sui/bcs'
 
 /**
  * Represents a SUI address, which is a string.
@@ -204,19 +205,67 @@ export type BaseSdkOptions = {
   env?: 'mainnet' | 'testnet'
   full_rpc_url?: string
   graph_rpc_url?: string
-  sui_client?: SuiJsonRpcClient
+  sui_client?: SuiGrpcClient
   graph_client?: SuiGraphQLClient
   sui_grpc_client?: SuiGrpcClient
 }
 
-export type FullClient = ExtendedSuiClient<SuiJsonRpcClient> & SuiJsonRpcClient
+export type FullClient = ExtendedSuiClient<SuiGrpcClient> & SuiGrpcClient
 
 export type TableHandle = {
   id: string
   size: number
 }
+export const TableIDBoolRaw = bcs.struct('Table<ID, bool>', {
+  id: bcs.Address,
+  size: bcs.u64(),
+});
 
-export function toSuiObjectId(bytes: number[]): string {
-  return `0x${Buffer.from(bytes).toString('hex')}` // Convert the byte array to a hex string and prepend "0x"
+export const TypeNameRaw = bcs.struct('TypeName', {
+  name: bcs.string(),
+});
+
+
+/**
+ *    struct OptionU64 has copy, drop, store {
+        is_none: bool,
+        v: u64,
+    }
+    
+ */
+export const OptionU64Raw = bcs.struct('OptionU64', {
+  is_none: bcs.bool(),
+  v: bcs.u64(),
+});
+
+
+export const UIDRaw = bcs.struct('UID', {
+  id: bcs.Address,
+});
+
+export const TableSuiRaw = bcs.struct('TableSuiRaw', {
+  id: UIDRaw,
+  size: bcs.u64(),
+});
+
+
+// Entry<K, V> 
+export function VecMapEntry<K extends BcsType<any>, V extends BcsType<any>>(K: K, V: V) {
+  return bcs.struct(`VecMapEntry<${K.name},${V.name}>`, {
+    key: K,
+    value: V,
+  });
 }
+
+// 0x2:VecMap<K, V> 
+export function VecMap<K extends BcsType<any>, V extends BcsType<any>>(K: K, V: V) {
+  const Entry = VecMapEntry(K, V);
+
+  return bcs.struct(`VecMap<${K.name},${V.name}>`, {
+    contents: bcs.vector(Entry),
+  });
+}
+
+
+
 

@@ -4,7 +4,7 @@ import { buildTestAccount } from '@cetusprotocol/test-utils'
 import { CetusDlmmSDK } from '../src/sdk'
 import { BinUtils } from '../src/utils/binUtils'
 import { Transaction } from '@mysten/sui/transactions'
-import { asUintN, d, printTransaction } from '@cetusprotocol/common-sdk'
+import { asIntN, asUintN, d, printTransaction } from '@cetusprotocol/common-sdk'
 import { CalculateAddLiquidityOption, StrategyType } from '../src/types/dlmm'
 import { safeMulAmount } from '../src/utils'
 
@@ -25,8 +25,9 @@ describe('dlmm bin', () => {
   })
 
   test('getPriceFromBinId', async () => {
-    const price = BinUtils.getPriceFromBinId(1113, 400, 6, 6)
-    console.log('🚀 ~ test ~ price:', price)
+    const price = BinUtils.getPriceFromBinId(asIntN(BigInt(4294967294)), 1, 6, 6)
+    const price1 = BinUtils.getPriceFromBinId(asIntN(BigInt(4294967290)), 1, 6, 6)
+    console.log('🚀 ~ test ~ price:', price, price1)
   })
 
   test('getPricePerLamportFromQPrice', async () => {
@@ -91,5 +92,10 @@ describe('dlmm bin', () => {
 
   test('findMinMaxBinId', async () => {
     console.log('bin step 10 : ', BinUtils.findMinMaxBinId(10))
+  })
+
+  test('getBinShift', async () => {
+    const bin_shift = BinUtils.getBinShift(Number(asIntN(BigInt(4294967294))), 1, 0.01)
+    console.log('🚀 ~ test ~ bin_shift:', bin_shift)
   })
 })

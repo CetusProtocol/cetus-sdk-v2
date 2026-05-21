@@ -1,4 +1,5 @@
 import { Transaction } from '@mysten/sui/transactions'
+import { bcs } from '@mysten/sui/bcs'
 import type { SuiAddressType, SuiObjectIdType, SuiResource } from '@cetusprotocol/common-sdk'
 import {
   buildNFT,
@@ -12,11 +13,11 @@ import {
   DETAILS_KEYS,
   extractStructTagFromType,
   getFutureTime,
-  getMoveObjectType,
-  getObjectFields,
-  getObjectId,
   getPackagerConfigs,
   IModule,
+  TableSuiRaw,
+  TypeNameRaw,
+  VecMap,
 } from '@cetusprotocol/common-sdk'
 import Decimal from 'decimal.js'
 import { handleError, XCetusErrorCode } from '../errors/errors'
@@ -28,6 +29,7 @@ import type {
   DividendManager,
   DividendReward,
   LockCetus,
+  LockCetusVersion,
   LockUpManager,
   PhaseDividendInfo,
   RedeemLockParams,
@@ -69,7 +71,7 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
    * @param force_refresh Indicates whether to refresh the cache of the VeNFT object.
    * @returns A Promise that resolves to the VeNFT object or `undefined` if the object is not found.
    */
-  async getOwnerVeNFT(account_address: SuiAddressType, force_refresh = true): Promise<VeNFT | void> {
+  async getOwnerVeNFT(account_address: SuiAddressType, force_refresh = true): Promise<VeNFT | undefined> {
     const { xcetus } = this.sdk.sdkOptions
 
     const cacheKey = `${account_address}_getLockUpManagerEvent`
@@ -81,21 +83,18 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
     let veNFT: VeNFT | undefined
     const filterType = `${xcetus.package_id}::xcetus::VeNFT`
     try {
-      const ownerRes: any = await this._sdk.FullClient.getOwnedObjectsByPage(account_address, {
-        options: { showType: true, showContent: true, showDisplay: true },
-        filter: { StructType: filterType },
-      })
+      const ownerRes: any = await this._sdk.FullClient.getOwnedObjectsByPage(account_address, filterType)
       ownerRes.data.forEach((item: any) => {
-        const type = extractStructTagFromType(getMoveObjectType(item) as string).source_address
+        const type = item.type
+        const parsedJson = item.json
         if (type === filterType) {
-          if (item.data && item.data.content) {
-            const { fields } = item.data.content
+          if (parsedJson) {
             veNFT = {
-              ...buildNFT(item),
-              id: fields.id.id,
-              index: fields.index,
+              ...buildNFT(parsedJson),
+              id: parsedJson.id,
+              index: parsedJson.index,
               type,
-              xcetus_balance: fields.xcetus_balance,
+              xcetus_balance: parsedJson.xcetus_balance,
             }
             this.updateCache(cacheKey, veNFT, CACHE_TIME_24H)
           }
@@ -110,6 +109,14 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
     }
   }
 
+  getLockedCoinType(version: LockCetusVersion): string {
+    const xcetusType = extractStructTagFromType(this.buildCetusCoinType()).full_address
+    if (version === 'v2') {
+      return `0xa0e7ccad08e09657e294e7cbbd609d26dbd0020b9b894684702a115d5ae1a1cf::lock_coin_v2::LockedCoinV2<${xcetusType}>`
+    }
+    return `${this.sdk.sdkOptions.xcetus.package_id}::lock_coin::LockedCoin<${xcetusType}>`
+  }
+
   /**
    * Gets the list of LockCetus objects owned by the specified account address.
    *
@@ -117,23 +124,19 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
    * @returns A Promise that resolves to a list of LockCetus objects.
    */
   async getOwnerRedeemLockList(account_address: SuiAddressType): Promise<LockCetus[]> {
-    const { xcetus } = this.sdk.sdkOptions
     const lockCetusList: LockCetus[] = []
-    const xcetusType = extractStructTagFromType(this.buildCetusCoinType()).full_address
-    const filterType = `${xcetus.package_id}::lock_coin::LockedCoin<${xcetusType}>`
+    const filterTypes: { type: string; version: LockCetusVersion }[] = [
+      { type: this.getLockedCoinType('v1'), version: 'v1' },
+      { type: this.getLockedCoinType('v2'), version: 'v2' },
+    ]
 
     try {
-      const ownerRes: any = await this._sdk.FullClient.getOwnedObjectsByPage(account_address, {
-        options: { showType: true, showContent: true },
-        filter: { StructType: filterType },
-      })
+      for (const { type, version } of filterTypes) {
+        const ownerRes: any = await this._sdk.FullClient.getOwnedObjectsByPage(account_address, type)
 
-      for (const item of ownerRes.data) {
-        const type = extractStructTagFromType(getMoveObjectType(item) as string).source_address
-
-        if (type === filterType) {
-          if (item.data) {
-            const lockCetus = XCetusUtil.buildLockCetus(item.data.content)
+        for (const item of ownerRes.data) {
+          if (item.json) {
+            const lockCetus = XCetusUtil.buildLockCetus(item, version)
             lockCetus.xcetus_amount = this.reverseRedeemNum(lockCetus.cetus_amount, lockCetus.lock_day).amount_out
             lockCetusList.push(lockCetus)
           }
@@ -149,6 +152,10 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
     }
   }
 
+  private getLockCetusVersion(type: string): LockCetusVersion {
+    return type.includes('::lock_coin_v2::LockedCoinV2<') ? 'v2' : 'v1'
+  }
+
   /**
    * Gets the LockCetus object with the specified ID.
    *
@@ -158,12 +165,12 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
   async getLockCetus(lock_id: SuiObjectIdType): Promise<LockCetus | undefined> {
     try {
       const result = await this._sdk.FullClient.getObject({
-        id: lock_id,
-        options: { showType: true, showContent: true },
+        objectId: lock_id,
+        include: { json: true, type: true },
       })
 
-      if (result.data?.content) {
-        const lockCetus = XCetusUtil.buildLockCetus(result.data.content)
+      if (result.object?.json) {
+        const lockCetus = XCetusUtil.buildLockCetus(result.object, this.getLockCetusVersion(result.object.type))
         lockCetus.xcetus_amount = this.reverseRedeemNum(lockCetus.cetus_amount, lockCetus.lock_day).amount_out
         return lockCetus
       }
@@ -282,6 +289,33 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
   }
 
   /**
+   * Convert Xcetus to Cetus with the V2 locked coin flow.
+   * New redeem-lock actions should use router::redeem_lock_v2.
+   * @param params
+   * @returns
+   */
+  redeemLockV2Payload(params: RedeemLockParams): Transaction {
+    const { xcetus } = this.sdk.sdkOptions
+
+    const tx = new Transaction()
+
+    tx.moveCall({
+      target: `${xcetus.published_at}::${XcetusRouterModule}::redeem_lock_v2`,
+      typeArguments: [],
+      arguments: [
+        tx.object(getPackagerConfigs(xcetus)?.lock_manager_id),
+        tx.object(getPackagerConfigs(xcetus)?.xcetus_manager_id),
+        tx.object(params.venft_id),
+        tx.pure.u64(params.amount),
+        tx.pure.u64(params.lock_day),
+        tx.object(CLOCK_ADDRESS),
+      ],
+    })
+
+    return tx
+  }
+
+  /**
    * lock time is reach and the cetus can be redeemed, the xcetus will be burned.
    * @param params
    * @returns
@@ -293,6 +327,32 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
 
     tx.moveCall({
       target: `${xcetus.published_at}::${XcetusRouterModule}::redeem`,
+      typeArguments: [],
+      arguments: [
+        tx.object(getPackagerConfigs(xcetus)?.lock_manager_id),
+        tx.object(getPackagerConfigs(xcetus)?.xcetus_manager_id),
+        tx.object(params.venft_id),
+        tx.object(params.lock_id),
+        tx.object(CLOCK_ADDRESS),
+      ],
+    })
+
+    return tx
+  }
+
+  /**
+   * Redeem an expired V2 locked coin and burn the corresponding xCETUS.
+   * New locked-coin redeem actions should use router::redeem_v2.
+   * @param params
+   * @returns
+   */
+  redeemV2Payload(params: RedeemXcetusParams): Transaction {
+    const { xcetus } = this.sdk.sdkOptions
+
+    const tx = new Transaction()
+
+    tx.moveCall({
+      target: `${xcetus.published_at}::${XcetusRouterModule}::redeem_v2`,
       typeArguments: [],
       arguments: [
         tx.object(getPackagerConfigs(xcetus)?.lock_manager_id),
@@ -433,6 +493,32 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
   }
 
   /**
+   * Cancel a V2 locked coin before unlock time.
+   * New locked-coin cancel actions should use router::cancel_redeem_lock_v2.
+   * @param params
+   * @returns
+   */
+  cancelRedeemV2Payload(params: CancelRedeemParams): Transaction {
+    const { xcetus } = this.sdk.sdkOptions
+
+    const tx = new Transaction()
+
+    tx.moveCall({
+      target: `${xcetus.published_at}::${XcetusRouterModule}::cancel_redeem_lock_v2`,
+      typeArguments: [],
+      arguments: [
+        tx.object(getPackagerConfigs(xcetus).lock_manager_id),
+        tx.object(getPackagerConfigs(xcetus).xcetus_manager_id),
+        tx.object(params.venft_id),
+        tx.object(params.lock_id),
+        tx.object(CLOCK_ADDRESS),
+      ],
+    })
+
+    return tx
+  }
+
+  /**
    * Gets the init factory event.
    *
    * @returns A Promise that resolves to the init factory event.
@@ -514,10 +600,10 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
     }
     try {
       const lockObject = await this.sdk.FullClient.getObject({
-        id: lock_manager_id,
-        options: { showContent: true },
+        objectId: lock_manager_id,
+        include: { json: true },
       })
-      const info = XCetusUtil.buildLockUpManager(getObjectFields(lockObject))
+      const info = XCetusUtil.buildLockUpManager(lockObject.object.json)
 
       this.updateCache(cacheKey, info, CACHE_TIME_24H)
       return info
@@ -551,11 +637,11 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
         })
       )?.data
 
-      const veNftDividendsObjects: any = await this._sdk.FullClient.getDynamicFieldObject({
+      const veNftDividendsObjects: any = await this._sdk.FullClient.getDynamicField({
         parentId: dividend_manager_id,
         name: {
           type: '0x1::string::String',
-          value: 'VeNFTDividends',
+          bcs: bcs.String.serialize('VeNFTDividends').toBytes(),
         },
       })
 
@@ -579,16 +665,17 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
           }
         })
       }
-      if (veNftDividendsObjects && veNftDividendsObjects.data && veNftDividendsObjects.data.content) {
-        initEvent.venft_dividends_id = veNftDividendsObjects.data.content?.fields?.value
+      //"0x0000000000000000000000000000000000000000000000000000000000000002::object::ID"
+      if (veNftDividendsObjects && veNftDividendsObjects.dynamicField) {
+        initEvent.venft_dividends_id = bcs.Address.parse(veNftDividendsObjects.dynamicField.value.bcs)
         this.updateCache(cacheKey, initEvent, CACHE_TIME_24H)
       }
 
       const objects: any = await this._sdk.FullClient.getObject({
-        id: venft_dividends_id,
-        options: { showContent: true },
+        objectId: venft_dividends_id,
+        include: { json: true },
       })
-      initEvent.venft_dividends_id_v2 = objects.data.content.fields.venft_dividends.fields.id.id
+      initEvent.venft_dividends_id_v2 = objects.object.json.venft_dividends.id
 
       return initEvent
     } catch (error) {
@@ -615,11 +702,10 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
     }
     try {
       const objects = await this._sdk.FullClient.getObject({
-        id: dividend_manager_id,
-        options: { showContent: true },
+        objectId: dividend_manager_id,
+        include: { json: true },
       })
-      const fields = getObjectFields(objects)
-      const dividendManager: DividendManager = XCetusUtil.buildDividendManager(fields)
+      const dividendManager: DividendManager = XCetusUtil.buildDividendManager(objects.object.json)
       this.updateCache(cacheKey, dividendManager, CACHE_TIME_24H)
       return dividendManager
     } catch (error) {
@@ -644,23 +730,23 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
     }
     try {
       const result = await this._sdk.FullClient.getObject({
-        id: xcetus_manager_id,
-        options: { showContent: true },
+        objectId: xcetus_manager_id,
+        include: { json: true },
       })
-      const fields = getObjectFields(result)
+      const fields = result.object.json as any
       const xcetusManager: XcetusManager = {
-        id: fields.id.id,
+        id: fields.id,
         index: Number(fields.index),
         has_venft: {
-          handle: fields.has_venft.fields.id.id,
-          size: fields.has_venft.fields.size,
+          handle: fields.has_venft.id,
+          size: fields.has_venft.size,
         },
         nfts: {
-          handle: fields.nfts.fields.id.id,
-          size: fields.nfts.fields.size,
+          handle: fields.nfts.id,
+          size: fields.nfts.size,
         },
         total_locked: fields.total_locked,
-        treasury: fields.treasury.fields.total_supply.fields.value,
+        treasury: fields.treasury.total_supply.value,
       }
       this.updateCache(cacheKey, xcetusManager)
       return xcetusManager
@@ -679,15 +765,15 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
     tx.moveCall({
       target: `${xcetus_dividends.published_at}::dividend::fetch_dividend_info_v2`,
       typeArguments: [],
-      arguments: [tx.object(dividend_manager_id), tx.object(venft_dividends_id), tx.object(venft_id)],
+      arguments: [tx.object(dividend_manager_id), tx.object(venft_dividends_id), tx.pure.id(venft_id)],
     })
     try {
-      const res: any = await this._sdk.FullClient.devInspectTransactionBlock({
-        transactionBlock: tx,
-        sender: this._sdk.getSenderAddress(),
-      })
-
-      const { contents } = res.events[0].parsedJson.info
+      const res: any = await this._sdk.FullClient.sendSimulationTransaction(
+        tx,
+        '0xfba94aa36e93ccc7d84a6a57040fc51983223f1b522a8d0be3c3bf2c98977ebb'
+      )
+      //"0xcec352932edc6663a118e8d64ed54da6b8107e8719603bf728f80717592cd9e8::dividend::DividendInfoEvent"
+      const { contents } = res.Transaction.events[0].json.info
 
       const veNFTDividendInfo: VeNFTDividendInfo = {
         id: '',
@@ -703,7 +789,7 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
         contents.forEach((reward: any) => {
           if (d(reward.value).gt(0)) {
             periodRewards.push({
-              coin_type: extractStructTagFromType(reward.key.name).source_address,
+              coin_type: extractStructTagFromType(reward.key).source_address,
               amount: reward.value,
             })
           }
@@ -759,41 +845,50 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
 
     const rewards: any = []
     try {
-      const venft_dividends_v2 = await this._sdk.FullClient.getDynamicFieldObject({
+      const venft_dividends_v2 = await this._sdk.FullClient.getDynamicField({
         parentId: venft_dividends_id_v2,
         name: {
           type: '0x2::object::ID',
-          value: venft_id,
+          bcs: bcs.Address.serialize(venft_id).toBytes(),
         },
       })
-      const venft_table_id = getObjectFields(venft_dividends_v2).value.fields.value.fields.dividends.fields.id.id
+      const node = bcs
+        .struct('LinkedTable.Node<ID, VeNFTDividendInfoV2>', {
+          pre: bcs.option(bcs.Address),
+          next: bcs.option(bcs.Address),
+          value: bcs.struct('VeNFTDividendInfoV2', {
+            dividends: TableSuiRaw,
+          }),
+        })
+        .parse(venft_dividends_v2.dynamicField.value.bcs)
+      const venft_table_id = node.value.dividends.id.id
       let nextCursor: string | null = null
       const limit = 50
       const tableIdList: any = []
       while (true) {
-        const tableRes: any = await this._sdk.FullClient.getDynamicFields({
+        const tableRes: any = await this._sdk.FullClient.listDynamicFields({
           parentId: venft_table_id,
           cursor: nextCursor,
           limit,
         })
-        tableRes.data.forEach((item: any) => {
-          tableIdList.push(item.objectId)
+        tableRes.dynamicFields.forEach((item: any) => {
+          tableIdList.push(item.fieldId)
         })
-        nextCursor = tableRes.nextCursor
-        if (nextCursor === null || tableRes.data.length < limit) {
+        nextCursor = tableRes.cursor
+        if (nextCursor === null || tableRes.dynamicFields.length < limit) {
           break
         }
       }
-      const objects: any = await this._sdk.FullClient.batchGetObjects(tableIdList, { showType: true, showContent: true })
+      const objects: any = await this._sdk.FullClient.batchGetObjects(tableIdList, { json: true })
 
       objects.forEach((item: any) => {
         rewards.push({
-          period: Number(item.data.content.fields.name),
+          period: Number(item.json.name),
           version: 'v2',
-          rewards: item.data.content.fields.value.fields.contents.map((ele: any) => {
+          rewards: item.json.value.contents.map((ele: any) => {
             return {
-              coin_type: extractStructTagFromType(ele.fields.key.fields.name).source_address,
-              amount: ele.fields.value,
+              coin_type: extractStructTagFromType(ele.key).source_address,
+              amount: ele.value,
             }
           }),
         })
@@ -810,36 +905,6 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
       ...veNFTDividendInfo,
       rewards: [...rewards],
     }
-  }
-
-  private async getVeNFTDividendInfoV1(venft_id: SuiObjectIdType): Promise<VeNFTDividendInfo> {
-    const { xcetus_dividends } = this._sdk.sdkOptions
-    const { venft_dividends_id } = getPackagerConfigs(xcetus_dividends)
-
-    let veNFTDividendInfo: VeNFTDividendInfo = {
-      id: '',
-      venft_id: venft_id,
-      rewards: [],
-    }
-    try {
-      const venft_dividends = await this._sdk.FullClient.getDynamicFieldObject({
-        parentId: venft_dividends_id,
-        name: {
-          type: '0x2::object::ID',
-          value: venft_id,
-        },
-      })
-      const fields = getObjectFields(venft_dividends)
-      veNFTDividendInfo = XCetusUtil.buildVeNFTDividendInfo(fields)
-    } catch (error) {
-      console.log('getVeNFTDividendInfoV1 ~ error:', error)
-      return handleError(XCetusErrorCode.InvalidVeNftId, error as Error, {
-        [DETAILS_KEYS.METHOD_NAME]: 'getVeNFTDividendInfoV1',
-        [DETAILS_KEYS.REQUEST_PARAMS]: { venft_id },
-      })
-    }
-
-    return veNFTDividendInfo
   }
 
   /**
@@ -916,16 +981,28 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
     }
 
     try {
-      const response = await this.sdk.FullClient.getDynamicFieldObject({
+      const response = await this.sdk.FullClient.getDynamicField({
         parentId: lock_handle_id,
         name: {
           type: '0x2::object::ID',
-          value: lock_id,
+          bcs: bcs.Address.serialize(lock_id).toBytes(),
         },
       })
-      const fields = getObjectFields(response)
+      const fields = response.dynamicField.value.bcs
       if (fields) {
-        const { xcetus_amount } = fields.value.fields.value.fields
+        const parsed = bcs
+          .struct('LinkedTable.Node<ID, LockInfo>', {
+            pre: bcs.option(bcs.Address),
+            next: bcs.option(bcs.Address),
+            value: bcs.struct('LockInfo', {
+              venft_id: bcs.Address,
+              lock_id: bcs.Address,
+              xcetus_amount: bcs.u64(),
+              cetus_amount: bcs.u64(),
+            }),
+          })
+          .parse(fields)
+        const xcetus_amount = parsed.value.xcetus_amount
         this.updateCache(cacheKey, xcetus_amount, CACHE_TIME_24H)
         return xcetus_amount
       }
@@ -940,6 +1017,72 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
   }
 
   /**
+   * Gets the dividend correction amount for the specified VeNFT.
+   *
+   * @param venft_id The ID of the VeNFT.
+   * @returns A Promise that resolves to the dividend correction amount.
+   */
+  async getDividendCorrection(venft_id: SuiObjectIdType, force_refresh = false): Promise<string> {
+    const { xcetus } = this._sdk.sdkOptions
+    const { xcetus_manager_id } = getPackagerConfigs(xcetus)
+
+    const cacheKey = `${venft_id}_getDividendCorrection`
+    const cacheData = this.getCache<string>(cacheKey, force_refresh)
+
+    if (cacheData !== undefined) {
+      return cacheData
+    }
+
+    const tx = new Transaction()
+    tx.moveCall({
+      target: `${xcetus.published_at}::xcetus::dividend_correction`,
+      typeArguments: [],
+      arguments: [tx.object(xcetus_manager_id), tx.pure.id(venft_id)],
+    })
+
+    try {
+      const res: any = await this._sdk.FullClient.sendSimulationTransaction(tx, this._sdk.getSenderAddress())
+      const value = bcs
+        .u64()
+        .parse(Uint8Array.from(res?.commandResults?.[0]?.returnValues?.[0]?.bcs || []))
+        .toString()
+      this.updateCache(cacheKey, value, CACHE_TIME_5MIN)
+      return value
+    } catch (error) {
+      console.log('getDividendCorrection', error)
+      handleError(XCetusErrorCode.FetchError, error as Error, {
+        [DETAILS_KEYS.METHOD_NAME]: 'getDividendCorrection',
+        [DETAILS_KEYS.REQUEST_PARAMS]: { venft_id },
+      })
+    }
+    return '0'
+  }
+
+  async getEffectiveXCetusAmount(venft: VeNFT, force_refresh = false): Promise<string> {
+    const cacheKey = `${venft.id}_getEffectiveXCetusAmount`
+    const cacheData = this.getCache<string>(cacheKey, force_refresh)
+    if (cacheData !== undefined) {
+      return cacheData
+    }
+    try {
+      const veNftAmount = venft.xcetus_balance
+      const correction = await this.getDividendCorrection(venft.id, force_refresh)
+
+      const rawAmount = BigInt(veNftAmount)
+      const correctionAmount = BigInt(correction)
+
+      return rawAmount > correctionAmount ? (rawAmount - correctionAmount).toString() : '0'
+    } catch (error) {
+      console.log('getEffectiveXCetusAmount', error)
+      handleError(XCetusErrorCode.FetchError, error as Error, {
+        [DETAILS_KEYS.METHOD_NAME]: 'getEffectiveXCetusAmount',
+        [DETAILS_KEYS.REQUEST_PARAMS]: { venft_id: venft.id },
+      })
+    }
+    return venft.xcetus_balance
+  }
+
+  /**
    * Gets the amount of XCetus and lock for the specified VENFT.
    *
    * @param nft_handle_id The ID of the NFT handle.
@@ -948,16 +1091,27 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
    */
   async getVeNftAmount(nft_handle_id: string, venft_id: string): Promise<{ xcetus_amount: string; lock_amount: string }> {
     try {
-      const response = await this.sdk.FullClient.getDynamicFieldObject({
+      const response = await this.sdk.FullClient.getDynamicField({
         parentId: nft_handle_id,
         name: {
           type: '0x2::object::ID',
-          value: venft_id,
+          bcs: bcs.Address.serialize(venft_id).toBytes(),
         },
       })
-      const fields = getObjectFields(response)
+      const fields = response.dynamicField.value.bcs
       if (fields) {
-        const { lock_amount, xcetus_amount } = fields.value.fields.value.fields
+        const parsed = bcs
+          .struct('LinkedTable.Node<ID, VeNftInfo>', {
+            pre: bcs.option(bcs.Address),
+            next: bcs.option(bcs.Address),
+            value: bcs.struct('VeNftInfo', {
+              id: bcs.Address,
+              xcetus_amount: bcs.u64(),
+              lock_amount: bcs.u64(),
+            }),
+          })
+          .parse(fields)
+        const { lock_amount, xcetus_amount } = parsed.value
         return { lock_amount, xcetus_amount }
       }
     } catch (error) {
@@ -987,41 +1141,54 @@ export class XCetusModule implements IModule<CetusXcetusSDK> {
         if (cacheData) {
           return cacheData
         }
-        const res = await this._sdk.FullClient.getDynamicFieldObject({
+        const res = await this._sdk.FullClient.getDynamicField({
           parentId: phase_handle,
           name: {
             type: 'u64',
-            value: phase,
+            bcs: bcs.u64().serialize(phase).toBytes(),
           },
         })
-        const fields = getObjectFields(res)
-        const valueFields = fields.value.fields.value.fields
+        const fields = res.dynamicField.value.bcs
+        const parsed = bcs
+          .struct('LinkedTable.Node<u64, DividendInfo>', {
+            pre: bcs.option(bcs.u64()),
+            next: bcs.option(bcs.u64()),
+            value: bcs.struct('DividendInfo', {
+              register_time: bcs.u64(),
+              settled_num: bcs.u64(),
+              is_settled: bcs.bool(),
+              bonus_types: bcs.vector(TypeNameRaw),
+              bonus: VecMap(TypeNameRaw, bcs.u64()),
+              redeemed_num: VecMap(TypeNameRaw, bcs.u64()),
+            }),
+          })
+          .parse(fields).value
 
-        const redeemed_num = valueFields.redeemed_num.fields.contents.map((item: any) => {
+        const redeemed_num = parsed.redeemed_num.contents.map((item) => {
           return {
-            name: item.fields.key.fields.name,
-            value: item.fields.value,
+            name: item.key.name,
+            value: item.value,
           }
         })
 
-        const bonus_types = valueFields.bonus_types.map((item: any) => {
-          return item.fields.name
+        const bonus_types = parsed.bonus_types.map((item) => {
+          return item.name
         })
 
-        const bonus = valueFields.bonus.fields.contents.map((item: any) => {
+        const bonus = parsed.bonus.contents.map((item) => {
           return {
-            name: item.fields.key.fields.name,
-            value: item.fields.value,
+            name: item.key.name,
+            value: item.value,
           }
         })
 
         const info: PhaseDividendInfo = {
-          id: getObjectId(res),
-          phase: fields.name,
-          settled_num: valueFields.settled_num,
-          register_time: valueFields.register_time,
+          id: res.dynamicField.fieldId,
+          phase: bcs.u64().parse(res.dynamicField.name.bcs).toString(),
+          settled_num: parsed.settled_num,
+          register_time: parsed.register_time,
           redeemed_num,
-          is_settled: valueFields.is_settled,
+          is_settled: parsed.is_settled,
           bonus_types,
           bonus,
           phase_end_time: '',

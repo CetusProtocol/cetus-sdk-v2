@@ -1,10 +1,12 @@
 import { Transaction, TransactionObjectArgument, TransactionResult } from '@mysten/sui/transactions'
-import { ParsedObligation } from '@suilend/sdk'
+import type { ParsedObligation } from '@suilend/sdk/parsers/obligation'
 import { Obligation } from '@suilend/sdk/_generated/suilend/obligation/structs'
 
 export type Position = {
   position_id: string
   position_cap_id: string
+  is_tspl_cap?: boolean
+  tspl?: PositionTsplInfo
   created_at: string
   init_deposit_amount: string
   is_long: boolean
@@ -17,6 +19,13 @@ export type Position = {
   origin_obligation: Obligation<string>
   claimable_rewards: any[]
 }
+
+export type PositionTsplInfo = {
+  order_cap_id: string
+  order_id: string
+}
+
+export type PositionCapArgument = string | TransactionObjectArgument
 
 export interface OpenPositionParams {
   market_id: string
@@ -52,8 +61,8 @@ export interface BorrowNotSuiParams {
 export type PositionDepositParams = {
   market_id: string
   is_long: boolean
-  position_cap_id?: string
-  position_cap?: any
+  position_cap_id: PositionCapArgument
+  tspl?: PositionTsplInfo
   deposit_reserve_array_index: string
   input_coin: any
   txb?: Transaction
@@ -96,7 +105,8 @@ export type WithdrawParams = {
 
 export type RepayParams = {
   txb?: Transaction
-  position_cap_id: string
+  position_cap_id: PositionCapArgument
+  tspl?: PositionTsplInfo
   repay_amount: string
   repay_coin_type: string
   repay_coin?: any
@@ -116,8 +126,8 @@ export type CreateLeveragePositionParams = {
 }
 
 export type BorrowAssetParams = {
-  position_cap_id?: string
-  position_cap?: any
+  position_cap_id: PositionCapArgument
+  tspl?: PositionTsplInfo
   reserve_array_index: string
   borrow_amount: string
   base_token: string
@@ -129,7 +139,8 @@ export type BorrowAssetParams = {
 
 export type WithdrawAssetParams = {
   market_id: string
-  position_cap_id: string
+  position_cap_id: PositionCapArgument
+  tspl?: PositionTsplInfo
   withdraw_amount: string
   withdraw_reserve_array_index: string
   withdraw_coin_type: string
@@ -170,6 +181,7 @@ export type CalculatePositionWithdrawParams = {
 export type CalculateCompoundDebtParams = {
   market_id: string
   position_cap_id: string
+  tspl?: PositionTsplInfo
   borrow_reserve_array_index: string
   borrow_index: string
 }
@@ -219,7 +231,28 @@ export type PositionCloseWithCoinParams = {
   leverage: number
   slippage: number
   swap_clmm_pool?: string
+  /** When false, returned coins are left in the transaction and returned for further composition. Default true. */
+  transfer_coins_to_sender?: boolean
+  /**
+   * When `transfer_coins_to_sender` is false, lists incentive coin types to bucket beside market base / quote.
+   */
+  reward_coin_types?: string[]
 }
+
+export type PositionReturnedCoin = {
+  coin: TransactionObjectArgument
+  coin_type: string
+}
+
+export type PositionCloseResult =
+  | Transaction
+  | {
+    tx: Transaction
+    base_coin?: TransactionObjectArgument
+    quote_coin?: TransactionObjectArgument
+    /** One merged coin object per incentive type in `reward_coin_types`. */
+    reward_coins?: PositionReturnedCoin[]
+  }
 
 export type CreateMarginTradingContextParams = {
   market_id: string

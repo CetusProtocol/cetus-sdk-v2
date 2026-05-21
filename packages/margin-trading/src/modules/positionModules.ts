@@ -6,7 +6,6 @@ import {
   d,
   DETAILS_KEYS,
   fromDecimalsAmount,
-  getObjectFields,
   getPackagerConfigs,
   removeHexPrefix,
   SUI_SYSTEM_STATE_OBJECT_ID,
@@ -25,15 +24,20 @@ import {
   CreateMarginTradingContextParams,
   OpenPositionParams,
   Position,
+  PositionCapArgument,
+  PositionCloseResult,
   PositionCloseWithCoinParams,
   PositionDepositParams,
   PositionManageLeverageParams,
   PositionManageSizeDepositParams,
   PositionManageSizeWithdrawParams,
+  PositionReturnedCoin,
   PositionRepayParams,
+  PositionTsplInfo,
   positionTopUpCTokenParams,
   positionWithdrawCTokenParams,
   RepayParams,
+  TsplOrderCap,
   WithdrawAssetParams,
 } from '../types'
 import { Transaction, TransactionObjectArgument, TransactionResult } from '@mysten/sui/transactions'
@@ -41,10 +45,18 @@ import { bcs } from '@mysten/sui/bcs'
 import { v4 as uuidv4 } from 'uuid'
 import { mergePositionData, wrapPosition } from '../utils'
 import Decimal from 'decimal.js'
-import { compoundDebt } from '@suilend/sdk'
+import { compoundDebt } from '@suilend/sdk/utils/simulate'
 import { handleError, MarginTradingErrorCode } from '../errors/errors'
 import { is } from 'valibot'
 import { calcIncrementalLeverage } from '../utils/suiLend'
+
+type PositionCapLookup = {
+  positionCapId: string
+  orderCapId: string
+  orderId: string
+  is_tspl_cap: boolean
+  tspl?: PositionTsplInfo
+}
 
 export class PositionModules {
   protected _sdk: CetusMarginTradingSDK
@@ -59,22 +71,21 @@ export class PositionModules {
   getPositionList = async (wallet_address = this._sdk.getSenderAddress(), force_refresh = false): Promise<Position[]> => {
     const { lending_market_id, lending_market_type } = getPackagerConfigs(this._sdk.sdkOptions.suilend)
     try {
+      void force_refresh
       // Define mapping cache key
       const mappingCacheKey = `cap_to_position_mapping_${wallet_address}`
+      const orderMappingCacheKey = `order_cap_to_position_mapping_${wallet_address}`
 
-      // Try to get mapping relationship from cache
-      let capIdToPositionIdMap = this._sdk.getCache<Map<string, string>>(mappingCacheKey, force_refresh)
+      const capIdToPositionIdMap = new Map<string, string>()
+      const orderCapMap = new Map<string, TsplOrderCap>()
 
-      const ownerRes = await this._sdk.FullClient.getOwnedObjectsByPage(wallet_address, {
-        options: { showType: true, showContent: true, showOwner: true },
-        filter: {
-          MatchAny: [
-            {
-              StructType: `${this._sdk.sdkOptions.margin_trading.package_id}::position::PositionCap`,
-            },
-          ],
-        },
-      })
+      const orderCapType = `${this._sdk.sdkOptions.tspl.package_id}::order::OrderCap`
+      const positionCapType = `${this._sdk.sdkOptions.margin_trading.package_id}::position::PositionCap`
+      const [orderCapRes, positionCapRes]: any[] = await Promise.all([
+        this._sdk.FullClient.getOwnedObjectsByPage(wallet_address, orderCapType),
+        this._sdk.FullClient.getOwnedObjectsByPage(wallet_address, positionCapType),
+      ])
+      const ownerRes = { data: [...orderCapRes.data, ...positionCapRes.data] }
 
       console.log('🚀🚀🚀 ~ positionModules.ts:42 ~ PositionModules ~ ownerRes.data.length:', ownerRes.data.length)
       if (ownerRes.data.length === 0) {
@@ -89,28 +100,38 @@ export class PositionModules {
       console.log('🚀🚀🚀 ~ positionModules.ts:50 ~ PositionModules ~ allLendingMarketData:', allLendingMarketData)
       const reserveMap: any = allLendingMarketData[lending_market_id].reserveMap
 
-      // Rebuild mapping if cache doesn't exist or needs refresh
-      if (!capIdToPositionIdMap) {
-        capIdToPositionIdMap = new Map<string, string>()
-      }
-
-      const positionIdList: string[] = []
+      const positionIdSet = new Set<string>()
 
       for (let i = 0; i < ownerRes.data.length; i++) {
-        const fields = getObjectFields(ownerRes.data[i])
-        if (fields.position_id) {
-          positionIdList.push(fields.position_id)
+        const type = ownerRes.data[i].type
+        if (type.includes(orderCapType)) {
+          const fields = ownerRes.data[i].json
+          orderCapMap.set(fields.position_id, {
+            id: fields.id?.id || fields.id,
+            order_id: fields.order_id,
+            position_id: fields.position_id,
+          })
+          positionIdSet.add(fields.position_id)
+        } else {
+          const fields = ownerRes.data[i].json
+          if (fields.position_id) {
+            positionIdSet.add(fields.position_id)
+          }
+          const capId = fields.id?.id || fields.id
+          if (capId) {
+            // Store the mapping relationship between capId and positionId
+            capIdToPositionIdMap.set(capId, fields.position_id)
+          }
         }
-        if (fields.id.id) {
-          // Store the mapping relationship between capId and positionId
-          capIdToPositionIdMap.set(fields.id.id, fields.position_id)
-        }
+
       }
 
       // Store mapping relationship in cache with 24h expiration time
-      await this._sdk.updateCache(mappingCacheKey, capIdToPositionIdMap as any, CACHE_TIME_24H)
+      this._sdk.updateCache(mappingCacheKey, capIdToPositionIdMap as any, CACHE_TIME_24H)
+      this._sdk.updateCache(orderMappingCacheKey, orderCapMap as any, CACHE_TIME_24H)
 
-      const positionRes = await this._sdk.FullClient.batchGetObjects(positionIdList, { showContent: true })
+      const positionIdList = Array.from(positionIdSet)
+      const positionRes = await this._sdk.FullClient.batchGetObjects(positionIdList, { json: true })
       console.log('🚀🚀🚀 ~ positionModules.ts:73 ~ PositionModules ~ positionRes:', positionRes)
       const obligations = await this._sdk.SuiLendModule.getInitializeObligations(lendingMarketData, true)
       console.log('🚀🚀🚀 ~ positionModules.ts:75 ~ PositionModules ~ obligations:', obligations)
@@ -119,31 +140,31 @@ export class PositionModules {
       for (let i = 0; i < positionRes.length; i++) {
         const positionId = positionIdList[i]
         // Use mapping in memory directly instead of reading from cache
-        let positionCapId = ''
-        for (const [capId, pid] of capIdToPositionIdMap.entries()) {
-          if (pid === positionId) {
-            positionCapId = capId
-            break
-          }
+        const { positionCapId, is_tspl_cap, tspl } = this.getCapIdByPositionId(positionId, wallet_address)
+
+        const position = wrapPosition(positionRes[i], positionCapId, is_tspl_cap, tspl)
+        const rawObligation = await suiLendClient.getObligation(position.obligation_owner_cap)
+        try {
+          const mergeData = mergePositionData(
+            position,
+            rawObligation,
+            reserveMap || {},
+            lstStatsMap || {},
+            sdeUsdAprPercent,
+            eThirdAprPercent,
+            eEarnAprPercent,
+            obligations[lending_market_id].rewardMap,
+            is_tspl_cap
+          )
+          const claimableRewards = this.getObligationRewardsInfo(rawObligation, Object.values(reserveMap))
+          positionList.push({
+            ...mergeData,
+            claimable_rewards: claimableRewards,
+          })
+        } catch (error) {
+          console.log('🚀🚀🚀 ~ positionModules.ts:168 ~ PositionModules ~ error:', error)
         }
 
-        const position = wrapPosition(positionRes[i], positionCapId)
-        const rawObligation = await suiLendClient.getObligation(position.obligation_owner_cap)
-        const mergeData = mergePositionData(
-          position,
-          rawObligation,
-          reserveMap || {},
-          lstStatsMap || {},
-          sdeUsdAprPercent,
-          eThirdAprPercent,
-          eEarnAprPercent,
-          obligations[lending_market_id].rewardMap
-        )
-        const claimableRewards = this.getObligationRewardsInfo(rawObligation, Object.values(reserveMap))
-        positionList.push({
-          ...mergeData,
-          claimable_rewards: claimableRewards,
-        })
       }
       return positionList
     } catch (error) {
@@ -158,41 +179,52 @@ export class PositionModules {
   getPositionInfo = async (position_id: string, wallet_address = this._sdk.getSenderAddress(), force_refresh = true): Promise<Position> => {
     // Define mapping cache key
     const mappingCacheKey = `cap_to_position_mapping_${wallet_address}`
-
+    const orderMappingCacheKey = `order_cap_to_position_mapping_${wallet_address}`
     // Try to get mapping relationship from cache
     let capIdToPositionIdMap = this._sdk.getCache<Map<string, string>>(mappingCacheKey, force_refresh)
+    let orderCapMap = this._sdk.getCache<Map<string, TsplOrderCap>>(orderMappingCacheKey, force_refresh) || new Map<string, TsplOrderCap>()
 
     // If cache doesn't exist or needs refresh, rebuild mapping
     if (!capIdToPositionIdMap) {
       capIdToPositionIdMap = new Map<string, string>()
     }
 
-    // Get capId from mapping by positionId
-    let positionCapId = this.getCapIdByPositionId(position_id, wallet_address) || ''
-
-    if (!positionCapId) {
-      const ownerRes = await this._sdk.FullClient.getOwnedObjectsByPage(wallet_address, {
-        options: { showType: true, showContent: true, showOwner: true },
-        filter: {
-          MatchAny: [
-            {
-              StructType: `${this._sdk.sdkOptions.margin_trading.package_id}::position::PositionCap`,
-            },
-          ],
-        },
-      })
+    // Get cap ids from mapping by positionId
+    let positionCap = force_refresh ? this.emptyPositionCapLookup() : this.getCapIdByPositionId(position_id, wallet_address)
+    if (force_refresh || (!positionCap.positionCapId && !positionCap.orderCapId)) {
+      const orderCapType = `${this._sdk.sdkOptions.tspl.package_id}::order::OrderCap`
+      const positionCapType = `${this._sdk.sdkOptions.margin_trading.package_id}::position::PositionCap`
+      const [orderCapRes, positionCapRes]: any[] = await Promise.all([
+        this._sdk.FullClient.getOwnedObjectsByPage(wallet_address, orderCapType),
+        this._sdk.FullClient.getOwnedObjectsByPage(wallet_address, positionCapType),
+      ])
+      const ownerRes = { data: [...orderCapRes.data, ...positionCapRes.data] }
       for (let i = 0; i < ownerRes.data.length; i++) {
-        const fields = getObjectFields(ownerRes.data[i])
-        if (fields.id.id) {
-          capIdToPositionIdMap.set(fields.id.id, fields.position_id)
-        }
-        if (fields.position_id === position_id) {
-          positionCapId = fields.id.id
+        const type = ownerRes.data[i].type
+        if (type.includes(orderCapType)) {
+          const fields = ownerRes.data[i].json
+          orderCapMap.set(fields.position_id, {
+            id: fields.id?.id || fields.id,
+            order_id: fields.order_id,
+            position_id: fields.position_id,
+          })
+        } else {
+          const fields = ownerRes.data[i].json
+          const capId = fields.id?.id || fields.id
+          if (capId) {
+            // Store the mapping relationship between capId and positionId
+            capIdToPositionIdMap.set(capId, fields.position_id)
+          }
         }
       }
+      this._sdk.updateCache(mappingCacheKey, capIdToPositionIdMap as any, CACHE_TIME_24H)
+      this._sdk.updateCache(orderMappingCacheKey, orderCapMap as any, CACHE_TIME_24H)
+      positionCap = this.getCapIdByPositionId(position_id, wallet_address)
     }
-    const positionRes = await this._sdk.FullClient.batchGetObjects([position_id], { showContent: true })
-    const position = wrapPosition(positionRes[0], positionCapId || '')
+
+
+    const positionRes = await this._sdk.FullClient.batchGetObjects([position_id], { json: true })
+    const position = wrapPosition(positionRes[0], positionCap.positionCapId, positionCap.is_tspl_cap, positionCap.tspl)
     const { lending_market_id, lending_market_type } = getPackagerConfigs(this._sdk.sdkOptions.suilend)
     const suiLendClient = await this._sdk.SuiLendModule.getSuilendClient(lending_market_id, lending_market_type)
     const lendingMarketData = await this._sdk.SuiLendModule.getLendingMarketData()
@@ -209,7 +241,8 @@ export class PositionModules {
       sdeUsdAprPercent,
       eThirdAprPercent,
       eEarnAprPercent,
-      obligations[lending_market_id].rewardMap
+      obligations[lending_market_id].rewardMap,
+      positionCap.is_tspl_cap
     )
     const result = {
       ...mergeData,
@@ -232,7 +265,7 @@ export class PositionModules {
         reserveCoinType: string
         reserveArrayIndex: string
         rewardIndex: string
-        globalCumulativePerShare: BigNumber // 全局累积每份奖励
+        globalCumulativePerShare: BigNumber
         reserve: any
       }
     > = {}
@@ -253,7 +286,7 @@ export class PositionModules {
         const endTimeMs = parseInt(pr.endTimeMs)
         const isActive = nowMs >= startTimeMs && nowMs < endTimeMs
         const mintDecimals = pr.mintDecimals
-        // 获取全局累积每份奖励
+        // Get the global cumulative rewards per share
         const globalCumulative = BigNumber(pr.cumulativeRewardsPerShare).times(10 ** mintDecimals)
         poolRewardInfoMap[id] = {
           coinType,
@@ -278,7 +311,7 @@ export class PositionModules {
         const endTimeMs = parseInt(pr.endTimeMs)
         const isActive = nowMs >= startTimeMs && nowMs < endTimeMs
         const mintDecimals = pr.mintDecimals
-        // 获取全局累积每份奖励
+        // Get the global cumulative rewards per share
         const globalCumulative = BigNumber(pr.cumulativeRewardsPerShare).times(10 ** mintDecimals)
         poolRewardInfoMap[id] = {
           coinType,
@@ -302,12 +335,12 @@ export class PositionModules {
         const rewardInfo = poolRewardInfoMap[reward.poolRewardId]
         if (!rewardInfo) continue
 
-        // 计算待领取奖励 = share × (global_cumulative - user_cumulative)
+        // Calculate the pending rewards = share × (global_cumulative - user_cumulative)
         const globalCumulativePerShare = rewardInfo.globalCumulativePerShare
         const userCumulativePerShare = new BigNumber(reward.cumulativeRewardsPerShare.value.toString()).div(WAD)
         const pendingRewards = new BigNumber(urm.share).times(globalCumulativePerShare.minus(userCumulativePerShare))
 
-        // 实际可领取 = 已记录奖励 + 待领取奖励
+        // Actual claimable = recorded rewards + pending rewards
         const earnedRewards = new BigNumber(reward.earnedRewards.value).div(WAD)
         const actualClaimable = new BigNumber(earnedRewards).plus(pendingRewards)
 
@@ -338,27 +371,72 @@ export class PositionModules {
   }
 
   /**
-   * Get capId from mapping by positionId
-   * @param position_id Position ID
+   * Get cap info from mapping by positionId
+   * @param pos_id Position ID
    * @param wallet_address Wallet address
-   * @returns capId or undefined
+   * @returns cap info
    */
-  private getCapIdByPositionId = (position_id: string, wallet_address = this._sdk.getSenderAddress()): string => {
-    const mappingCacheKey = `cap_to_position_mapping_${wallet_address}`
-    const capIdToPositionIdMap = this._sdk.getCache<Map<string, string>>(mappingCacheKey, false)
-
-    if (!capIdToPositionIdMap) {
-      return ''
+  private emptyPositionCapLookup(): PositionCapLookup {
+    return {
+      positionCapId: '',
+      orderCapId: '',
+      orderId: '',
+      is_tspl_cap: false,
     }
+  }
 
-    // Find the corresponding capId through positionId
-    for (const [capId, pid] of capIdToPositionIdMap.entries()) {
-      if (pid === position_id) {
-        return capId
+  private positionCapObject(tx: Transaction, position_cap_id: PositionCapArgument): TransactionObjectArgument {
+    return typeof position_cap_id === 'string' ? tx.object(position_cap_id) : position_cap_id
+  }
+
+  private getCapIdByPositionId = (pos_id: string, wallet_address = this._sdk.getSenderAddress()): PositionCapLookup => {
+
+
+    const mappingCacheKey = `cap_to_position_mapping_${wallet_address}`
+    const orderMappingCacheKey = `order_cap_to_position_mapping_${wallet_address}`
+    const capIdToPositionIdMap = this._sdk.getCache<Map<string, string>>(mappingCacheKey, false)
+    const orderCapMap = this._sdk.getCache<Map<string, TsplOrderCap>>(orderMappingCacheKey, false)
+
+
+    if (capIdToPositionIdMap) {
+      for (const [capId, pid] of capIdToPositionIdMap.entries()) {
+        if (pid === pos_id) {
+          const orderCap = orderCapMap?.get(pos_id)
+          return {
+            positionCapId: capId,
+            orderCapId: orderCap?.id || '',
+            orderId: orderCap?.order_id || '',
+            is_tspl_cap: Boolean(orderCap),
+            ...(orderCap
+              ? {
+                tspl: {
+                  order_cap_id: orderCap.id,
+                  order_id: orderCap.order_id,
+                },
+              }
+              : undefined),
+          }
+        }
       }
     }
 
-    return ''
+    if (orderCapMap) {
+      const cap = orderCapMap.get(pos_id)
+      if (cap) {
+        return {
+          positionCapId: '',
+          orderCapId: cap.id,
+          orderId: cap.order_id,
+          is_tspl_cap: true,
+          tspl: {
+            order_cap_id: cap.id,
+            order_id: cap.order_id,
+          },
+        }
+      }
+    }
+
+    return this.emptyPositionCapLookup()
   }
 
   /**
@@ -395,12 +473,27 @@ export class PositionModules {
       is_long,
       market_id,
       position_cap_id,
-      position_cap,
+      tspl,
       deposit_reserve_array_index,
       input_coin,
       base_token,
       quote_token,
     } = params
+    if (tspl) {
+      this._sdk.TsplModules.deposit(
+        {
+          order_id: tspl.order_id,
+          order_cap_id: tspl.order_cap_id,
+          market_id,
+          deposit_coin: input_coin,
+          deposit_coin_type: is_long ? base_token : quote_token,
+          deposit_reserve_array_index,
+        },
+        tx
+      )
+      return tx
+    }
+
     const { global_config_id, versioned_id } = getPackagerConfigs(this._sdk.sdkOptions.margin_trading)
 
     tx.moveCall({
@@ -410,7 +503,7 @@ export class PositionModules {
         tx.object(global_config_id),
         tx.object(lending_market_id),
         tx.object(market_id),
-        position_cap_id ? tx.object(position_cap_id) : position_cap,
+        this.positionCapObject(tx, position_cap_id),
         input_coin,
         tx.pure.u64(deposit_reserve_array_index),
         tx.object(CLOCK_ADDRESS),
@@ -435,9 +528,26 @@ export class PositionModules {
       repay_reserve_array_index,
       market_id,
       position_cap_id,
+      tspl,
     } = params
     const tx = txb || new Transaction()
     const coin = repay_coin ? repay_coin : CoinAssist.buildCoinWithBalance(BigInt(repay_amount.toString()), repay_coin_type, tx)
+    if (tspl) {
+      this._sdk.TsplModules.repay(
+        {
+          order_id: tspl.order_id,
+          order_cap_id: tspl.order_cap_id,
+          market_id,
+          repay_coin: coin,
+          repay_coin_type,
+          repay_reserve_array_index,
+        },
+        tx
+      )
+      return
+    }
+    const positionCap = this.positionCapObject(tx, position_cap_id)
+
     tx.moveCall({
       target: `${marginTradingConfig.published_at}::router::repay`,
       typeArguments: [lending_market_type, repay_coin_type],
@@ -445,7 +555,7 @@ export class PositionModules {
         tx.object(global_config_id),
         tx.object(lending_market_id),
         tx.object(market_id),
-        tx.object(position_cap_id),
+        positionCap,
         coin,
         tx.pure.u64(repay_reserve_array_index.toString()),
         tx.object(CLOCK_ADDRESS),
@@ -462,7 +572,21 @@ export class PositionModules {
     const { lending_market_id, lending_market_type } = getPackagerConfigs(this._sdk.sdkOptions.suilend)
     const { global_config_id, versioned_id } = getPackagerConfigs(this._sdk.sdkOptions.margin_trading)
     const { package_id } = this._sdk.sdkOptions.suilend
-    const { market_id, withdraw_amount, withdraw_reserve_array_index, withdraw_coin_type, position_cap_id } = params
+    const { market_id, withdraw_amount, withdraw_reserve_array_index, withdraw_coin_type, position_cap_id, tspl } = params
+    if (tspl) {
+      return this._sdk.TsplModules.withdraw(
+        {
+          order_id: tspl.order_id,
+          order_cap_id: tspl.order_cap_id,
+          market_id,
+          amount: withdraw_amount,
+          withdraw_reserve_array_index,
+          withdraw_coin_type,
+        },
+        tx
+      )
+    }
+    const positionCap = this.positionCapObject(tx, position_cap_id)
 
     // Construct RateLimiterExemption
     const [exemption] = tx.moveCall({
@@ -478,7 +602,7 @@ export class PositionModules {
         tx.object(global_config_id),
         tx.object(lending_market_id),
         tx.object(market_id),
-        tx.object(position_cap_id),
+        positionCap,
         tx.object(exemption),
         tx.pure.u64(withdraw_amount),
         tx.pure.u64(withdraw_reserve_array_index),
@@ -502,11 +626,25 @@ export class PositionModules {
       is_long,
       market_id,
       position_cap_id,
-      position_cap,
+      tspl,
     } = params
     const { margin_trading: marginTradingConfig } = this._sdk.sdkOptions
     const { lending_market_type } = getPackagerConfigs(this._sdk.sdkOptions.suilend)
     const { global_config_id, versioned_id } = getPackagerConfigs(this._sdk.sdkOptions.margin_trading)
+
+    if (tspl) {
+      return this._sdk.TsplModules.borrow(
+        {
+          order_id: tspl.order_id,
+          order_cap_id: tspl.order_cap_id,
+          market_id,
+          borrow_coin_type: is_long ? quote_token : base_token,
+          reserve_array_index,
+          amount: borrow_amount.toString(),
+        },
+        tx
+      )
+    }
 
     // Borrow  asset
     return tx.moveCall({
@@ -516,7 +654,7 @@ export class PositionModules {
         tx.object(global_config_id),
         tx.object(lending_market_id),
         tx.object(market_id),
-        position_cap_id ? tx.object(position_cap_id) : position_cap,
+        this.positionCapObject(tx, position_cap_id),
         tx.pure.u64(reserve_array_index),
         tx.pure.u64(borrow_amount.toString()),
         tx.object(SUI_SYSTEM_STATE_OBJECT_ID),
@@ -562,10 +700,9 @@ export class PositionModules {
   /**
    * Open position
    */
-  openPosition = async (params: OpenPositionParams) => {
+  openPosition = async (params: OpenPositionParams, tx: Transaction) => {
     const { is_quote, is_long, amount, swap_clmm_pool = '', slippage, leverage, market_id } = params
     const { lending_market_id } = getPackagerConfigs(this._sdk.sdkOptions.suilend)
-    const tx = new Transaction()
     const { base_token, quote_token } = await this._sdk.MarketModules.getMarketInfo(market_id)
 
     const {
@@ -650,7 +787,7 @@ export class PositionModules {
         {
           is_long,
           market_id,
-          position_cap,
+          position_cap_id: position_cap,
           deposit_reserve_array_index,
           input_coin: debtSwapResult.swap_out_coin,
           base_token,
@@ -662,7 +799,7 @@ export class PositionModules {
       // Borrow asset
       const borrowCoin = this.borrowAsset(
         {
-          position_cap,
+          position_cap_id: position_cap,
           reserve_array_index: is_long ? quote_reserve_array_index : base_reserve_array_index,
           borrow_amount,
           base_token,
@@ -688,7 +825,7 @@ export class PositionModules {
       })
 
       // Transfer position to user
-      tx.transferObjects([position_cap], tx.pure.address(this._sdk.getSenderAddress()))
+      // tx.transferObjects([position_cap], tx.pure.address(this._sdk.getSenderAddress()))
       // Destroy zero balance asset from flash loan
       CoinAssist.destroyBalanceZero(
         is_flash_a
@@ -720,7 +857,7 @@ export class PositionModules {
         {
           is_long,
           market_id,
-          position_cap,
+          position_cap_id: position_cap,
           deposit_reserve_array_index,
           input_coin: init_deposit_coin,
           base_token,
@@ -731,7 +868,7 @@ export class PositionModules {
       // Borrow asset
       const borrowCoin = this.borrowAsset(
         {
-          position_cap,
+          position_cap_id: position_cap,
           reserve_array_index: is_long ? quote_reserve_array_index : base_reserve_array_index,
           borrow_amount,
           base_token,
@@ -757,7 +894,7 @@ export class PositionModules {
         {
           is_long,
           market_id,
-          position_cap,
+          position_cap_id: position_cap,
           deposit_reserve_array_index,
           input_coin: swapResult.swap_out_coin!,
           base_token,
@@ -765,12 +902,11 @@ export class PositionModules {
         },
         tx
       )
-      tx.transferObjects([position_cap], tx.pure.address(this._sdk.getSenderAddress()))
     }
 
 
 
-    return tx
+    return position_cap
   }
 
   /**
@@ -781,7 +917,7 @@ export class PositionModules {
     const { lending_market_id } = getPackagerConfigs(this._sdk.sdkOptions.suilend)
 
     // Get position info
-    const { is_long, deposits, borrows, position_cap_id, market_id } = await this.getPositionInfo(position_id)
+    const { is_long, deposits, borrows, position_cap_id, market_id, tspl } = await this.getPositionInfo(position_id)
     // Get market info
     const { base_token, quote_token } = await this._sdk.MarketModules.getMarketInfo(market_id)
     const tx = txb || new Transaction()
@@ -857,6 +993,7 @@ export class PositionModules {
           is_long,
           market_id,
           position_cap_id,
+          tspl,
           deposit_reserve_array_index,
           input_coin: debtSwapResult.swap_out_coin,
           base_token,
@@ -869,6 +1006,7 @@ export class PositionModules {
       const borrowCoin = await this.borrowAsset(
         {
           position_cap_id,
+          tspl,
           reserve_array_index: borrow_reserve_array_index,
           borrow_amount: borrow_amount,
           base_token,
@@ -925,6 +1063,7 @@ export class PositionModules {
           is_long,
           market_id,
           position_cap_id,
+          tspl,
           deposit_reserve_array_index,
           input_coin: init_deposit_coin,
           base_token,
@@ -936,6 +1075,7 @@ export class PositionModules {
       const borrowCoin = this.borrowAsset(
         {
           position_cap_id,
+          tspl,
           reserve_array_index: borrow_reserve_array_index,
           borrow_amount,
           base_token,
@@ -962,6 +1102,7 @@ export class PositionModules {
           is_long,
           market_id,
           position_cap_id,
+          tspl,
           deposit_reserve_array_index,
           input_coin: swapResult.swap_out_coin!,
           base_token,
@@ -995,6 +1136,7 @@ export class PositionModules {
       clmm_pool_coin_type_a,
       clmm_pool_coin_type_b,
       position_cap_id,
+      tspl,
       market_id,
       is_long,
       swap_convert_all,
@@ -1040,6 +1182,7 @@ export class PositionModules {
       this.repay({
         txb: tx,
         position_cap_id,
+        tspl,
         repay_reserve_array_index: borrows[0].reserveArrayIndex.toString(),
         repay_coin: repayCoin,
         repay_coin_type: is_long ? quote_token : base_token,
@@ -1054,6 +1197,7 @@ export class PositionModules {
       {
         market_id,
         position_cap_id,
+        tspl,
         withdraw_amount: withdraw_ctoken_amount.toString(),
         withdraw_reserve_array_index: deposits[0].reserveArrayIndex.toString(),
         withdraw_coin_type: is_long ? base_token : quote_token,
@@ -1066,6 +1210,7 @@ export class PositionModules {
         {
           market_id,
           position_cap_id,
+          tspl,
           withdraw_amount: U64_MAX.toString(),
           withdraw_reserve_array_index: deposits[i].reserveArrayIndex.toString(),
           withdraw_coin_type: deposits[i].coinType,
@@ -1119,6 +1264,7 @@ export class PositionModules {
         this.repay({
           txb: tx,
           position_cap_id,
+          tspl,
           repay_reserve_array_index: borrows[0].reserveArrayIndex.toString(),
           repay_coin: repayCoin,
           repay_coin_type: is_long ? quote_token : base_token,
@@ -1142,12 +1288,20 @@ export class PositionModules {
   /**
    * Close position
    */
-  positionClose = async (params: PositionCloseWithCoinParams) => {
-    const { position_id, is_quote, slippage, leverage, swap_clmm_pool = '' } = params
+  positionClose = async (params: PositionCloseWithCoinParams, tx?: Transaction): Promise<PositionCloseResult> => {
+    const {
+      position_id,
+      is_quote,
+      slippage,
+      leverage,
+      swap_clmm_pool = '',
+      transfer_coins_to_sender = true,
+      reward_coin_types: reward_coin_types_param = [],
+    } = params
     const { margin_trading: marginTradingConfig } = this._sdk.sdkOptions
     const { global_config_id, versioned_id } = getPackagerConfigs(this._sdk.sdkOptions.margin_trading)
     const { lending_market_type: lendingMarketType, lending_market_id: lendingMarketId } = getPackagerConfigs(this._sdk.sdkOptions.suilend)
-    const tx = new Transaction()
+    tx = tx || new Transaction()
     const {
       deposits,
       borrows,
@@ -1157,6 +1311,7 @@ export class PositionModules {
       clmm_pool_coin_type_a,
       clmm_pool_coin_type_b,
       position_cap_id,
+      tspl,
       market_id,
       swap_convert_all,
       routers,
@@ -1167,7 +1322,87 @@ export class PositionModules {
       repay_flash_loan_amount = '0',
       claimable_rewards,
       compoundDebtU64
-    } = await this.calculatePositionWithdraw({ tx, position_id, is_quote, swap_clmm_pool, amount: U64_MAX.toString(), leverage, slippage, withdraw_max: true })
+    } = await this.calculatePositionWithdraw({
+      tx,
+      position_id,
+      is_quote,
+      swap_clmm_pool,
+      amount: U64_MAX.toString(),
+      leverage,
+      slippage,
+      withdraw_max: true,
+    })
+
+    const rewardTypeSet = new Set(reward_coin_types_param)
+
+    let base_coin: TransactionObjectArgument | undefined
+    let quote_coin: TransactionObjectArgument | undefined
+    const rewardBuckets = new Map<string, TransactionObjectArgument>()
+    const mergeIntoBucket = (bucket: TransactionObjectArgument, coin: TransactionObjectArgument) => {
+      tx.mergeCoins(bucket, [coin])
+    }
+    const handleCoin = (coin: TransactionObjectArgument, coinType: string) => {
+      if (transfer_coins_to_sender) {
+        tx.transferObjects([coin], this._sdk.getSenderAddress())
+        return
+      }
+      if (coinType === base_token) {
+        if (!base_coin) base_coin = coin
+        else mergeIntoBucket(base_coin, coin)
+      } else if (coinType === quote_token) {
+        if (!quote_coin) quote_coin = coin
+        else mergeIntoBucket(quote_coin, coin)
+      } else if (rewardTypeSet.has(coinType)) {
+        const existing = rewardBuckets.get(coinType)
+        if (existing) mergeIntoBucket(existing, coin)
+        else rewardBuckets.set(coinType, coin)
+      } else if (rewardTypeSet.size === 0) {
+        throw new Error(
+          `positionClose: unexpected coin type ${coinType} with transfer_coins_to_sender=false; pass reward_coin_types for incentive coins`
+        )
+      } else {
+        throw new Error(
+          `positionClose: unexpected coin type ${coinType} (expected base, quote, or one of reward_coin_types)`
+        )
+      }
+    }
+    let closeTspl = tspl
+    let closePositionCapId: PositionCapArgument = position_cap_id
+    if (tspl) {
+      const tsplOrder = await this._sdk.TsplModules.getTsplOrder({
+        id: tspl.order_cap_id,
+        order_id: tspl.order_id,
+        position_id,
+      })
+      if (Number(tsplOrder.status) === 2) {
+        closePositionCapId = this._sdk.TsplModules.reclaimCapFromCompletedOrderAndReturnCap(
+          {
+            order_id: tspl.order_id,
+            order_cap_id: tspl.order_cap_id,
+            base_coin_type: base_token,
+            quote_coin_type: quote_token,
+          },
+          tx
+        )
+      } else {
+        const orderBookId = await this._sdk.TsplModules.getOrderBookId(market_id)
+        if (!orderBookId) {
+          throw new Error(`Order book id not found for market ${market_id}`)
+        }
+
+        closePositionCapId = this._sdk.TsplModules.cancelOrderAndReturnCap(
+          {
+            order_id: tspl.order_id,
+            order_cap_id: tspl.order_cap_id,
+            order_book_id: orderBookId,
+            base_coin_type: base_token,
+            quote_coin_type: quote_token,
+          },
+          tx
+        )
+      }
+      closeTspl = undefined
+    }
 
     // Update oracle prices
     await this._sdk.SuiLendModule.refreshReservePrices(tx, reserve)
@@ -1193,44 +1428,47 @@ export class PositionModules {
         : CoinAssist.fromBalance(balance_b, clmm_pool_coin_type_b, tx)
       this.repay({
         txb: tx,
-        position_cap_id,
+        position_cap_id: closePositionCapId,
+        tspl: closeTspl,
         repay_reserve_array_index: borrows[0].reserveArrayIndex.toString(),
         repay_coin: repayCoin,
         repay_coin_type: borrows[0].reserve.coinType,
         repay_amount: '0',
         market_id,
       })
-      tx.transferObjects([repayCoin], this._sdk.getSenderAddress())
+      handleCoin(repayCoin, borrows[0].reserve.coinType)
     }
 
     // Withdraw collateral asset
-    const withdrawCoin = this.withdrawAsset(
+    const withdrawCoin = deposits.length > 0 ? this.withdrawAsset(
       {
         market_id,
-        position_cap_id,
+        position_cap_id: closePositionCapId,
+        tspl: closeTspl,
         withdraw_amount: U64_MAX.toString(), // u64max will be automatically converted to maxAmount when withdrawing
         withdraw_reserve_array_index: deposits[0].reserveArrayIndex.toString(),
-        withdraw_coin_type: is_long ? base_token : quote_token,
+        // withdraw_coin_type: is_long ? base_token : quote_token,
+        withdraw_coin_type: deposits[0].coinType,
       },
       tx
-    )
+    ) : undefined
 
-
-
-    await this.buildClaimRewardsMoveCall(claimable_rewards, market_id, position_cap_id, tx)
+    const rewardCoins = await this.buildClaimRewardsMoveCall(claimable_rewards, market_id, closePositionCapId, tx, closeTspl, transfer_coins_to_sender)
+    rewardCoins.forEach(({ coin, coin_type }) => handleCoin(coin, coin_type))
 
     for (let i = 1; i < deposits.length; i++) {
       const rewardCoin = this.withdrawAsset(
         {
           market_id,
-          position_cap_id,
+          position_cap_id: closePositionCapId,
+          tspl: closeTspl,
           withdraw_amount: U64_MAX.toString(),
           withdraw_reserve_array_index: deposits[i].reserveArrayIndex.toString(),
           withdraw_coin_type: deposits[i].coinType,
         },
         tx
       )
-      tx.transferObjects([rewardCoin], this._sdk.getSenderAddress())
+      handleCoin(rewardCoin, deposits[i].coinType)
     }
     // Asset conversion
     let swapOutCoin
@@ -1243,7 +1481,7 @@ export class PositionModules {
         txb: tx,
       })
     } else {
-      if (partial_amount_in && d(partial_amount_in).gt(0)) {
+      if (partial_amount_in && d(partial_amount_in).gt(0) && withdrawCoin) {
         const inputCoin = tx.splitCoins(withdrawCoin, [tx.pure.u64(partial_amount_in?.toString() || '0')])
         swapOutCoin = await this._sdk.SwapModules.routerSwap({
           router: routers?.route_obj,
@@ -1276,22 +1514,26 @@ export class PositionModules {
         tx.object(global_config_id),
         tx.object(lendingMarketId),
         tx.object(market_id),
-        tx.object(position_cap_id),
+        this.positionCapObject(tx, closePositionCapId),
         tx.object(CLOCK_ADDRESS),
         tx.object(versioned_id),
       ],
     })
 
     if (swapOutCoin) {
-      tx.transferObjects([swapOutCoin], this._sdk.getSenderAddress())
+      handleCoin(swapOutCoin, is_long ? quote_token : base_token)
     }
-    if (!swap_convert_all) {
-      tx.transferObjects([withdrawCoin], this._sdk.getSenderAddress())
+    if (!swap_convert_all && withdrawCoin) {
+      handleCoin(withdrawCoin, deposits[0].coinType)
     }
 
 
     console.log('🚀🚀🚀 ~ positionModules.ts:951 ~ PositionModules ~ tx:', tx)
-    return tx
+    const reward_coins: PositionReturnedCoin[] = [...rewardBuckets.entries()].map(([coin_type, coin]) => ({
+      coin,
+      coin_type,
+    }))
+    return transfer_coins_to_sender ? tx : { tx, base_coin, quote_coin, reward_coins }
   }
 
   /**
@@ -1310,6 +1552,7 @@ export class PositionModules {
       borrow_amount,
       routers,
       position_cap_id,
+      tspl,
       is_long,
       market_id,
       is_flash_loan,
@@ -1347,6 +1590,7 @@ export class PositionModules {
           is_long,
           market_id,
           position_cap_id,
+          tspl,
           deposit_reserve_array_index: deposits[0].reserveArrayIndex.toString(),
           input_coin: swapOutCoin,
           base_token,
@@ -1358,6 +1602,7 @@ export class PositionModules {
       const borrowCoin = this.borrowAsset(
         {
           position_cap_id,
+          tspl,
           reserve_array_index: is_long ? reserve[1].arrayIndex.toString() : reserve[0].arrayIndex.toString(),
           borrow_amount,
           base_token,
@@ -1386,6 +1631,7 @@ export class PositionModules {
       const borrowCoin = this.borrowAsset(
         {
           position_cap_id,
+          tspl,
           reserve_array_index: is_long ? reserve[1].arrayIndex.toString() : reserve[0].arrayIndex.toString(),
           borrow_amount,
           base_token,
@@ -1409,6 +1655,7 @@ export class PositionModules {
           is_long,
           market_id,
           position_cap_id,
+          tspl,
           deposit_reserve_array_index: deposits[0].reserveArrayIndex.toString(),
           input_coin: swapOutCoin,
           base_token,
@@ -1427,7 +1674,7 @@ export class PositionModules {
    */
   positionLeverageDecrease = async (params: PositionManageLeverageParams) => {
     const { current_leverage, target_leverage, swap_clmm_pool = '', slippage, position_id } = params
-    const { deposits, borrows, position_cap_id, market_id, is_long } = await this.getPositionInfo(position_id)
+    const { deposits, borrows, position_cap_id, market_id, is_long, tspl } = await this.getPositionInfo(position_id)
     const { base_token, quote_token } = await this._sdk.MarketModules.getMarketInfo(market_id)
     const tx = new Transaction()
     // Decrease position leverage, withdraw collateral asset
@@ -1469,6 +1716,7 @@ export class PositionModules {
         txb: tx,
         market_id,
         position_cap_id,
+        tspl,
         repay_reserve_array_index: borrows[0].reserveArrayIndex.toString(),
         repay_coin: swapOutCoin,
         repay_coin_type: is_long ? quote_token : base_token,
@@ -1484,6 +1732,7 @@ export class PositionModules {
         {
           market_id,
           position_cap_id,
+          tspl,
           withdraw_amount: repayFlashLoanAmount.toString(),
           withdraw_reserve_array_index: deposits[0].reserveArrayIndex.toString(),
           withdraw_coin_type: is_long ? base_token : quote_token,
@@ -1508,6 +1757,7 @@ export class PositionModules {
         {
           market_id,
           position_cap_id,
+          tspl,
           withdraw_amount: withdraw_ctoken_amount.toString(),
           withdraw_reserve_array_index: deposits[0].reserveArrayIndex.toString(),
           withdraw_coin_type: is_long ? base_token : quote_token,
@@ -1526,6 +1776,7 @@ export class PositionModules {
         txb: tx,
         market_id,
         position_cap_id,
+        tspl,
         repay_reserve_array_index: borrows[0].reserveArrayIndex.toString(),
         repay_coin: swapOutCoin,
         repay_coin_type: is_long ? quote_token : base_token,
@@ -1544,7 +1795,7 @@ export class PositionModules {
    */
   positionRepay = async (params: PositionRepayParams) => {
     const { position_id, amount, is_quote, slippage } = params
-    const { routers, repay_coin_type, base_token, quote_token, borrows, deposits, market_id, position_cap_id } =
+    const { routers, repay_coin_type, base_token, quote_token, borrows, deposits, market_id, position_cap_id, tspl } =
       await this.calculatePositionRepay({
         position_id,
         amount,
@@ -1572,6 +1823,7 @@ export class PositionModules {
     this.repay({
       txb: tx,
       position_cap_id,
+      tspl,
       repay_reserve_array_index: borrows[0].reserveArrayIndex.toString(),
       repay_coin: repayCoin,
       repay_coin_type,
@@ -1589,7 +1841,7 @@ export class PositionModules {
   positionTopUpCToken = async (params: positionTopUpCTokenParams) => {
     const { position_id, amount, is_quote, swap_clmm_pool = '', slippage } = params
     const tx = new Transaction()
-    const { is_long, market_id, position_cap_id, deposits, borrows } = await this.getPositionInfo(position_id)
+    const { is_long, market_id, position_cap_id, deposits, borrows, tspl } = await this.getPositionInfo(position_id)
     const { base_token, quote_token } = await this._sdk.MarketModules.getMarketInfo(market_id)
     const hasSwap = (is_long && is_quote) || (!is_long && !is_quote)
     const otherToken = this.extractOtherTokenTypes(deposits, borrows, base_token, quote_token)
@@ -1625,6 +1877,7 @@ export class PositionModules {
         is_long,
         market_id,
         position_cap_id,
+        tspl,
         deposit_reserve_array_index: is_long ? base_reserve_array_index : quote_reserve_array_index,
         input_coin: depositCoin,
         base_token,
@@ -1642,7 +1895,7 @@ export class PositionModules {
   positionWithdrawCToken = async (params: positionWithdrawCTokenParams) => {
     const { position_id, amount, is_quote, swap_clmm_pool = '', slippage } = params
     const tx = new Transaction()
-    const { is_long, market_id, position_cap_id, deposits, borrows } = await this.getPositionInfo(position_id)
+    const { is_long, market_id, position_cap_id, deposits, borrows, tspl } = await this.getPositionInfo(position_id)
     const { base_token, quote_token } = await this._sdk.MarketModules.getMarketInfo(market_id)
     const hasSwap = (is_long && is_quote) || (!is_long && !is_quote)
     const otherToken = this.extractOtherTokenTypes(deposits, borrows, base_token, quote_token)
@@ -1674,6 +1927,7 @@ export class PositionModules {
       {
         market_id,
         position_cap_id,
+        tspl,
         withdraw_amount: withdrawAmount,
         withdraw_reserve_array_index: is_long ? base_reserve_array_index : quote_reserve_array_index,
         withdraw_coin_type: is_long ? base_token : quote_token,
@@ -1706,21 +1960,54 @@ export class PositionModules {
     return tx
   }
 
-  private async buildClaimRewardsMoveCall(claimable_rewards: any[], market_id: string, position_cap_id: string, tx: Transaction) {
+
+
+
+  private async buildClaimRewardsMoveCall(
+    claimable_rewards: any[],
+    market_id: string,
+    position_cap_id: PositionCapArgument,
+    tx: Transaction,
+    tspl?: PositionTsplInfo,
+    transfer_coins_to_sender = true
+  ) {
     const { suilend, margin_trading } = this._sdk.sdkOptions
     const lending_market_id = getPackagerConfigs(suilend).lending_market_id
     const lending_market_type = getPackagerConfigs(suilend).lending_market_type
 
     const { global_config_id, versioned_id } = getPackagerConfigs(this._sdk.sdkOptions.margin_trading)
+    const returnedCoins: PositionReturnedCoin[] = []
 
     for (let i = 0; i < claimable_rewards.length; i++) {
+      if (tspl) {
+        const coin = this._sdk.TsplModules.claimRewards(
+          {
+            order_id: tspl.order_id,
+            order_cap_id: tspl.order_cap_id,
+            market_id,
+            reward_coin_type: claimable_rewards[i].coinType,
+            reserve_id: claimable_rewards[i].reserveArrayIndex.toString(),
+            reward_index: claimable_rewards[i].rewardIndex.toString(),
+            is_deposit_reward: claimable_rewards[i].reserveType === 'deposit',
+          },
+          tx
+        )
+
+        if (transfer_coins_to_sender) {
+          tx.transferObjects([coin], this._sdk.getSenderAddress())
+        } else {
+          returnedCoins.push({ coin, coin_type: claimable_rewards[i].coinType })
+        }
+        continue
+      }
+
       const coin = tx.moveCall({
         target: `${margin_trading.published_at}::router::claim_rewards`,
         arguments: [
           tx.object(global_config_id),
           tx.object(lending_market_id),
           tx.object(market_id),
-          tx.object(position_cap_id),
+          this.positionCapObject(tx, position_cap_id),
           tx.pure.u64(claimable_rewards[i].reserveArrayIndex.toString()),
           tx.pure.u64(claimable_rewards[i].rewardIndex.toString()),
           tx.pure.bool(claimable_rewards[i].reserveType === 'deposit'),
@@ -1730,18 +2017,23 @@ export class PositionModules {
         typeArguments: [lending_market_type, claimable_rewards[i].coinType],
       })
 
-      tx.transferObjects([coin], this._sdk.getSenderAddress())
+      if (transfer_coins_to_sender) {
+        tx.transferObjects([coin], this._sdk.getSenderAddress())
+      } else {
+        returnedCoins.push({ coin, coin_type: claimable_rewards[i].coinType })
+      }
 
     }
+    return returnedCoins
   }
 
   positionClaim = async (position_id: string) => {
     const tx = new Transaction()
-    const { position_cap_id, obligation_owner_cap, market_id, claimable_rewards } = await this.getPositionInfo(position_id)
+    const { position_cap_id, obligation_owner_cap, market_id, claimable_rewards, tspl } = await this.getPositionInfo(position_id)
     console.log('🚀🚀🚀 ~ positionModules.ts:1650 ~ PositionModules ~ claimable_rewards:', claimable_rewards)
 
 
-    await this.buildClaimRewardsMoveCall(claimable_rewards, market_id, position_cap_id, tx)
+    await this.buildClaimRewardsMoveCall(claimable_rewards, market_id, position_cap_id, tx, tspl)
 
 
     return tx
@@ -1997,6 +2289,7 @@ export class PositionModules {
     const {
       market_id,
       position_cap_id,
+      tspl,
       borrow_reserve_array_index,
       borrow_index,
     } = options
@@ -2005,41 +2298,63 @@ export class PositionModules {
     const { lending_market_type, lending_market_id } = getPackagerConfigs(this._sdk.sdkOptions.suilend)
 
     const devTx = new Transaction()
-    devTx.moveCall({
-      target: `${marginTradingConfig.published_at}::router::compound_debt`,
-      typeArguments: [lending_market_type],
-      arguments: [
-        devTx.object(lending_market_id),
-        devTx.object(market_id),
-        devTx.object(position_cap_id),
-        devTx.pure.u64(borrow_reserve_array_index),
-        devTx.pure.u64(borrow_index),
-      ],
-    })
+    let compoundDebtU64: TransactionResult
+    if (tspl) {
+      this._sdk.TsplModules.compoundDebt(
+        {
+          order_id: tspl.order_id,
+          order_cap_id: tspl.order_cap_id,
+          market_id,
+          borrow_reserve_array_index,
+          borrow_index,
+        },
+        devTx
+      )
 
-    const compoundDebtU64 = tx.moveCall({
-      target: `${marginTradingConfig.published_at}::router::compound_debt`,
-      typeArguments: [lending_market_type],
-      arguments: [
-        tx.object(lending_market_id),
-        tx.object(market_id),
-        tx.object(position_cap_id),
-        tx.pure.u64(borrow_reserve_array_index),
-        tx.pure.u64(borrow_index),
-      ],
-    })
+      compoundDebtU64 = this._sdk.TsplModules.compoundDebt(
+        {
+          order_id: tspl.order_id,
+          order_cap_id: tspl.order_cap_id,
+          market_id,
+          borrow_reserve_array_index,
+          borrow_index,
+        },
+        tx
+      )
+    } else {
+      devTx.moveCall({
+        target: `${marginTradingConfig.published_at}::router::compound_debt`,
+        typeArguments: [lending_market_type],
+        arguments: [
+          devTx.object(lending_market_id),
+          devTx.object(market_id),
+          devTx.object(position_cap_id),
+          devTx.pure.u64(borrow_reserve_array_index),
+          devTx.pure.u64(borrow_index),
+        ],
+      })
+
+      compoundDebtU64 = tx.moveCall({
+        target: `${marginTradingConfig.published_at}::router::compound_debt`,
+        typeArguments: [lending_market_type],
+        arguments: [
+          tx.object(lending_market_id),
+          tx.object(market_id),
+          tx.object(position_cap_id),
+          tx.pure.u64(borrow_reserve_array_index),
+          tx.pure.u64(borrow_index),
+        ],
+      })
+    }
 
 
     try {
-      const res = await this._sdk.FullClient.devInspectTransactionBlock({
-        transactionBlock: devTx,
-        sender: this._sdk.getSenderAddress(),
-      })
+      const res: any = await this._sdk.FullClient.sendSimulationTransaction(devTx, this._sdk.getSenderAddress())
 
-      if (res.error != null) {
+      if (res.FailedTransaction != null) {
         handleError(
           MarginTradingErrorCode.FetchError,
-          new Error(res.error),
+          new Error(res.FailedTransaction.status.error?.message),
           {
             [DETAILS_KEYS.METHOD_NAME]: 'calculateCompoundDebt',
             [DETAILS_KEYS.REQUEST_PARAMS]: options,
@@ -2047,16 +2362,6 @@ export class PositionModules {
         )
       }
 
-      if (!res.results || res.results.length === 0 || !res.results[0].returnValues || res.results[0].returnValues.length === 0) {
-        handleError(
-          MarginTradingErrorCode.FetchError,
-          new Error('No return values from compound_debt'),
-          {
-            [DETAILS_KEYS.METHOD_NAME]: 'calculateCompoundDebt',
-            [DETAILS_KEYS.REQUEST_PARAMS]: options,
-          }
-        )
-      }
 
       const u64Value = bcs.u64().parse(Uint8Array.from(res?.results?.[0]?.returnValues?.[0]?.[0] || []))
       return {
@@ -2071,7 +2376,7 @@ export class PositionModules {
 
   calculatePositionWithdraw = async (params: CalculatePositionWithdrawParams) => {
     const { position_id, is_quote, swap_clmm_pool = '', amount, leverage, slippage, withdraw_max, tx } = params
-    const { deposits, borrows, origin_obligation, position_cap_id, market_id, is_long, claimable_rewards } = await this.getPositionInfo(position_id)
+    const { deposits, borrows, origin_obligation, position_cap_id, market_id, is_long, claimable_rewards, tspl } = await this.getPositionInfo(position_id)
     const { base_token, quote_token } = await this._sdk.MarketModules.getMarketInfo(market_id)
 
     const otherToken = position_id ? this.extractOtherTokenTypes(deposits, borrows, base_token, quote_token) : []
@@ -2116,7 +2421,7 @@ export class PositionModules {
           .toString()
     }
     // User available withdrawal token value (net worth)
-    const availableWithdrawAmountUSD = d(deposits[0].depositedAmountUsd.toString())
+    const availableWithdrawAmountUSD = d(deposits.length > 0 ? deposits[0].depositedAmountUsd.toString() : '0')
       .sub(d(borrows && borrows.length > 0 ? borrows[0].borrowedAmountUsd.toString() : '0'))
       .toString()
     // Withdrawal ratio
@@ -2140,6 +2445,7 @@ export class PositionModules {
     //   const result = await this.calculateCompoundDebt({
     //     market_id,
     //     position_cap_id,
+    //     tspl,
     //     borrow_reserve_array_index: borrows[0].reserveArrayIndex.toString(),
     //     borrow_index: "0",
     //   }, tx)
@@ -2200,13 +2506,13 @@ export class PositionModules {
         .mul(d(1).add(buffer_rate))
         .toDP(0, Decimal.ROUND_DOWN)
         .toString()
-      routers = await this._sdk.SwapModules.findRouters(
+      routers = d(partialAmountIn).gt(0) ? await this._sdk.SwapModules.findRouters(
         deposits[0].reserve.coinType,
         is_long ? quote_token : base_token,
         partialAmountIn.toString(),
         true,
         [swap_clmm_pool]
-      )
+      ) : undefined
       // Actual repayment amount
       if (!is_close) {
         repayAmount = d(routers?.amount_out.toString()).mul(d(1).sub(slippage)).toDP(0, Decimal.ROUND_DOWN).toString()
@@ -2224,7 +2530,7 @@ export class PositionModules {
       .mul(is_long ? quotePrice : basePrice)
       .toString()
     // Remaining collateral assets
-    const afterDepositAmount = d(deposits[0].depositedAmount.toString())
+    const afterDepositAmount = d(deposits.length > 0 ? deposits[0].depositedAmount.toString() : '0')
       .mul(is_long ? 10 ** baseTokenDecimal : 10 ** quoteTokenDecimal)
       .sub(d(withdrawAmount))
       .toString()
@@ -2263,7 +2569,7 @@ export class PositionModules {
       compoundDebtU64,
       amount_in: amountIn,
       amount_out: amountOut,
-      from: deposits[0].reserve.coinType,
+      from: deposits.length > 0 ? deposits[0].reserve.coinType : '',
       to: is_long ? base_token : quote_token,
       after_borrow_amount: afterBorrowAmount,
       after_borrow_amount_usd: afterBorrowAmountUSD,
@@ -2286,6 +2592,7 @@ export class PositionModules {
       clmm_pool_coin_type_a: clmmPoolCoinTypeA,
       clmm_pool_coin_type_b: clmmPoolCoinTypeB,
       position_cap_id,
+      tspl,
       market_id,
       swap_convert_all: swapConvertAll,
       flash_loan_amount: flashLoanAmount,
@@ -2301,7 +2608,7 @@ export class PositionModules {
     const { position_id, current_leverage, target_leverage, swap_clmm_pool = '' } = params
     const laverageDiff = d(target_leverage).sub(d(current_leverage))
     const isUpLeverage = laverageDiff.gt(0)
-    const { borrows, deposits, is_long, position_cap_id, market_id } = await this.getPositionInfo(position_id)
+    const { borrows, deposits, is_long, position_cap_id, market_id, tspl } = await this.getPositionInfo(position_id)
     const { base_token, quote_token } = await this._sdk.MarketModules.getMarketInfo(market_id)
     const otherToken = this.extractOtherTokenTypes(deposits, borrows, base_token, quote_token)
     const { reserve } = await this._sdk.SuiLendModule.getSuiLendReserveInfo(base_token, quote_token, undefined, otherToken)
@@ -2422,6 +2729,7 @@ export class PositionModules {
         after_deposit_amount_usd: afterDepositAmountUSD,
         after_borrow_amount_usd: afterBorrowAmountUSD,
         position_cap_id,
+        tspl,
         market_id,
         is_long,
         routers,
@@ -2518,6 +2826,7 @@ export class PositionModules {
         after_deposit_amount_usd: afterDepositAmountUSD,
         after_borrow_amount_usd: afterBorrowAmountUSD,
         position_cap_id,
+        tspl,
         market_id,
         is_long,
         routers,
@@ -2527,7 +2836,7 @@ export class PositionModules {
 
   calculatePositionRepay = async (params: CalculatePositionRepayParams) => {
     const { position_id, amount, is_quote } = params
-    const { borrows, deposits, is_long, market_id, position_cap_id } = await this._sdk.PositionModules.getPositionInfo(position_id)
+    const { borrows, deposits, is_long, market_id, position_cap_id, tspl } = await this._sdk.PositionModules.getPositionInfo(position_id)
     const repayCoinType = borrows[0].reserve.coinType
     const baseToken = is_long ? deposits[0].reserve.coinType : borrows[0].reserve.coinType
     const quoteToken = is_long ? borrows[0].reserve.coinType : deposits[0].reserve.coinType
@@ -2547,6 +2856,7 @@ export class PositionModules {
       deposits,
       market_id,
       position_cap_id,
+      tspl,
       has_swap: hasSwap,
     }
   }

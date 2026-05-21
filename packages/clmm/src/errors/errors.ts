@@ -21,6 +21,7 @@ export enum PositionErrorCode {
 }
 
 export enum PoolErrorCode {
+  SameCoinType = `SameCoinType`,
   InvalidCoinTypeSequence = `InvalidCoinTypeSequence`,
   InvalidTickIndex = `InvalidTickIndex`,
   InvalidPoolObject = `InvalidPoolObject`,

@@ -1,4 +1,4 @@
-import { DevInspectResults } from '@mysten/sui/jsonRpc'
+import type { DevInspectResults } from '@mysten/sui/jsonRpc'
 import type { TransactionArgument, TransactionObjectArgument } from '@mysten/sui/transactions'
 import { Transaction } from '@mysten/sui/transactions'
 import type { CollectRewarderParams } from '@cetusprotocol/sui-clmm-sdk'
@@ -10,10 +10,13 @@ import {
   CoinAssist,
   DETAILS_KEYS,
   extractStructTagFromType,
+  fixCoinType,
   getPackagerConfigs,
   IModule,
   normalizeCoinType,
   removeHexPrefix,
+  TypeNameRaw,
+  UIDRaw,
 } from '@cetusprotocol/common-sdk'
 import { FarmsErrorCode, handleError } from '../errors/errors'
 import type { CetusFarmsSDK } from '../sdk'
@@ -32,10 +35,12 @@ import type {
   HarvestParams,
   OpenPositionAddLiquidityStakeParams,
   PositionRewardInfo,
+  RemoveAllLiquidityParams,
   RemoveLiquidityParams,
   RewarderConfig,
 } from '../types/farmsType'
 import { FarmsUtils } from '../utils/farms'
+import { bcs } from '@mysten/sui/bcs'
 
 /**
  * Helper class to help interact with farm pools with a router interface.
@@ -72,7 +77,7 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
       dataPage.has_next_page = objects.has_next_page
       dataPage.next_cursor = objects.next_cursor
       if (poolObjectIds.length > 0) {
-        const objectDataResponses = await this._sdk.FullClient.batchGetObjects(poolObjectIds, { showType: true, showContent: true })
+        const objectDataResponses = await this._sdk.FullClient.batchGetObjects(poolObjectIds, { json: true })
         for (const item of objectDataResponses) {
           const pool = FarmsUtils.buildFarmsPool(item)
           if (pool) {
@@ -107,8 +112,8 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
       return cache_data
     }
     try {
-      const res = await this._sdk.FullClient.getObject({ id, options: { showType: true, showContent: true } })
-      const pool = FarmsUtils.buildFarmsPool(res.data)
+      const res = await this._sdk.FullClient.getObject({ objectId: id, include: { json: true } })
+      const pool = FarmsUtils.buildFarmsPool(res.object)
       if (pool) {
         pool.rewarders = await this.getFarmsRewarderConfig(
           pool.clmm_pool_id,
@@ -143,34 +148,58 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
         rewarder_configs.push(cache_data)
       } else {
         try {
-          const res: any = await this._sdk.FullClient.getDynamicFieldObject({
+          const res: any = await this._sdk.FullClient.getDynamicField({
             parentId: getPackagerConfigs(farms).rewarder_manager_handle,
             name: {
               type: '0x1::type_name::TypeName',
-              value: removeHexPrefix(coin_type),
+              bcs: bcs.String.serialize(removeHexPrefix(coin_type)).toBytes(),
             },
           })
-          const { fields } = res.data.content.fields.value.fields.value
+          const fields = res.dynamicField.value.bcs
+
+          const rewarder = bcs.struct('LinkedTable.Node<TypeName, Rewarder>', {
+            pre: bcs.option(TypeNameRaw),
+            next: bcs.option(TypeNameRaw),
+            value: bcs.struct("Rewarder", {
+              reward_coin: TypeNameRaw,
+              total_allocate_point: bcs.u64(),
+              emission_per_second: bcs.u128(),
+              last_reward_time: bcs.u64(),
+              total_reward_released: bcs.u128(),
+              total_reward_harvested: bcs.u64(),
+              pools: bcs.struct('LinkedTable.LinkedTable<ID, PoolRewarderInfo>', {
+                id: UIDRaw,
+              }),
+            })
+          }).parse(fields).value
 
           const config: RewarderConfig = {
-            reward_coin: coin_type,
-            last_reward_time: fields.last_reward_time,
-            emission_per_second: fields.emission_per_second,
-            total_allocate_point: fields.total_allocate_point,
+            reward_coin: fixCoinType(rewarder.reward_coin.name, false),
+            last_reward_time: rewarder.last_reward_time,
+            emission_per_second: rewarder.emission_per_second,
+            total_allocate_point: rewarder.total_allocate_point,
             allocate_point: '',
           }
 
-          const poolsHandler = fields.pools.fields.id.id
+          const poolsHandler = rewarder.pools.id.id
 
-          const res1: any = await this._sdk.FullClient.getDynamicFieldObject({
+          const res1: any = await this._sdk.FullClient.getDynamicField({
             parentId: poolsHandler,
             name: {
               type: '0x2::object::ID',
-              value: pool_id,
+              bcs: bcs.Address.serialize(pool_id).toBytes(),
             },
           })
-          const { allocate_point } = res1.data.content.fields.value.fields.value.fields
-          config.allocate_point = allocate_point
+          // "0x0000000000000000000000000000000000000000000000000000000000000002::linked_table::Node<0x0000000000000000000000000000000000000000000000000000000000000002::object::ID,0x11ea791d82b5742cc8cab0bf7946035c97d9001d7c3803a93f119753da66f526::rewarder::PoolRewarderInfo>"
+          const bcsData = res1.dynamicField.value.bcs
+          const poolRewarderInfo = bcs.struct('LinkedTable.Node<ID, PoolRewarderInfo>', {
+            pre: bcs.option(bcs.Address),
+            next: bcs.option(bcs.Address),
+            value: bcs.struct("PoolRewarderInfo", {
+              allocate_point: bcs.u64(),
+            }),
+          }).parse(bcsData)
+          config.allocate_point = poolRewarderInfo.value.allocate_point.toString()
 
           this._sdk.updateCache(cache_key, config)
           rewarder_configs.push(config)
@@ -208,14 +237,7 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
 
       const objects = await this._sdk.FullClient.getOwnedObjectsByPage(
         owner,
-        {
-          filter: {
-            StructType: `${package_id}::pool::WrappedPositionNFT`,
-          },
-          options: {
-            showContent: true,
-          },
-        },
+        `${package_id}::pool::WrappedPositionNFT`,
         pagination_args
       )
       data_page.has_next_page = objects.has_next_page
@@ -297,9 +319,9 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
    */
   public async getFarmsPositionNFT(position_nft_id: string, calculate_farming_rewards = true): Promise<FarmsPositionNFT> {
     try {
-      const object = await this._sdk.FullClient.getObject({ id: position_nft_id, options: { showContent: true, showType: true } })
+      const object = await this._sdk.FullClient.getObject({ objectId: position_nft_id, include: { json: true } })
 
-      const farms_position_nft = FarmsUtils.buildFarmsPositionNFT(object)
+      const farms_position_nft = FarmsUtils.buildFarmsPositionNFT(object.object)
 
       if (calculate_farming_rewards && farms_position_nft) {
         const reward_map = await this.calculateFarmingRewards([
@@ -339,24 +361,36 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
       ],
     })
   }
-
+  // "0x11ea791d82b5742cc8cab0bf7946035c97d9001d7c3803a93f119753da66f526::pool::AccumulatedPositionRewardsEvent"
   parsedPosRewardData(simulate_res: DevInspectResults) {
     const rewarder_data: Record<string, PositionRewardInfo[]> = {}
     const rewarder_value_data: any[] = simulate_res.events?.filter((item: any) => {
-      return item.type.includes('AccumulatedPositionRewardsEvent')
+      return item.eventType.includes('AccumulatedPositionRewardsEvent')
     })
 
     for (let i = 0; i < rewarder_value_data.length; i += 1) {
-      const { parsedJson } = rewarder_value_data[i]
+      const bcsData = rewarder_value_data[i].bcs
+
+      const parsed = bcs.struct('AccumulatedPositionRewardsEvent', {
+        pool_id: bcs.Address,
+        wrapped_position_id: bcs.Address,
+        clmm_position_id: bcs.Address,
+        rewards: bcs.struct('VecMap<TypeName, u64>', {
+          contents: bcs.vector(bcs.struct('Entry<TypeName, u64>', {
+            key: TypeNameRaw,
+            value: bcs.u64(),
+          })),
+        }),
+      }).parse(bcsData)
 
       const reward_infos: PositionRewardInfo[] = []
-      parsedJson.rewards.contents.forEach((item: any) => {
+      parsed.rewards.contents.forEach((item: any) => {
         reward_infos.push({
           rewarder_type: extractStructTagFromType(item.key.name).full_address,
           rewarder_amount: item.value,
         })
       })
-      rewarder_data[parsedJson.wrapped_position_id] = reward_infos
+      rewarder_data[parsed.wrapped_position_id] = reward_infos
     }
 
     return rewarder_data
@@ -379,12 +413,8 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     const rewardMap: Record<string, PositionRewardInfo[]> = {}
 
     try {
-      const simulateRes: any = await this._sdk.FullClient.devInspectTransactionBlock({
-        transactionBlock: tx,
-        sender: this._sdk.getSenderAddress(),
-      })
-
-      const rewarderData = this.parsedPosRewardData(simulateRes)
+      const simulateRes: any = await this._sdk.FullClient.sendSimulationTransaction(tx, this._sdk.getSenderAddress())
+      const rewarderData = this.parsedPosRewardData(simulateRes.Transaction)
       return rewarderData
     } catch (error) {
       return handleError(FarmsErrorCode.FetchError, error as Error, {
@@ -567,7 +597,7 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
   private async collectRewardInternal(
     item: HarvestFeeAndClmmRewarderParams,
     coin_id_maps: Record<string, TransactionObjectArgument>,
-    tx: Transaction,
+    tx: Transaction
   ) {
     item.clmm_rewarder_types.forEach((type) => {
       const coinType = normalizeCoinType(type)
@@ -583,7 +613,7 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
   private collectFeeInternal(
     item: HarvestFeeAndClmmRewarderParams,
     coin_id_maps: Record<string, TransactionObjectArgument>,
-    tx: Transaction,
+    tx: Transaction
   ) {
     const { farms } = this.sdk.sdkOptions
     const { global_config_id } = getPackagerConfigs(farms)
@@ -618,11 +648,7 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     })
   }
 
-  private collectClmmRewardInternal(
-    item: CollectRewarderParams,
-    coin_id_maps: Record<string, TransactionObjectArgument>,
-    tx: Transaction,
-  ) {
+  private collectClmmRewardInternal(item: CollectRewarderParams, coin_id_maps: Record<string, TransactionObjectArgument>, tx: Transaction) {
     const primaryCoinInputs: TransactionObjectArgument[] = []
     item.rewarder_coin_types.forEach((type) => {
       const coinType = normalizeCoinType(type)
@@ -637,11 +663,7 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     this._sdk.ClmmSDK.Rewarder.createCollectRewarderNoSendPayload(item, tx!, primaryCoinInputs)
   }
 
-  private collectClmmFeeInternal(
-    item: CollectRewarderParams,
-    coin_id_maps: Record<string, TransactionObjectArgument>,
-    tx: Transaction,
-  ) {
+  private collectClmmFeeInternal(item: CollectRewarderParams, coin_id_maps: Record<string, TransactionObjectArgument>, tx: Transaction) {
     if (item.collect_fee) {
       const coin_type_a = normalizeCoinType(item.coin_type_a)
       const coin_type_b = normalizeCoinType(item.coin_type_b)
@@ -697,7 +719,7 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
             collect_fee: params.collect_fee,
             clmm_rewarder_types: params.clmm_rewarder_types,
           },
-          tx,
+          tx
         )
       }
     }
@@ -734,7 +756,7 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
         collect_fee: params.collect_fee,
         clmm_rewarder_types: params.clmm_rewarder_types,
       },
-      tx,
+      tx
     )
 
     return tx
@@ -810,7 +832,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     const farmsConfig = getPackagerConfigs(farms)
     const clmmConfig = getPackagerConfigs(clmm_pool)
 
-
     const primaryCoinAInputs = CoinAssist.buildCoinWithBalance(BigInt(params.amount_limit_a), params.coin_type_a, tx)
 
     const primaryCoinBInputs = CoinAssist.buildCoinWithBalance(BigInt(params.amount_limit_b), params.coin_type_b, tx)
@@ -838,7 +859,7 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
           collect_fee: params.collect_fee,
           clmm_rewarder_types: params.clmm_rewarder_types,
         },
-        tx,
+        tx
       )
     }
 
@@ -878,7 +899,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     const farmsConfig = getPackagerConfigs(farms)
     const clmmConfig = getPackagerConfigs(clmm_pool)
 
-
     const primaryCoinAInputs = CoinAssist.buildCoinWithBalance(BigInt(params.amount_a), params.coin_type_a, tx)
 
     const primaryCoinBInputs = CoinAssist.buildCoinWithBalance(BigInt(params.amount_b), params.coin_type_b, tx)
@@ -906,7 +926,7 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
           collect_fee: params.collect_fee,
           clmm_rewarder_types: params.clmm_rewarder_types,
         },
-        tx,
+        tx
       )
     }
 
@@ -970,7 +990,7 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
           collect_fee: false, // Remove liquidity will harvest fee
           clmm_rewarder_types: params.clmm_rewarder_types,
         },
-        tx,
+        tx
       )
     }
     // Close position will unstake position and remove all liquidity
@@ -1027,6 +1047,56 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     return tx
   }
 
+  async removeAllLiquidityPayload(params: RemoveAllLiquidityParams, tx?: Transaction): Promise<Transaction> {
+    const { clmm_pool } = this.sdk.ClmmSDK.sdkOptions
+    const { pool_id, position_nft_id, clmm_pool_id, clmm_rewarder_types, coin_type_a, coin_type_b, delta_liquidity } = params
+
+    tx = tx || new Transaction()
+    // Collect Farms rewards
+    tx = await this._sdk.Farms.harvestPayload(
+      {
+        pool_id,
+        position_nft_id,
+        clmm_pool_id,
+        collect_fee: true,
+        collect_farms_rewarder: true,
+        clmm_rewarder_types,
+        coin_type_a,
+        coin_type_b,
+      },
+      tx
+    )
+
+    // Unstake
+    const posId = await this._sdk!.Farms.withdrawReturnPayload(
+      {
+        pool_id,
+        position_nft_id,
+      },
+      tx
+    )
+
+    // Remove all liquidity with the retrieved position NFT
+    const [balanceA, balanceB] = tx.moveCall({
+      target: `${clmm_pool.published_at}::pool::remove_liquidity`,
+      typeArguments: [coin_type_a, coin_type_b],
+      arguments: [
+        tx.object(getPackagerConfigs(clmm_pool).global_config_id),
+        tx.object(clmm_pool_id),
+        posId,
+        tx.pure.u128(delta_liquidity),
+        tx.object(CLOCK_ADDRESS),
+      ],
+    })
+
+    const receiveCoinA = CoinAssist.fromBalance(balanceA, coin_type_a, tx)
+    const receiveCoinB = CoinAssist.fromBalance(balanceB, coin_type_b, tx)
+
+    tx.transferObjects([receiveCoinA, receiveCoinB, posId], this._sdk.getSenderAddress())
+
+    return tx
+  }
+
   /**
    * Build parameters for collecting rewards and fees
    * @param params
@@ -1045,13 +1115,11 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
       coin_type_b: string
       clmm_rewarder_types: string[]
     },
-    tx: Transaction,
+    tx: Transaction
   ): Promise<Transaction> {
     const coin_type_a = normalizeCoinType(params.coin_type_a)
     const coin_type_b = normalizeCoinType(params.coin_type_b)
     if (params.collect_fee) {
-
-
       this.collectFeePayload(
         {
           clmm_pool_id: params.clmm_pool_id,
@@ -1064,7 +1132,6 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
         tx
       )
     }
-
 
     this.collectClmmRewardPayload(
       {
@@ -1151,7 +1218,11 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
     return tx
   }
 
-  private async collectClmmRewardNoSendPayload(params: CollectClmmRewardParams, tx: Transaction, coin_id_maps: Record<string, TransactionObjectArgument>): Promise<Transaction> {
+  private async collectClmmRewardNoSendPayload(
+    params: CollectClmmRewardParams,
+    tx: Transaction,
+    coin_id_maps: Record<string, TransactionObjectArgument>
+  ): Promise<Transaction> {
     const { farms } = this.sdk.sdkOptions
     const { clmm_pool, integrate } = this.sdk.ClmmSDK.sdkOptions
 
@@ -1216,8 +1287,8 @@ export class FarmsModule implements IModule<CetusFarmsSDK> {
       const fields = rewarderEventObjs[0].parsedJson as any
       config.rewarder_manager_id = fields.id
 
-      const res: any = await this._sdk.FullClient.getObject({ id: config.rewarder_manager_id, options: { showContent: true } })
-      config.rewarder_manager_handle = res.data.content.fields.rewarders.fields.id.id
+      const res: any = await this._sdk.FullClient.getObject({ objectId: config.rewarder_manager_id, include: { json: true } })
+      config.rewarder_manager_handle = res.object.json.rewarders.id
     }
 
     return config

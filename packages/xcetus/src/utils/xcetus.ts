@@ -4,6 +4,7 @@ import type {
   DividendManager,
   DividendReward,
   LockCetus,
+  LockCetusVersion,
   LockUpManager,
   VeNFT,
   VeNFTDividendInfo,
@@ -44,27 +45,27 @@ export class XCetusUtil {
 
   static buildDividendManager(fields: any): DividendManager {
     const dividendManager: DividendManager = {
-      id: fields.id.id,
+      id: fields.id,
       dividends: {
-        id: fields.dividends.fields.id.id,
-        size: fields.dividends.fields.size,
+        id: fields.dividends.id,
+        size: fields.dividends.size,
       },
       venft_dividends: {
-        id: fields.venft_dividends.fields.id.id,
-        size: fields.venft_dividends.fields.size,
+        id: fields.venft_dividends.id,
+        size: fields.venft_dividends.size,
       },
       bonus_types: [],
       start_time: Number(fields.start_time),
       interval_day: Number(fields.interval_day),
       balances: {
-        id: fields.balances.fields.id.id,
-        size: fields.balances.fields.size,
+        id: fields.balances.id,
+        size: fields.balances.size,
       },
       is_open: fields.is_open,
     }
 
     fields.bonus_types.forEach((item: any) => {
-      dividendManager.bonus_types.push(extractStructTagFromType(item.fields.name).source_address)
+      dividendManager.bonus_types.push(extractStructTagFromType(item.name).source_address)
     })
 
     return dividendManager
@@ -72,15 +73,15 @@ export class XCetusUtil {
 
   static buildLockUpManager(fields: any): LockUpManager {
     const lockUpManager: LockUpManager = {
-      id: fields.id.id,
+      id: fields.id,
       balance: fields.balance,
       treasury_manager: fields.treasury_manager,
       extra_treasury: fields.extra_treasury,
       lock_infos: {
-        lock_handle_id: fields.lock_infos.fields.id.id,
-        size: Number(fields.lock_infos.fields.size),
+        lock_handle_id: fields.lock_infos.id,
+        size: Number(fields.lock_infos.size),
       },
-      type_name: normalizeCoinType(fields.type_name.fields.name),
+      type_name: normalizeCoinType(fields.type_name.name),
       min_lock_day: Number(fields.min_lock_day),
       max_lock_day: Number(fields.max_lock_day),
       package_version: Number(fields.package_version),
@@ -91,11 +92,12 @@ export class XCetusUtil {
     return lockUpManager
   }
 
-  static buildLockCetus(data: any): LockCetus {
-    const fields = data.fields as any
+  static buildLockCetus(data: any, version: LockCetusVersion = 'v1'): LockCetus {
+    const fields = data.json
     const lockCetus = {
-      id: fields.id.id,
+      id: fields.id,
       type: extractStructTagFromType(data.type).source_address,
+      version,
       locked_start_time: Number(fields.locked_start_time),
       locked_until_time: Number(fields.locked_until_time),
       cetus_amount: fields.balance,

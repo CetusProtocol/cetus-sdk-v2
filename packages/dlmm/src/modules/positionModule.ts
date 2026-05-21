@@ -57,12 +57,9 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
   async getOwnerPositionList(owner: string): Promise<DlmmPosition[]> {
     const list: DlmmPosition[] = []
     try {
-      const res = await this._sdk.FullClient.getOwnedObjectsByPage(owner, {
-        options: { showType: true, showContent: true, showOwner: true },
-        filter: {
-          StructType: this.buildPositionType(),
-        },
-      })
+      const res = await this._sdk.FullClient.getOwnedObjectsByPage(owner,
+        this.buildPositionType(),
+      )
 
       res.data.forEach((obj) => {
         list.push(parseDlmmPosition(obj))
@@ -80,8 +77,8 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
 
   async getPosition(position_id: string): Promise<DlmmPosition> {
     try {
-      const res = await this._sdk.FullClient.getObject({ id: position_id, options: { showType: true, showContent: true, showOwner: true } })
-      return parseDlmmPosition(res)
+      const res = await this._sdk.FullClient.getObject({ objectId: position_id, include: { json: true } })
+      return parseDlmmPosition(res.object)
     } catch (error) {
       console.log('🚀 ~ PositionModule ~ getPosition ~ error:', error)
       return handleError(DlmmErrorCode.GetObjectError, error as Error, {
@@ -98,11 +95,23 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
    * @returns The transaction object
    */
   collectFeePayload(option: CollectFeeOption, tx?: Transaction): Transaction {
+    tx = tx || new Transaction()
+    const { fee_a_obj, fee_b_obj } = this.collectFeePayloadWithoutTransfer(option, tx)
+    tx.transferObjects([fee_a_obj, fee_b_obj], this.sdk.getSenderAddress())
+
+    return tx
+  }
+
+  /**
+   * collect fee without transferring the coins to the sender
+   * @param option - The option for collecting fee
+   * @param tx - The transaction object
+   * @returns The transaction object
+   */
+  collectFeePayloadWithoutTransfer(option: CollectFeeOption, tx: Transaction): { fee_a_obj: TransactionObjectArgument; fee_b_obj: TransactionObjectArgument } {
     const { pool_id, position_id, coin_type_a, coin_type_b } = option
     const { dlmm_pool } = this.sdk.sdkOptions
     const { versioned_id, global_config_id } = getPackagerConfigs(dlmm_pool)
-
-    tx = tx || new Transaction()
 
     const [fee_a_balance, fee_b_balance] = tx.moveCall({
       target: `${dlmm_pool.published_at}::pool::collect_position_fee`,
@@ -112,9 +121,11 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
 
     const fee_a_obj = CoinAssist.fromBalance(fee_a_balance, coin_type_a, tx)
     const fee_b_obj = CoinAssist.fromBalance(fee_b_balance, coin_type_b, tx)
-    tx.transferObjects([fee_a_obj, fee_b_obj], this.sdk.getSenderAddress())
 
-    return tx
+    return {
+      fee_a_obj,
+      fee_b_obj,
+    }
   }
 
   /**
@@ -150,20 +161,36 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
 
     options.forEach((option) => {
       const { pool_id, position_id, reward_coins, coin_type_a, coin_type_b } = option
-
-      reward_coins.forEach((reward_coin) => {
-        const reward_coin_balance = tx.moveCall({
-          target: `${dlmm_pool.published_at}::pool::collect_position_reward`,
-          arguments: [tx.object(pool_id), tx.object(position_id), tx.object(global_config_id), tx.object(versioned_id)],
-          typeArguments: [coin_type_a, coin_type_b, reward_coin],
-        })
-
-        const reward_coin_obj = CoinAssist.fromBalance(reward_coin_balance, reward_coin, tx)
-        tx.transferObjects([reward_coin_obj], this.sdk.getSenderAddress())
-      })
+      const { reward_coin_objs } = this.collectRewardPayloadWithoutTransfer({ pool_id, position_id, reward_coins, coin_type_a, coin_type_b }, tx)
+      if (reward_coin_objs.length > 0) {
+        tx.transferObjects(reward_coin_objs, this.sdk.getSenderAddress())
+      }
     })
 
     return tx
+  }
+
+
+  collectRewardPayloadWithoutTransfer(options: CollectRewardOption, tx: Transaction): { reward_coin_objs: TransactionObjectArgument[] } {
+    const { dlmm_pool } = this.sdk.sdkOptions
+    const { versioned_id, global_config_id } = getPackagerConfigs(dlmm_pool)
+    const reward_coin_objs: TransactionObjectArgument[] = []
+    const { pool_id, position_id, reward_coins, coin_type_a, coin_type_b } = options
+
+    reward_coins.forEach((reward_coin) => {
+      const reward_coin_balance = tx.moveCall({
+        target: `${dlmm_pool.published_at}::pool::collect_position_reward`,
+        arguments: [tx.object(pool_id), tx.object(position_id), tx.object(global_config_id), tx.object(versioned_id)],
+        typeArguments: [coin_type_a, coin_type_b, reward_coin],
+      })
+
+      const reward_coin_obj = CoinAssist.fromBalance(reward_coin_balance, reward_coin, tx)
+      reward_coin_objs.push(reward_coin_obj)
+    })
+
+    return {
+      reward_coin_objs,
+    }
   }
 
   collectRewardAndFeePayload(options: CollectRewardAndFeeOption[], tx?: Transaction): Transaction {
@@ -709,6 +736,15 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
           [DETAILS_KEYS.METHOD_NAME]: 'openPosition',
         })
       }
+      console.log('🚀 ~ addLiquidityStrategyInternal ~ amount_a:', {
+        amount_a,
+        amount_b,
+        lower_bin_id_u32,
+        width,
+        active_id_u32,
+        bin_shift,
+      });
+
 
       position = tx.moveCall({
         target: `${dlmm_router.published_at}::${routerModule}::open_position`,
@@ -879,10 +915,7 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
     const tx = new Transaction()
     this.collectRewardAndFeePayload(options, tx)
 
-    const simulateRes = await this.sdk.FullClient.devInspectTransactionBlock({
-      transactionBlock: tx,
-      sender: normalizeSuiAddress('0x0'),
-    })
+    const simulateRes: any = await this.sdk.FullClient.sendSimulationTransaction(tx, this.sdk.getSenderAddress())
 
     if (simulateRes.error != null) {
       return handleError(DlmmErrorCode.FetchError, new Error(simulateRes.error), {
@@ -894,8 +927,8 @@ export class PositionModule implements IModule<CetusDlmmSDK> {
       })
     }
 
-    const feeData = parsedDlmmPosFeeData(simulateRes)
-    const rewardData = parsedDlmmPosRewardData(simulateRes)
+    const feeData = parsedDlmmPosFeeData(simulateRes.Transaction.events)
+    const rewardData = parsedDlmmPosRewardData(simulateRes.Transaction.events)
 
     return {
       feeData,

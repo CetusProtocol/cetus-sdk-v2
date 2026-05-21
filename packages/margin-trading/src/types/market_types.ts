@@ -1,4 +1,4 @@
-import { RewardSummary } from '@suilend/sdk'
+import type { RewardSummary } from '@suilend/sdk/lib/liquidityMining'
 
 export type Market = {
   market_id: string

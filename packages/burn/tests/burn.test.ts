@@ -3,11 +3,12 @@ import type { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import { describe, beforeEach, test } from 'vitest'
 import { buildTestAccount } from '@cetusprotocol/test-utils'
 import { CetusBurnSDK } from '../src/sdk'
+import { extractStructTagFromType } from '@cetusprotocol/common-sdk'
 
 describe('burn', () => {
-  const sdk = CetusBurnSDK.createSDK({ env: 'testnet' })
+  const sdk = CetusBurnSDK.createSDK({ env: 'mainnet' })
   console.log('🚀 ~ describe ~ sdk:', sdk)
-  let send_key_pair: Ed25519Keypair
+  let send_key_pair: ReturnType<typeof buildTestAccount>
   let account: string
 
   beforeEach(async () => {
@@ -16,13 +17,15 @@ describe('burn', () => {
     sdk.setSenderAddress(account)
   })
 
+
+
   test('getBurnPoolList', async () => {
     const res = await sdk.Burn.getBurnPoolList()
     console.log('getBurnPoolList res:', res)
   })
 
   test('getPoolBurnPositionList', async () => {
-    const res = await sdk.Burn.getPoolBurnPositionList('0xcf994611fd4c48e277ce3ffd4d4364c914af2c3cbb05f7bf6facd371de688630')
+    const res = await sdk.Burn.getPoolBurnPositionList("0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab")
     console.log('getBurnPositionList res:', res)
   })
 
@@ -32,7 +35,7 @@ describe('burn', () => {
   })
 
   test('getBurnPosition', async () => {
-    const posId = '0x2564e45797f57713198bb2a2d69266b05cef7ec680a982ff69ff6b27d8eabd69'
+    const posId = '0x0e30d222bea527eaa5c794776814cc004689b9d87ece197a26318f9ce1219a40'
     const res = await sdk.Burn.getBurnPosition(posId)
     console.log('getBurnPosition res:', res)
   })
@@ -82,14 +85,12 @@ describe('burn', () => {
       account,
     })
 
-    const simulateRes = await sdk.FullClient.devInspectTransactionBlock({
-      transactionBlock: txb,
-      sender: account,
-    })
-    console.log('claim simulateRes:', simulateRes)
+    const transferTxn = await sdk.FullClient.executeTx(send_key_pair, txb, false)
+    console.log('redeem: ', transferTxn)
   })
 
   test('redeem vest', async () => {
+
     const burn_position_id = '0x4e745334f8899a2b8854c791865e93bb27653862bd0e7a29cab35ee583056c40'
     const burnPosition = await sdk.Burn.getBurnPosition(burn_position_id)
 

@@ -184,3 +184,15 @@ export function secretKeyToSecp256k1Keypair(secret_key: string | Uint8Array, eco
   const hex_key = ecode === 'hex' ? fromHex(secret_key) : fromBase64(secret_key)
   return Secp256k1Keypair.fromSecretKey(hex_key)
 }
+
+/**
+ * Converts a byte array to a Sui Object ID string.
+ * The byte array is transformed into a hexadecimal string format with the prefix "0x".
+ *
+ * @param bytes - A byte array representing the Sui Object ID.
+ * @returns A string representing the Sui Object ID, prefixed with "0x".
+ */
+export function toSuiObjectId(bytes: number[]): string {
+  return `0x${Buffer.from(bytes).toString('hex')}` // Convert the byte array to a hex string and prepend "0x"
+}
+

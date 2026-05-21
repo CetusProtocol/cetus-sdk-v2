@@ -42,6 +42,8 @@ export class PositionUtils {
     params: CollectRewarderParams,
   ) {
 
+    const coin_type_a = normalizeCoinType(params.coin_type_a)
+    const coin_type_b = normalizeCoinType(params.coin_type_b)
     if (params.collect_fee) {
       tx = sdk.Position.createCollectFeePayload(
         {

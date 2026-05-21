@@ -1,6 +1,6 @@
-import type { SuiObjectResponse } from '@mysten/sui/jsonRpc'
-import { normalizeSuiObjectId } from '@mysten/sui/utils'
+import { fromHex, normalizeSuiObjectId, toHex } from '@mysten/sui/utils'
 import type { SuiAddressType, SuiResource } from '@cetusprotocol/common-sdk'
+import { bcs as suiBcs } from '@mysten/sui/bcs';
 import {
   CACHE_TIME_24H,
   CACHE_TIME_5MIN,
@@ -9,10 +9,6 @@ import {
   extractStructTagFromType,
   fixCoinType,
   getFutureTime,
-  getObjectFields,
-  getObjectId,
-  getObjectPreviousTransactionDigest,
-  getObjectType,
   getPackagerConfigs,
   IModule,
   normalizeCoinType,
@@ -21,6 +17,84 @@ import { Base64 } from 'js-base64'
 import { ConfigErrorCode, handleMessageError, PoolErrorCode } from '../errors/errors'
 import type { CetusClmmSDK } from '../sdk'
 import type { CetusConfigs, ClmmPoolConfig, CoinConfig, LaunchpadPoolConfig } from '../types'
+import { bcs } from '@mysten/sui/bcs'
+
+
+const TypeName = bcs.struct('TypeName', {
+  name: bcs.string(),
+});
+
+const StringStringEntry = bcs.struct('Entry<String, String>', {
+  key: bcs.string(),
+  value: bcs.string(),
+});
+
+const StringStringVecMap = bcs.struct('VecMap<String, String>', {
+  contents: bcs.vector(StringStringEntry),
+});
+
+export const Coin = bcs.struct('Coin', {
+  name: bcs.string(),
+  symbol: bcs.string(),
+  coingecko_id: bcs.string(),
+  pyth_id: bcs.string(),
+  decimals: bcs.u8(),
+  logo_url: bcs.string(),
+  project_url: bcs.string(),
+  coin_type: TypeName,
+  extension_fields: StringStringVecMap,
+});
+
+const Address = bcs.bytes(32).transform({
+  input: (val: string) => fromHex(val),
+  output: (val) => toHex(val),
+});
+
+export const ClmmPool = bcs.struct('Pool', {
+  pool_address: Address,      // address
+  pool_type: bcs.string(),          // String
+  project_url: bcs.string(),        // String
+  is_closed: bcs.bool(),
+  is_show_rewarder: bcs.bool(),
+  show_rewarder_1: bcs.bool(),
+  show_rewarder_2: bcs.bool(),
+  show_rewarder_3: bcs.bool(),
+  extension_fields: StringStringVecMap,
+});
+
+export const MediaInfo = bcs.struct('MediaInfo', {
+  name: bcs.string(),
+  link: bcs.string(),
+});
+
+const StringMediaInfoEntry = bcs.struct('Entry<String, MediaInfo>', {
+  key: bcs.string(),
+  value: MediaInfo,
+});
+
+const StringMediaInfoVecMap = bcs.struct('VecMap<String, MediaInfo>', {
+  contents: bcs.vector(StringMediaInfoEntry),
+});
+
+export const LaunchpadPool = bcs.struct('LaunchpadPool', {
+  pool_address: Address,          // address -> 32 bytes
+  is_closed: bcs.bool(),
+  show_settle: bcs.bool(),
+  coin_symbol: bcs.string(),
+  coin_name: bcs.string(),
+  coin_icon: bcs.string(),
+  banners: bcs.vector(bcs.string()),    // vector<String>
+  introduction: bcs.string(),
+  website: bcs.string(),
+  tokenomics: bcs.string(),
+  social_media: StringMediaInfoVecMap,  // VecMap<String, MediaInfo>
+  terms: bcs.string(),
+  white_list_terms: bcs.string(),
+  regulation: bcs.string(),
+  project_details: bcs.string(),
+  extension_fields: StringStringVecMap, // VecMap<String, String>
+});
+
 /**
  * Helper class to help interact with clmm pool and coin and launchpad pool config.
  */
@@ -85,17 +159,18 @@ export class ConfigModule implements IModule<CetusClmmSDK> {
         const data = await this._sdk.FullClient.getCoinMetadata({
           coinType,
         })
-        if (data) {
+        if (data.coinMetadata) {
+          const { id, name, symbol, decimals, iconUrl } = data.coinMetadata
           const token: CoinConfig = {
-            id: data.id as string,
+            id: id as string,
             pyth_id: '',
-            name: data.name,
-            symbol: data.symbol,
-            official_symbol: data.symbol,
+            name: name,
+            symbol: symbol,
+            official_symbol: symbol,
             coingecko_id: '',
-            decimals: data.decimals,
+            decimals: decimals,
             project_url: '',
-            logo_url: data.iconUrl as string,
+            logo_url: iconUrl as string,
             address: coinType,
           }
           tokenMap[coinType] = token
@@ -125,21 +200,11 @@ export class ConfigModule implements IModule<CetusClmmSDK> {
     }
     const res = await this._sdk.FullClient.getDynamicFieldsByPage(coin_list_handle)
     const warpIds = res.data.map((item: any) => {
-      return item.objectId
+      return item.fieldId
     })
-    const objects = await this._sdk.FullClient.batchGetObjects(warpIds, { showContent: true })
+    const objects = await this._sdk.FullClient.batchGetObjects(warpIds, { json: true })
     const coinList: CoinConfig[] = []
     objects.forEach((object) => {
-      if (object.error != null || object.data?.content?.dataType !== 'moveObject') {
-        handleMessageError(
-          PoolErrorCode.FetchError,
-          `when getCoinConfigs get objects error: ${object.error}, please check the rpc and contracts address config.`,
-          {
-            [DETAILS_KEYS.METHOD_NAME]: 'getCoinConfigs',
-          }
-        )
-      }
-
       const coin = this.buildCoinConfig(object, transform_extensions)
       this.updateCache(`${coin_list_handle}_${coin.address}_getCoinConfig`, coin, CACHE_TIME_24H)
       coinList.push({ ...coin })
@@ -162,50 +227,53 @@ export class ConfigModule implements IModule<CetusClmmSDK> {
     if (cacheData) {
       return cacheData
     }
-    const object = await this._sdk.FullClient.getDynamicFieldObject({
+    const object = await this._sdk.FullClient.getDynamicField({
       parentId: coin_list_handle,
       name: {
         type: '0x1::type_name::TypeName',
-        value: {
-          name: fixCoinType(coin_type),
-        },
+        bcs: bcs.String.serialize(fixCoinType(coin_type, true)).toBytes(),
       },
     })
 
-    if (object.error != null || object.data?.content?.dataType !== 'moveObject') {
-      handleMessageError(
-        PoolErrorCode.FetchError,
-        `when getCoinConfig get object error: ${object.error}, please check the rpc and contracts address config.`,
-        {
-          [DETAILS_KEYS.METHOD_NAME]: 'getCoinConfig',
-        }
-      )
+    const coinRaw = Coin.parse(object.dynamicField.value.bcs)
+    const coin: CoinConfig = {
+      id: object.dynamicField.fieldId,
+      address: extractStructTagFromType(coinRaw.coin_type.name).full_address,
+      name: coinRaw.name,
+      symbol: coinRaw.symbol,
+      pyth_id: coinRaw.pyth_id,
+      project_url: coinRaw.project_url,
+      logo_url: coinRaw.logo_url,
+      decimals: coinRaw.decimals,
     }
+    if (coin.pyth_id) {
+      coin.pyth_id = normalizeSuiObjectId(coin.pyth_id)
+    }
+    this.transformExtensions(coin, coinRaw.extension_fields.contents, transform_extensions)
 
-    const coin = this.buildCoinConfig(object, transform_extensions)
+    delete coin.coin_type
     this.updateCache(cacheKey, coin, CACHE_TIME_24H)
     return coin
   }
 
   /**
    * Build coin config.
-   * @param {SuiObjectResponse} object Coin object.
    * @param {boolean} transform_extensions Whether to transform extensions.
    * @returns {CoinConfig} Coin config.
    */
-  private buildCoinConfig(object: SuiObjectResponse, transform_extensions = true) {
-    let fields = getObjectFields(object)
+  private buildCoinConfig(object: any, transform_extensions = true) {
+    let { json, objectId } = object
 
-    fields = fields.value.fields
+    const fields = json.value
     const coin: any = { ...fields }
 
-    coin.id = getObjectId(object)
-    coin.address = extractStructTagFromType(fields.coin_type.fields.name).full_address
+    coin.id = objectId
+    coin.address = extractStructTagFromType(fields.coin_type.name).full_address
     if (fields.pyth_id) {
       coin.pyth_id = normalizeSuiObjectId(fields.pyth_id)
     }
 
-    this.transformExtensions(coin, fields.extension_fields.fields.contents, transform_extensions)
+    this.transformExtensions(coin, fields.extension_fields.contents, transform_extensions)
 
     delete coin.coin_type
     return coin
@@ -226,20 +294,11 @@ export class ConfigModule implements IModule<CetusClmmSDK> {
     }
     const res = await this._sdk.FullClient.getDynamicFieldsByPage(clmm_pools_handle)
     const warpIds = res.data.map((item: any) => {
-      return item.objectId
+      return item.fieldId
     })
-    const objects = await this._sdk.FullClient.batchGetObjects(warpIds, { showContent: true })
+    const objects = await this._sdk.FullClient.batchGetObjects(warpIds, { json: true })
     const poolList: ClmmPoolConfig[] = []
     objects.forEach((object) => {
-      if (object.error != null || object.data?.content?.dataType !== 'moveObject') {
-        handleMessageError(
-          PoolErrorCode.FetchError,
-          `when getClmmPoolsConfigs get objects error: ${object.error}, please check the rpc and contracts address config.`,
-          {
-            [DETAILS_KEYS.METHOD_NAME]: 'getClmmPoolConfigs',
-          }
-        )
-      }
 
       const pool = this.buildClmmPoolConfig(object, transform_extensions)
       this.updateCache(`${pool.pool_address}_getClmmPoolConfig`, pool, CACHE_TIME_24H)
@@ -256,27 +315,39 @@ export class ConfigModule implements IModule<CetusClmmSDK> {
     if (cacheData) {
       return cacheData
     }
-    const object = await this._sdk.FullClient.getDynamicFieldObject({
+    const object = await this._sdk.FullClient.getDynamicField({
       parentId: clmm_pools_handle,
       name: {
         type: 'address',
-        value: pool_id,
+        bcs: bcs.Address.serialize(pool_id).toBytes(),
       },
     })
-    const pool = this.buildClmmPoolConfig(object, transform_extensions)
+
+    const poolRaw = ClmmPool.parse(object.dynamicField.value.bcs)
+    const pool: ClmmPoolConfig = {
+      id: object.dynamicField.fieldId,
+      pool_address: normalizeSuiObjectId(poolRaw.pool_address),
+      pool_type: poolRaw.pool_type,
+      project_url: poolRaw.project_url,
+      is_closed: poolRaw.is_closed,
+      is_show_rewarder: poolRaw.is_show_rewarder,
+      show_rewarder_1: poolRaw.show_rewarder_1,
+      show_rewarder_2: poolRaw.show_rewarder_2,
+      show_rewarder_3: poolRaw.show_rewarder_3,
+    }
+    this.transformExtensions(pool, poolRaw.extension_fields.contents, transform_extensions)
     this.updateCache(cacheKey, pool, CACHE_TIME_24H)
     return pool
   }
 
-  private buildClmmPoolConfig(object: SuiObjectResponse, transform_extensions = true) {
-    let fields = getObjectFields(object)
-    fields = fields.value.fields
-    const pool: any = { ...fields }
+  private buildClmmPoolConfig(object: any, transform_extensions = true) {
+    let { json, objectId } = object
+    const pool: any = { ...json.value }
 
-    pool.id = getObjectId(object)
-    pool.pool_address = normalizeSuiObjectId(fields.pool_address)
+    pool.id = objectId
+    pool.pool_address = normalizeSuiObjectId(json.value.pool_address)
 
-    this.transformExtensions(pool, fields.extension_fields.fields.contents, transform_extensions)
+    this.transformExtensions(pool, json.value.extension_fields.contents, transform_extensions)
     return pool
   }
 
@@ -294,20 +365,11 @@ export class ConfigModule implements IModule<CetusClmmSDK> {
     }
     const res = await this._sdk.FullClient.getDynamicFieldsByPage(launchpad_pools_handle)
     const warpIds = res.data.map((item: any) => {
-      return item.objectId
+      return item.fieldId
     })
-    const objects = await this._sdk.FullClient.batchGetObjects(warpIds, { showContent: true })
+    const objects = await this._sdk.FullClient.batchGetObjects(warpIds, { json: true })
     const poolList: LaunchpadPoolConfig[] = []
     objects.forEach((object) => {
-      if (object.error != null || object.data?.content?.dataType !== 'moveObject') {
-        handleMessageError(
-          PoolErrorCode.FetchError,
-          `when getCoinConfigs get objects error: ${object.error}, please check the rpc and contracts address config.`,
-          {
-            [DETAILS_KEYS.METHOD_NAME]: 'getLaunchpadPoolConfigs',
-          }
-        )
-      }
 
       const pool = this.buildLaunchpadPoolConfig(object, transform_extensions)
       this.updateCache(`${pool.pool_address}_getLaunchpadPoolConfig`, pool, CACHE_TIME_24H)
@@ -324,35 +386,50 @@ export class ConfigModule implements IModule<CetusClmmSDK> {
     if (cacheData) {
       return cacheData
     }
-    const object = await this._sdk.FullClient.getDynamicFieldObject({
+    const object = await this._sdk.FullClient.getDynamicField({
       parentId: launchpad_pools_handle,
       name: {
         type: 'address',
-        value: pool_id,
+        bcs: bcs.Address.serialize(pool_id).toBytes(),
       },
     })
-    const pool = this.buildLaunchpadPoolConfig(object, transform_extensions)
+
+    const poolRaw = LaunchpadPool.parse(object.dynamicField.value.bcs)
+    const pool: LaunchpadPoolConfig = {
+      ...poolRaw,
+      id: object.dynamicField.fieldId,
+      pool_address: normalizeSuiObjectId(poolRaw.pool_address),
+      social_media: poolRaw.social_media.contents.map((item: any) => ({
+        name: item.value.name,
+        link: item.value.link,
+      })),
+    }
+    this.transformExtensions(pool, poolRaw.extension_fields.contents, transform_extensions)
+    try {
+      pool.regulation = decodeURIComponent(Base64.decode(pool.regulation).replace(/%/g, '%25'))
+    } catch (error) {
+      pool.regulation = Base64.decode(pool.regulation)
+    }
     this.updateCache(cacheKey, pool, CACHE_TIME_24H)
     return pool
   }
 
-  private buildLaunchpadPoolConfig(object: SuiObjectResponse, transform_extensions = true) {
-    let fields = getObjectFields(object)
-    fields = fields.value.fields
-    const pool: any = { ...fields }
+  private buildLaunchpadPoolConfig(object: any, transform_extensions = true) {
+    let { json, objectId } = object
+    const pool: any = { ...json.value }
 
-    pool.id = getObjectId(object)
-    pool.pool_address = normalizeSuiObjectId(fields.pool_address)
+    pool.id = objectId
+    pool.pool_address = normalizeSuiObjectId(pool.pool_address)
 
-    this.transformExtensions(pool, fields.extension_fields.fields.contents, transform_extensions)
+    this.transformExtensions(pool, pool.extension_fields.contents, transform_extensions)
     const social_medias: {
       name: string
       link: string
     }[] = []
-    fields.social_media.fields.contents.forEach((item: any) => {
+    pool.social_media.contents.forEach((item: any) => {
       social_medias.push({
-        name: item.fields.value.fields.name,
-        link: item.fields.value.fields.link,
+        name: item.value.name,
+        link: item.value.link,
       })
     })
     pool.social_media = social_medias
@@ -368,8 +445,8 @@ export class ConfigModule implements IModule<CetusClmmSDK> {
   private transformExtensions(coin: any, data_array: any[], transform_extensions = true) {
     const extensions: any[] = []
     for (const item of data_array) {
-      const { key } = item.fields
-      let { value } = item.fields
+      const { key } = item
+      let value = item.value
       if (key === 'labels') {
         try {
           const decodedValue = decodeURIComponent(Base64.decode(value))
@@ -411,14 +488,16 @@ export class ConfigModule implements IModule<CetusClmmSDK> {
       return cacheData
     }
 
-    const packageObject = await this._sdk.FullClient.getObject({
-      id: packageObjectId,
-      options: {
-        showPreviousTransaction: true,
+    const packageObject: any = await this._sdk.FullClient.getObject({
+      objectId: packageObjectId,
+      include: {
+        effects: true,
+        previousTransaction: true,
+        previousTxDigest: true,
       },
     })
 
-    const previousTx = getObjectPreviousTransactionDigest(packageObject) as string
+    const previousTx = packageObject.object!.previousTransaction as string
     const objects: any = await this._sdk.FullClient.queryEventsByPage({ Transaction: previousTx })
     let tokenConfig: CetusConfigs = {
       coin_list_id: '',
@@ -463,30 +542,20 @@ export class ConfigModule implements IModule<CetusClmmSDK> {
   private async getCetusConfigHandle(token_config: CetusConfigs): Promise<CetusConfigs> {
     const warpIds = [token_config.clmm_pools_id, token_config.coin_list_id, token_config.launchpad_pools_id]
 
-    const res = await this._sdk.FullClient.multiGetObjects({ ids: warpIds, options: { showContent: true } })
+    const res = await this._sdk.FullClient.batchGetObjects(warpIds, { json: true })
 
-    res.forEach((item) => {
-      if (item.error != null || item.data?.content?.dataType !== 'moveObject') {
-        handleMessageError(
-          ConfigErrorCode.InvalidConfigHandle,
-          `when getCetusConfigHandle get objects error: ${item.error}, please check the rpc and contracts address config.`,
-          {
-            [DETAILS_KEYS.METHOD_NAME]: 'getCetusConfigHandle',
-          }
-        )
-      }
-
-      const fields = getObjectFields(item)
-      const type = getObjectType(item) as string
+    res.forEach((item: any) => {
+      const fields = item.data?.json
+      const type = item.data?.type as string
       switch (extractStructTagFromType(type).name) {
         case 'ClmmPools':
-          token_config.clmm_pools_handle = fields.pools.fields.id.id
+          token_config.clmm_pools_handle = fields.pools.id
           break
         case 'CoinList':
-          token_config.coin_list_handle = fields.coins.fields.id.id
+          token_config.coin_list_handle = fields.coins.id
           break
         case 'LaunchpadPools':
-          token_config.launchpad_pools_handle = fields.pools.fields.id.id
+          token_config.launchpad_pools_handle = fields.pools.id
           break
         default:
           break

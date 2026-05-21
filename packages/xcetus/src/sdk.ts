@@ -8,6 +8,7 @@ import type { DividendConfig, XcetusConfig } from './types/xcetus_type'
  * Represents options and configurations for an SDK.
  */
 export interface SdkOptions extends BaseSdkOptions {
+  env: 'mainnet' | 'testnet'
   xcetus: Package<XcetusConfig>
   xcetus_dividends: Package<DividendConfig>
   cetus_faucet: Package

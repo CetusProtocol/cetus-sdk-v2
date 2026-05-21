@@ -29,73 +29,113 @@ export async function getErcPermitOrAllowance(
   if (quote.fromToken.standard !== 'erc20') {
     return undefined
   }
+  if (!signer.provider) {
+    throw new Error('EVM signer provider is required for permit/allowance checks')
+  }
+  const network = await signer.provider.getNetwork()
+  if (Number(network.chainId) !== Number(quote.fromToken.chainId)) {
+    throw new Error(
+      `Signer network chainId ${network.chainId.toString()} does not match quote token chainId ${quote.fromToken.chainId}`
+    )
+  }
+  const tokenCode = await signer.provider.getCode(quote.fromToken.contract)
+  const tokenCodeLength = tokenCode.length
+  if (!tokenCode || tokenCode === '0x') {
+    throw new Error(`Token contract ${quote.fromToken.contract} has no bytecode on chain ${network.chainId.toString()}`)
+  }
   const tokenContract = new Contract(quote.fromToken.contract, ERC20Permit_ABI, signer)
   const amountIn = getAmountOfFractionalAmount(quote.effectiveAmountIn, quote.fromToken.decimals)
   if (quote.fromToken.supportsPermit) {
-    const nonce = await tokenContract.nonces(walletSrcAddr)
-    const deadline = Math.floor(Date.now() / 1000) + 60 * 10
+    try {
+      const nonce = await tokenContract.nonces(walletSrcAddr)
+      const deadline = Math.floor(Date.now() / 1000) + 60 * 10
 
-    const domain = {
-      name: await tokenContract.name(),
-      version: '1',
-      chainId: quote.fromToken.chainId,
-      verifyingContract: await tokenContract.getAddress(),
-    }
-    const domainSeparator = await tokenContract.DOMAIN_SEPARATOR()
-    for (let i = 1; i < 11; i++) {
-      domain.version = String(i)
-      const hash = TypedDataEncoder.hashDomain(domain)
-      if (hash.toLowerCase() === domainSeparator.toLowerCase()) {
-        break
+      const domain = {
+        name: await tokenContract.name(),
+        version: '1',
+        chainId: quote.fromToken.chainId,
+        verifyingContract: await tokenContract.getAddress(),
       }
-    }
-
-    let spender = addresses.MAYAN_FORWARDER_CONTRACT
-    if (quote.type === 'SWIFT' && quote.gasless) {
-      const forwarderContract = new Contract(addresses.MAYAN_FORWARDER_CONTRACT, MayanForwarderArtifact.abi, signer.provider)
-      const isValidSwiftContract = await forwarderContract.mayanProtocols(quote.swiftMayanContract)
-      if (!isValidSwiftContract) {
-        throw new Error('Invalid Swift contract for gasless swap')
+      const domainSeparator = await tokenContract.DOMAIN_SEPARATOR()
+      for (let i = 1; i < 11; i++) {
+        domain.version = String(i)
+        const hash = TypedDataEncoder.hashDomain(domain)
+        if (hash.toLowerCase() === domainSeparator.toLowerCase()) {
+          break
+        }
       }
-      if (!quote.swiftMayanContract) {
-        throw new Error('Swift contract not found')
+
+      let spender = addresses.MAYAN_FORWARDER_CONTRACT
+      if (quote.type === 'SWIFT' && quote.gasless) {
+        const forwarderContract = new Contract(addresses.MAYAN_FORWARDER_CONTRACT, MayanForwarderArtifact.abi, signer.provider)
+        const isValidSwiftContract = await forwarderContract.mayanProtocols(quote.swiftMayanContract)
+        if (!isValidSwiftContract) {
+          throw new Error('Invalid Swift contract for gasless swap')
+        }
+        if (!quote.swiftMayanContract) {
+          throw new Error('Swift contract not found')
+        }
+        spender = quote.swiftMayanContract
       }
-      spender = quote.swiftMayanContract
-    }
 
-    const types = {
-      Permit: [
-        { name: 'owner', type: 'address' },
-        { name: 'spender', type: 'address' },
-        { name: 'value', type: 'uint256' },
-        { name: 'nonce', type: 'uint256' },
-        { name: 'deadline', type: 'uint256' },
-      ],
-    }
+      const types = {
+        Permit: [
+          { name: 'owner', type: 'address' },
+          { name: 'spender', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' },
+        ],
+      }
 
-    const value = {
-      owner: walletSrcAddr,
-      spender,
-      value: amountIn,
-      nonce,
-      deadline,
-    }
-    updateCrossSwapAction?.updatePermitState(quote, 'start')
-    const signature = await signer.signTypedData(domain, types, value)
-    const { v, r, s } = Signature.from(signature)
-    updateCrossSwapAction?.updatePermitState(quote, 'success')
-    // const permitTx = await tokenContract.permit(walletSrcAddr, spender, amountIn, deadline, v, r, s)
-    // await permitTx.wait()
-    return {
-      value: amountIn,
-      deadline,
-      v,
-      r,
-      s,
+      const value = {
+        owner: walletSrcAddr,
+        spender,
+        value: amountIn,
+        nonce,
+        deadline,
+      }
+      updateCrossSwapAction?.updatePermitState(quote, 'start')
+      const signature = await signer.signTypedData(domain, types, value)
+      const { v, r, s } = Signature.from(signature)
+      updateCrossSwapAction?.updatePermitState(quote, 'success')
+      // const permitTx = await tokenContract.permit(walletSrcAddr, spender, amountIn, deadline, v, r, s)
+      // await permitTx.wait()
+      return {
+        value: amountIn,
+        deadline,
+        v,
+        r,
+        s,
+      }
+    } catch (error) {
+      // Some tokens are marked as supportsPermit by upstream data but do not fully
+      // implement EIP-2612 methods (e.g. nonces/domain separator). Fall back to approve.
     }
   }
 
-  const allowance: bigint = await tokenContract.allowance(walletSrcAddr, addresses.MAYAN_FORWARDER_CONTRACT)
+  let allowance: bigint
+  try {
+    allowance = await tokenContract.allowance(walletSrcAddr, addresses.MAYAN_FORWARDER_CONTRACT)
+  } catch (error: any) {
+    console.error('[cross-swap][mayan] allowance call failed', {
+      providerChainId: network.chainId.toString(),
+      quoteFromTokenChainId: String(quote.fromToken.chainId),
+      tokenContract: quote.fromToken.contract,
+      owner: walletSrcAddr,
+      spender: addresses.MAYAN_FORWARDER_CONTRACT,
+      tokenCodeLength,
+      hasSignerProvider: Boolean(signer.provider),
+      errorMessage: error?.message || String(error),
+      errorCode: error?.code,
+      errorData: error?.data ?? null,
+      errorReason: error?.reason ?? null,
+    })
+    throw new Error(
+      `Failed to read allowance from token ${quote.fromToken.contract} for owner ${walletSrcAddr} on chain ${quote.fromToken.chainId}: ${error?.message || String(error)
+      }`
+    )
+  }
   if (allowance < amountIn) {
     updateCrossSwapAction?.updatePermitState(quote, 'start')
     const approveTx = await tokenContract.approve(addresses.MAYAN_FORWARDER_CONTRACT, amountIn)
@@ -115,9 +155,9 @@ export async function getErcPermitOrAllowance(
 export function createSolanaSignerFromKeypair(keypair: Keypair): SolanaTransactionSigner {
   return ((trx: SolanaTransaction | VersionedTransaction): Promise<SolanaTransaction | VersionedTransaction> => {
     if ('version' in trx) {
-      ;(trx as VersionedTransaction).sign([keypair])
+      ; (trx as VersionedTransaction).sign([keypair])
     } else {
-      ;(trx as SolanaTransaction).sign(keypair)
+      ; (trx as SolanaTransaction).sign(keypair)
     }
     return Promise.resolve(trx)
   }) as SolanaTransactionSigner

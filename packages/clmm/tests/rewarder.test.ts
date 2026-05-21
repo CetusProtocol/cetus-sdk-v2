@@ -2,10 +2,10 @@ import { buildTestAccount } from '@cetusprotocol/test-utils'
 import 'isomorphic-fetch'
 import CetusClmmSDK, { CollectRewarderParams } from '../src'
 
-const poolId = '0x9c78366d4f3f40aed29dc7fdd95fc4f5704891149551d1a921c02c7f2cd6ea98'
-const position_nft_id = '0xb3e14848e82ecd1ce633fb6c630b249713af81c1f634afef9033d8f09300f850'
+const poolId = '0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab'
+const position_nft_id = '0xe6cf790521d1c32673de1b5ac39039e9e37046e4001544d61f603d2264e35350'
 describe('Rewarder Module', () => {
-  const sdk = CetusClmmSDK.createSDK({ env: 'testnet' })
+  const sdk = CetusClmmSDK.createSDK({ env: 'mainnet' })
 
   test('emissionsEveryDay', async () => {
     const emissionsEveryDay = await sdk.Rewarder.emissionsEveryDay(poolId)
@@ -13,18 +13,18 @@ describe('Rewarder Module', () => {
   })
 
   test('posRewardersAmount', async () => {
-    const pool = await sdk.Pool.getPool('0xdd83e7fbee4f22b28c212d108379435f299dcc47cd0e4cd196cecb6a78e439d1')
+    const pool = await sdk.Pool.getPool(poolId)
     console.log('pool', pool)
 
     const rewardCoinTypes = pool.rewarder_infos.map((rewarder) => rewarder.coin_type)
 
     const res = await sdk.Rewarder.fetchPosRewardersAmount([
       {
-        coin_type_a: pool?.coin_type_a,
-        coin_type_b: pool?.coin_type_b,
+        coin_type_a: pool.coin_type_a,
+        coin_type_b: pool.coin_type_b,
         rewarder_types: rewardCoinTypes,
         pool_id: pool.id,
-        position_id: '0x38aac2f6ba33c600c65831bb1b94c78e3939ac2ef669b57579f048aa6f15200b',
+        position_id: position_nft_id
       },
     ])
     console.log('posRewardersAmount-res：', res[0])

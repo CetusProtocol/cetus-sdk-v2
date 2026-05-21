@@ -4,6 +4,7 @@
 import { buildTestAccount } from '@cetusprotocol/test-utils'
 import { Transaction } from '@mysten/sui/transactions'
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
+import { SuiGrpcClient } from '@mysten/sui/grpc'
 import type {
   StandardConnectFeature,
   StandardConnectMethod,
@@ -31,9 +32,9 @@ export class TestSuiWallet implements Wallet {
 
   // Ed25519Keypair 模拟 provider 的能力
   private provider: Ed25519Keypair | null = null
-  private suiClient: SuiJsonRpcClient
+  private suiClient: SuiGrpcClient
 
-  constructor(suiClient: SuiJsonRpcClient) {
+  constructor(suiClient: SuiGrpcClient) {
     this.#connecting = false
     this.#connected = false
     this.suiClient = suiClient
@@ -174,26 +175,30 @@ export class TestSuiWallet implements Wallet {
   #signAndExecuteTransaction: SuiSignAndExecuteTransactionMethod = async (transactionInput) => {
     console.log('🚀 ~  ~ #signAndExecuteTransaction:4= ~ transactionInput:', transactionInput)
 
-    const { bytes, signature } = await Transaction.from(await transactionInput.transaction.toJSON()).sign({
-      client: this.suiClient,
-      signer: this.provider!,
-    })
+    const tx = Transaction.from(await transactionInput.transaction.toJSON())
+    const buildOptions = { client: this.suiClient }
+    const bytes = await tx.build(buildOptions)
+    const { signature } = await this.provider!.signTransaction(bytes)
 
     transactionInput.signal?.throwIfAborted()
 
-    const { rawEffects, digest } = await this.suiClient.executeTransactionBlock({
-      signature,
-      transactionBlock: bytes,
-      options: {
-        showRawEffects: true,
-      },
+    const result = await this.suiClient.executeTransaction({
+      transaction: bytes,
+      signatures: [signature],
+      include: { effects: true },
     })
 
+    const txResult = result.Transaction ?? result.FailedTransaction
+    if (!txResult) {
+      throw new Error('Execute transaction failed')
+    }
+
+    const effectsBcs = txResult.effects?.bcs
     return {
-      bytes,
+      bytes: toBase64(bytes),
       signature,
-      digest,
-      effects: toBase64(new Uint8Array(rawEffects!)),
+      digest: txResult.digest,
+      effects: effectsBcs ? toBase64(effectsBcs) : '',
     }
   }
 }

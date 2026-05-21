@@ -22,7 +22,12 @@ describe('Swap calculate Module', () => {
   })
 
   test('getTickDataByIndex', async () => {
-    const tickData = await sdk.Pool.getTickDataByIndex('0x79696ca8bcdc45b9e15ef7da074a9c9a6f94739021590d7f57a3ed4055b93532', -443636)
+    const tickData = await sdk.Pool.getTickDataByIndex('0x0a46b7e6de173f9e48b56ec7bd3300c6a55c6fd4cabd3e2fbe7181014a796e40', 57060)
+    console.log('tickData: ', tickData)
+  })
+
+  test('getTickDataByObjectId', async () => {
+    const tickData = await sdk.Pool.getTickDataByObjectId('0x0037c3e265031351c0557f085998a9e064cb66db4f2e11ef10449525e4769139')
     console.log('tickData: ', tickData)
   })
 

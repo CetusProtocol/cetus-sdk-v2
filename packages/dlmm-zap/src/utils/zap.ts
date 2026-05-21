@@ -125,6 +125,129 @@ export function calculateLiquidityAmountSide(
  *   - final_amount_a: Final amount of token A (remaining A when fix_amount_a=true, obtained A when fix_amount_a=false)
  *   - final_amount_b: Final amount of token B (obtained B when fix_amount_a=true, remaining B when fix_amount_a=false)
  */
+/**
+ * Calculate the swap amount needed to adjust two coin balances to a target ratio.
+ *
+ * The function automatically determines whether to swap A→B or B→A based on
+ * the current balances and the target ratio, then binary-searches for the
+ * minimal swap size that brings the final B/A ratio within 0.1 % of `target_ratio`.
+ *
+ * @param amount_a      - Current amount of coin A
+ * @param amount_b      - Current amount of coin B
+ * @param current_price - Real exchange rate expressed as B/A (how many B per 1 A)
+ * @param target_ratio  - Desired final ratio expressed as B/A (final_b / final_a)
+ * @returns
+ *   - swap_amount:    Amount to swap (denominated in the source coin)
+ *   - final_amount_a: Final amount of coin A after the swap
+ *   - final_amount_b: Final amount of coin B after the swap
+ *   - a_to_b:         Swap direction – true = sell A for B, false = sell B for A
+ */
+export function calcSwapAmountForTargetRatio(
+  amount_a: string,
+  amount_b: string,
+  current_price: string,
+  target_ratio: string
+) {
+  const amountA = d(amount_a)
+  const amountB = d(amount_b)
+  const price = d(current_price)
+  const target = d(target_ratio)
+
+  if (amountA.eq(0) && amountB.eq(0)) {
+    return {
+      swap_amount: '0',
+      final_amount_a: '0',
+      final_amount_b: '0',
+      a_to_b: true,
+    }
+  }
+
+  let a_to_b: boolean
+  if (amountA.eq(0)) {
+    a_to_b = false
+  } else if (amountB.eq(0)) {
+    a_to_b = true
+  } else {
+    const currentRatio = amountB.div(amountA)
+    a_to_b = currentRatio.lt(target)
+  }
+
+  if (target.eq(0)) {
+    if (!a_to_b) {
+      const finalA = amountA.plus(amountB.div(price))
+      return { swap_amount: amountB.toFixed(0), final_amount_a: finalA.toFixed(0), final_amount_b: '0', a_to_b }
+    }
+    return { swap_amount: '0', final_amount_a: amountA.toFixed(0), final_amount_b: amountB.toFixed(0), a_to_b }
+  }
+
+  const maxSwap = a_to_b ? amountA : amountB
+  const maxR = target
+  const minR = target.mul(0.999)
+
+  let left = d(0)
+  let right = maxSwap
+  let best: Decimal | null = null
+
+  function computeFinal(x: Decimal) {
+    if (a_to_b) {
+      const A = amountA.minus(x)
+      const B = amountB.plus(x.mul(price))
+      return { A, B, R: A.gt(0) ? B.div(A) : d(Number.MAX_SAFE_INTEGER) }
+    }
+    const A = amountA.plus(x.div(price))
+    const B = amountB.minus(x)
+    return { A, B, R: A.gt(0) ? B.div(A) : d(0) }
+  }
+
+  for (let i = 0; i < 120; i++) {
+    const mid = left.plus(right).div(2)
+    const { A, B, R } = computeFinal(mid)
+
+    if (A.lte(0) || B.lte(0)) {
+      right = mid
+      continue
+    }
+
+    if (R.gt(maxR)) {
+      if (a_to_b) {
+        right = mid
+      } else {
+        left = mid
+      }
+    } else if (R.lt(minR)) {
+      if (a_to_b) {
+        left = mid
+      } else {
+        right = mid
+      }
+    } else {
+      best = mid
+      if (minR.eq(0)) {
+        break
+      }
+      right = mid
+    }
+  }
+
+  if (!best) {
+    return {
+      swap_amount: '0',
+      final_amount_a: amountA.toFixed(0),
+      final_amount_b: amountB.toFixed(0),
+      a_to_b,
+    }
+  }
+
+  const { A, B } = computeFinal(best)
+
+  return {
+    swap_amount: best.toFixed(0),
+    final_amount_a: A.toFixed(0),
+    final_amount_b: B.toFixed(0),
+    a_to_b,
+  }
+}
+
 export function calcExactSwapAmount(coin_amount: string, fix_amount_a: boolean, current_price: string, target_ratio: string) {
   const amount = d(coin_amount)
 

@@ -23,8 +23,8 @@ export const xcetus_mainnet: SdkOptions = {
    */
   xcetus: {
     package_id: '0x9e69acc50ca03bc943c4f7c5304c2a6002d507b51c11913b247159c60422c606',
-    published_at: '0x07d45ee8fc56ddce3232304c1191f3c0319fa8240305c5ee2231a2da7cbb49e6',
-    version: 2,
+    published_at: '0xa0e7ccad08e09657e294e7cbbd609d26dbd0020b9b894684702a115d5ae1a1cf',
+    version: 3,
     config: SDKConfig.xcetusConfig,
   },
   /**
@@ -32,8 +32,8 @@ export const xcetus_mainnet: SdkOptions = {
    */
   xcetus_dividends: {
     package_id: '0x785248249ac457dfd378bdc6d2fbbfec9d1daf65e9d728b820eb4888c8da2c10',
-    published_at: '0x5aa58e1623885bd93de2331d05c29bf4930e54e56beeabcab8fe5385de2d31dc',
-    version: 4,
+    published_at: '0xeafb58923ef5a284a3760a843130725c0bfe3f75eeaf82b3784f13c8a358a8b7',
+    version: 5,
     config: SDKConfig.xcetusDividendsConfig,
   },
   cetus_faucet: {

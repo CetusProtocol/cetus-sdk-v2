@@ -86,7 +86,7 @@ export class MayanCrossSwapModule extends CrossSwapMayan {
         undefined,
         this.sdk.FullClient as any
       )
-      return tx
+      return tx as any
     } catch (error: any) {
       console.log('🚀 ~ MayanCrossSwap.buildSwapFromSui ~ error:', error)
       return handleError(CrossSwapErrorCode.SwapFailed, error, {
@@ -246,7 +246,9 @@ export class MayanCrossSwapModule extends CrossSwapMayan {
       }
 
       const mayan_routes = res.map((route) => {
-        return this.parseCrossSwapQuote(route)
+        const quote = this.parseCrossSwapQuote(route)
+        quote.to_address = mayan_configs?.to_address
+        return quote
       })
 
       return {

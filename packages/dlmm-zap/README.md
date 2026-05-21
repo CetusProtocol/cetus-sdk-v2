@@ -43,7 +43,7 @@ const full_rpc_url = 'YOUR_FULL_NODE_URL'
 const sdk = CetusDlmmZapSDK.createSDK({ env, full_rpc_url })
 ```
 
-If you wish to set your own SuiClient, you can do so as follows:
+If you wish to set your own SuiGrpcClient, you can do so as follows:
 
 ```typescript
 const sdk = CetusDlmmZapSDK.createSDK({ env, sui_client })

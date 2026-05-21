@@ -6,9 +6,11 @@ import {
   CoinAssist,
   DETAILS_KEYS,
   extractStructTagFromType,
-  getObjectFields,
+  fixCoinType,
   getPackagerConfigs,
   IModule,
+  TableIDBoolRaw,
+  TypeNameRaw,
 } from '@cetusprotocol/common-sdk'
 import { DcaErrorCode, handleError } from '../errors/errors'
 import { CetusDcaSDK } from '../sdk'
@@ -22,6 +24,10 @@ import type {
   WithdrawDcaParams,
 } from '../types/dcaType'
 import { DcaUtils } from '../utils/dca'
+import { bcs } from '@mysten/sui/bcs'
+
+
+
 
 /**
  * Helper class to help interact with farm pools with a router interface.
@@ -99,50 +105,51 @@ export class DcaModule implements IModule<CetusDcaSDK> {
       const { dca } = this._sdk.sdkOptions
       const { user_indexer_id } = getPackagerConfigs(dca)
       let dca_table_id
-      const cache_dca_table_id = this._sdk.getCache(`${wallet_address}_dca_table_id`)
+      const cache_dca_table_id = this._sdk.getCache<string>(`${wallet_address}_dca_table_id`)
       if (cache_dca_table_id) {
         dca_table_id = cache_dca_table_id
       } else {
-        const dca_table: any = await this._sdk.FullClient.getDynamicFieldObject({
+        const dca_table: any = await this._sdk.FullClient.getDynamicField({
           parentId: user_indexer_id,
           name: {
             type: 'address',
-            value: wallet_address,
+            bcs: bcs.Address.serialize(wallet_address).toBytes(),
           },
         })
-        dca_table_id = getObjectFields(dca_table).value.fields.id.id
+        const parsed = TableIDBoolRaw.parse(dca_table.dynamicField.value.bcs)
+        dca_table_id = parsed.id
         this._sdk.updateCache(`${wallet_address}_dca_table_id`, dca_table_id)
       }
       let nextCursor: string | null = null
       const limit = 50
       const tableIdList: any = []
       while (true) {
-        const tableRes: any = await this._sdk.FullClient.getDynamicFields({
+        const tableRes: any = await this._sdk.FullClient.listDynamicFields({
           parentId: dca_table_id,
           cursor: nextCursor,
           limit,
         })
-        tableRes.data.forEach((item: any) => {
-          tableIdList.push(item.name.value)
+        tableRes.dynamicFields.forEach((item: any) => {
+          tableIdList.push(bcs.Address.parse(item.name.bcs))
         })
-        nextCursor = tableRes.nextCursor
-        if (nextCursor === null || tableRes.data.length < limit) {
+        nextCursor = tableRes.cursor
+        if (nextCursor === null || tableRes.dynamicFields.length < limit) {
           break
         }
       }
       const dcaOrderList = []
-      const res = await this._sdk.FullClient.batchGetObjects(tableIdList, { showType: true, showContent: true })
+      const res = await this._sdk.FullClient.batchGetObjects(tableIdList, { json: true })
       for (let i = 0; i < res.length; i++) {
         const dcaOrderObject: any = res[i]
-        const type = extractStructTagFromType(dcaOrderObject.data.type)
+        const type = extractStructTagFromType(dcaOrderObject.type)
         const in_coin_type: SuiAddressType = type.type_arguments[0]
         const out_coin_type: SuiAddressType = type.type_arguments[1]
         dcaOrderList.push({
           in_coin_type,
           out_coin_type,
-          ...dcaOrderObject.data.content.fields,
-          id: dcaOrderObject.data.content.fields.id.id,
-          version: dcaOrderObject.data.version,
+          ...dcaOrderObject.json,
+          id: dcaOrderObject.objectId,
+          version: dcaOrderObject.version,
         })
       }
       dataPage.data = dcaOrderList
@@ -194,10 +201,7 @@ export class DcaModule implements IModule<CetusDcaSDK> {
     const limit = 50
     try {
       while (true) {
-        const dcaOrderTxRes: any = await this._sdk.FullClient.queryTransactionBlocks({
-          filter: { ChangedObject: order_id },
-          limit,
-        })
+        const dcaOrderTxRes: any = await this._sdk.FullClient.queryTransactionBlocksByPage({ affectedAddress: order_id }, { limit: 50 })
         dcaOrderTxRes.data.forEach((element: DcaOrderTx) => {
           result.push(element.digest)
         })
@@ -210,7 +214,7 @@ export class DcaModule implements IModule<CetusDcaSDK> {
       if (historyResult && historyResult.length === result.length) {
         return this._sdk.getCache(`${order_id}_history_list`)
       }
-      const dcaOrderEvents: any = await this._sdk.FullClient.multiGetTransactionBlocks({
+      const dcaOrderEvents: any = await this._sdk.FullClient._jsonRpcClient!.multiGetTransactionBlocks({
         digests: result,
         options: {
           showInput: true,
@@ -248,13 +252,12 @@ export class DcaModule implements IModule<CetusDcaSDK> {
         let nextCursor: string | null = null
         const limit = 50
         while (true) {
-          const inCoinTableRes: any = await this._sdk.FullClient.getDynamicFields({
-            parentId: in_coin_whitelist_id,
+          const inCoinTableRes: any = await this._sdk.FullClient.getDynamicFieldsByPage(in_coin_whitelist_id, {
             cursor: nextCursor,
             limit,
           })
           inCoinTableRes.data.forEach((item: any) => {
-            inCoinList.push(extractStructTagFromType(item.name.value.name).full_address)
+            inCoinList.push(fixCoinType(TypeNameRaw.parse(item.name.bcs).name, false))
           })
           nextCursor = inCoinTableRes.nextCursor
           if (nextCursor === null || inCoinTableRes.data.length < limit) {
@@ -266,13 +269,12 @@ export class DcaModule implements IModule<CetusDcaSDK> {
         let nextCursor: string | null = null
         const limit = 50
         while (true) {
-          const outCoinTableRes: any = await this._sdk.FullClient.getDynamicFields({
-            parentId: out_coin_whitelist_id,
+          const outCoinTableRes: any = await this._sdk.FullClient.getDynamicFieldsByPage(out_coin_whitelist_id, {
             cursor: nextCursor,
             limit,
           })
           outCoinTableRes.data.forEach((item: any) => {
-            outCoinList.push(extractStructTagFromType(item.name.value.name).full_address)
+            outCoinList.push(fixCoinType(TypeNameRaw.parse(item.name.bcs).name, false))
           })
           nextCursor = outCoinTableRes.nextCursor
           if (nextCursor === null || outCoinTableRes.data.length < limit) {
@@ -298,10 +300,10 @@ export class DcaModule implements IModule<CetusDcaSDK> {
     const { global_config_id } = getPackagerConfigs(this._sdk.sdkOptions.dca)
     try {
       const globalConfigObject: any = await this._sdk.FullClient.getObject({
-        id: global_config_id,
-        options: { showType: true, showContent: true },
+        objectId: global_config_id,
+        include: { json: true },
       })
-      const globalConfig = DcaUtils.buildDcaGlobalConfig(globalConfigObject.data.content.fields)
+      const globalConfig = DcaUtils.buildDcaGlobalConfig(globalConfigObject.object.json)
       return globalConfig
     } catch (error) {
       handleError(DcaErrorCode.FetchError, error as Error, {
@@ -333,18 +335,18 @@ export class DcaModule implements IModule<CetusDcaSDK> {
         const { parsedJson } = orderEvent[0] as { parsedJson: any }
         config.indexer_id = parsedJson.indexer_id
         const user_indexer_object: any = await this._sdk.FullClient.getObject({
-          id: parsedJson.indexer_id,
-          options: { showType: true, showContent: true },
+          objectId: parsedJson.indexer_id,
+          include: { json: true },
         })
-        config.user_indexer_id = user_indexer_object.data?.content.fields.user_orders.fields.id.id
+        config.user_indexer_id = user_indexer_object.object?.json.user_orders.id
       }
       if (config.global_config_id) {
         const global_config_object: any = await this._sdk.FullClient.getObject({
-          id: config.global_config_id,
-          options: { showType: true, showContent: true },
+          objectId: config.global_config_id,
+          include: { json: true },
         })
-        config.in_coin_whitelist_id = global_config_object.data.content.fields.in_coin_whitelist.fields.id.id
-        config.out_coin_whitelist_id = global_config_object.data.content.fields.out_coin_whitelist.fields.id.id
+        config.in_coin_whitelist_id = global_config_object.object.json.in_coin_whitelist.id
+        config.out_coin_whitelist_id = global_config_object.object.json.out_coin_whitelist.id
       }
       return config
     } catch (error) {

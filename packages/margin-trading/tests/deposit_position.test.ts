@@ -24,12 +24,12 @@ describe('deposit position test', () => {
   })
 
   test('getPositionList', async () => {
-    const res = await sdk.PositionModules.getPositionList('0x52bfafe1e1022f2ba070f638128f34e8a948eafe5ce778c0702507652cc3f033')
+    const res = await sdk.PositionModules.getPositionList('0xc5cea39da987d8fe16bf0c6db51bfbf4897aef0edf9588e035ae175ac416fdd1')
     console.log('🚀🚀🚀 ~ position.test.ts:21 ~ res:', res)
   })
 
   test('getPositionInfo', async () => {
-    const res = await sdk.PositionModules.getPositionInfo('0xc6d39a5118cfbbfbc741ac7043e614c0dfd9b40cb07fe9f343c1373d137064ec')
+    const res = await sdk.PositionModules.getPositionInfo("0x6fcf00cf29304bd368aa12446869f66c0980b75c14d98438db2cad7ffef8b355")
     console.log('🚀🚀🚀 ~ position.test.ts:21 ~ res:', res)
   })
 

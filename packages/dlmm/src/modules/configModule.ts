@@ -1,5 +1,5 @@
 import { Transaction } from '@mysten/sui/transactions'
-import { CLOCK_ADDRESS, DETAILS_KEYS, fixCoinType, getObjectFields, getPackagerConfigs, IModule } from '@cetusprotocol/common-sdk'
+import { CLOCK_ADDRESS, DETAILS_KEYS, fixCoinType, getPackagerConfigs, IModule } from '@cetusprotocol/common-sdk'
 import { DlmmErrorCode, handleError } from '../errors/errors'
 import { CetusDlmmSDK } from '../sdk'
 import { BinStepConfig, DlmmConfigs, DlmmGlobalConfig, RewardWhiteListOption } from '../types/dlmm'
@@ -45,17 +45,17 @@ export class ConfigModule implements IModule<CetusDlmmSDK> {
 
     const list: BinStepConfig[] = []
 
-    const bin_step_ids = res.data.map((item) => item.objectId)
+    const bin_step_ids = res.data.map((item) => item.fieldId)
 
     if (bin_step_ids.length > 0) {
       const bin_step_configs = await this._sdk.FullClient.batchGetObjects(bin_step_ids, {
-        showContent: true,
+        json: true,
       })
 
-      bin_step_configs.forEach((item) => {
-        const fields = getObjectFields(item)
+      bin_step_configs.forEach((item: any) => {
+        const fields = item.json
         const bin_step_config: BinStepConfig = {
-          ...fields.value.fields,
+          ...fields.value,
         }
         list.push(bin_step_config)
       })
@@ -72,14 +72,14 @@ export class ConfigModule implements IModule<CetusDlmmSDK> {
     const { dlmm_pool } = this._sdk.sdkOptions
     const { global_config_id } = getPackagerConfigs(dlmm_pool)
     try {
-      const res = await this._sdk.FullClient.getObject({
-        id: global_config_id,
-        options: { showContent: true },
+      const res: any = await this._sdk.FullClient.getObject({
+        objectId: global_config_id,
+        include: { json: true },
       })
 
-      const fields = getObjectFields(res)
+      const fields = res.object.json
 
-      const reward_config = fields.reward_config.fields
+      const reward_config = fields.reward_config
 
       const white_list: string[] =
         reward_config.reward_white_list?.fields?.contents?.map((item: any) => {
@@ -89,29 +89,29 @@ export class ConfigModule implements IModule<CetusDlmmSDK> {
       const globalConfig: DlmmGlobalConfig = {
         id: fields.id.id,
         acl: {
-          id: fields.acl.fields.permissions.fields.id.id,
-          size: fields.acl.fields.permissions.fields.size,
+          id: fields.acl.permissions.id,
+          size: fields.acl.permissions.size,
         },
         allowed_list: {
-          id: fields.allowed_list.fields.id.id,
-          size: fields.allowed_list.fields.size,
+          id: fields.allowed_list.id,
+          size: fields.allowed_list.size,
         },
         denied_list: {
-          id: fields.denied_list.fields.id.id,
-          size: fields.denied_list.fields.size,
+          id: fields.denied_list.id,
+          size: fields.denied_list.size,
         },
         bin_steps: {
-          id: fields.bin_steps.fields.id.id,
-          size: fields.bin_steps.fields.size,
+          id: fields.bin_steps.id,
+          size: fields.bin_steps.size,
         },
         reward_white_list: white_list,
         blocked_position: {
-          id: fields.restriction.fields.blocked_position.fields.permissions.fields.id.id,
-          size: fields.restriction.fields.blocked_position.fields.permissions.fields.size,
+          id: fields.restriction.blocked_position.permissions.id,
+          size: fields.restriction.blocked_position.permissions.size,
         },
         blocked_user: {
-          id: fields.restriction.fields.blocked_user.fields.permissions.fields.id.id,
-          size: fields.restriction.fields.blocked_user.fields.permissions.fields.size,
+          id: fields.restriction.blocked_user.permissions.id,
+          size: fields.restriction.blocked_user.permissions.size,
         },
         min_reward_duration: Number(reward_config.min_reward_duration),
         non_manager_initialize_reward_cap: Number(reward_config.manager_reserved_reward_init_slots),
@@ -144,12 +144,20 @@ export class ConfigModule implements IModule<CetusDlmmSDK> {
     }
 
     const res = await this._sdk.FullClient.getObject({
-      id: dlmm_pool.package_id,
-      options: { showContent: true, showPreviousTransaction: true },
+      objectId: dlmm_pool.package_id,
+      include: { json: true, previousTransaction: true },
     })
-    const tx_digest = res.data?.previousTransaction!
-    const txRes = await this._sdk.FullClient.getTransactionBlock({ digest: tx_digest, options: { showEvents: true } })
-    txRes.events?.forEach((event) => {
+    const tx_digest = res.object?.previousTransaction
+    if (!tx_digest) {
+      return handleError(DlmmErrorCode.FetchError, 'Missing previous transaction digest for dlmm package object', {
+        [DETAILS_KEYS.METHOD_NAME]: 'fetchDlmmSdkConfigs',
+        [DETAILS_KEYS.REQUEST_PARAMS]: dlmm_pool.package_id,
+      }) as never
+    }
+    //  const txRes = await this._sdk.FullClient.getTransaction({ digest: tx_digest, include: { events: true } })
+
+    const txRes: any = await this._sdk.FullClient.queryEventsByPage({ Transaction: tx_digest })
+    txRes.data?.forEach((event: any) => {
       const type = event.type
       const parsedJson = event.parsedJson as any
 
@@ -173,9 +181,9 @@ export class ConfigModule implements IModule<CetusDlmmSDK> {
         configs.registry_id = parsedJson.pools_id
       }
     })
-    const registerRes = await this._sdk.FullClient.getObject({ id: configs.registry_id, options: { showContent: true } })
-    const registerFields = getObjectFields(registerRes)
-    configs.pools_id = registerFields.pools.fields.id.id
+    const registerRes: any = await this._sdk.FullClient.getObject({ objectId: configs.registry_id, include: { json: true } })
+    const registerFields = registerRes.object.json
+    configs.pools_id = registerFields.pools.id
 
     return configs
   }

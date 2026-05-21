@@ -37,7 +37,7 @@ export class SwapModule implements IModule<CetusDlmmSDK> {
       typeArguments: [coin_type_a, coin_type_b],
     })
 
-    const simulateRes = await this.sdk.FullClient.devInspectTransactionBlock({
+    const simulateRes = await this.sdk.FullClient._jsonRpcClient!.devInspectTransactionBlock({
       transactionBlock: tx,
       sender: normalizeSuiAddress('0x0'),
     })
@@ -70,13 +70,13 @@ export class SwapModule implements IModule<CetusDlmmSDK> {
     const in_amount_limit = by_amount_in
       ? in_amount
       : d(in_amount)
-          .mul(1 + slippage)
-          .toFixed(0)
+        .mul(1 + slippage)
+        .toFixed(0)
 
     const out_amount_limit = by_amount_in
       ? d(out_amount)
-          .mul(1 - slippage)
-          .toFixed(0)
+        .mul(1 - slippage)
+        .toFixed(0)
       : out_amount
 
     const in_coin = CoinAssist.buildCoinWithBalance(BigInt(in_amount_limit), a2b ? coin_type_a : coin_type_b, tx)

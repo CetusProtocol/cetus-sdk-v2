@@ -1,6 +1,6 @@
 {
   "name": "@cetusprotocol/margin-sdk",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "SDK fon leverage",
   "typings": "dist/index.d.ts",
   "main": "dist/index.js",
@@ -8,14 +8,14 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "browser": "./dist/index.browser.js",
-      "node": "./dist/index.node.js",
-      "import": "./dist/index.browser.js",
-      "default": "./dist/index.browser.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
-    "test": "vitest",
+    "test": "vitest run --include 'packages/margin-trading/**'",
     "lint": "eslint src/*.ts src/**/*.ts",
     "lint:fix": "eslint src/*.ts src/**/*.ts --fix",
     "build": "pnpm run build:tsup",
@@ -24,30 +24,31 @@
     "_build:node": "tsup --format esm --dts",
     "build:doc": "npx typedoc",
     "publish_batch:test": "npm publish --tag experimental --access public",
-    "publish:test": "node ../../scripts/version.js leverage && npm publish --tag experimental --access public",
-    "postinstall": "bash ./postinstall-bluefin-sui.sh"
+    "publish:test": "node ../../scripts/version.js leverage && npm publish --tag experimental --access public"
   },
   "repository": {
     "type": "git",
     "url": ""
   },
   "keywords": [],
-  "author": "test",
+  "author": "Cetus",
   "license": "Apache-2.0",
   "dependencies": {
-    "@suilend/sdk": "2.0.2",
-    "@suilend/sui-fe": "2.0.10",
+    "@pythnetwork/pyth-sui-js": "2.2.0",
     "@sentry/nextjs": "^10.5.0",
-    "@mysten/sui": "2.6.0",
-    "@pythnetwork/pyth-sui-js": "2.2.0"
+    "@suilend/sdk": "3.0.3",
+    "@suilend/sui-fe": "3.0.2"
   },
   "devDependencies": {
     "@cetusprotocol/common-sdk": "workspace:*",
+    "@cetusprotocol/sui-clmm-sdk": "workspace:*",
     "@cetusprotocol/test-utils": "workspace:*",
-    "@cetusprotocol/sui-clmm-sdk": "workspace:*"
+    "@mysten/sui": "2.16.3",
+    "@sentry/nextjs": "^10.5.0"
   },
   "peerDependencies": {
     "@cetusprotocol/common-sdk": "*",
+    "@mysten/sui": ">=2.0.0",
     "axios": "*"
   },
   "peerDependenciesMeta": {

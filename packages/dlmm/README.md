@@ -58,11 +58,11 @@ const sdk = CetusDlmmSDK.createSDK({
 })
 ```
 
-**Option 4: Use custom SuiClient**
+**Option 4: Use custom SuiGrpcClient**
 ```typescript
-import { SuiClient } from '@mysten/sui/client'
+import { SuiGrpcClient } from '@mysten/sui/client'
 
-const suiClient = new SuiClient({ url: 'YOUR_RPC_URL' })
+const suiClient = new SuiGrpcClient({ url: 'YOUR_RPC_URL' })
 const sdk = CetusDlmmSDK.createSDK({ env: 'mainnet', sui_client: suiClient })
 ```
 

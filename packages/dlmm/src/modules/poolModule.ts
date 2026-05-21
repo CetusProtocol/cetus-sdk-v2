@@ -1,6 +1,8 @@
 import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
 import {
   asUintN,
+  buildSuiGrpcClient,
+  buildSuiJsonRpcClient,
   CLOCK_ADDRESS,
   CoinAssist,
   createFullClient,
@@ -9,23 +11,23 @@ import {
   deriveDynamicFieldIdByType,
   DETAILS_KEYS,
   fixCoinType,
-  getObjectFields,
   getPackagerConfigs,
   IModule,
   isSortedSymbols,
   PageQuery,
   PaginationArgs,
-  printTransaction,
 } from '@cetusprotocol/common-sdk'
 import { DlmmErrorCode, handleError } from '../errors/errors'
 import {
   BinUtils,
   buildPoolKey,
+  NodeIDPoolSimpleInfo,
   parseBinInfo,
   parseBinInfoList,
   parseDlmmBasePool,
   parseDlmmPool,
   parsePoolTransactionInfo,
+  SkipListNodeBinGroupRefRaw,
 } from '../utils'
 import { CetusDlmmSDK } from '../sdk'
 import {
@@ -47,6 +49,7 @@ import {
   PoolTransactionInfo,
 } from '../types/dlmm'
 import { MAX_BIN_PER_POSITION } from '../types/constants'
+import { SuiGrpcClient } from '@mysten/sui/grpc'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
 import { bcs } from '@mysten/sui/bcs'
 import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
@@ -67,15 +70,15 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
       const poolKey = buildPoolKey(coin_type_a, coin_type_b, bin_step, base_factor)
       const { dlmm_pool } = this._sdk.sdkOptions
       const { pools_id } = getPackagerConfigs(dlmm_pool)
-      const res = await this._sdk.FullClient.getDynamicFieldObject({
+      const res: any = await this._sdk.FullClient.getDynamicField({
         parentId: pools_id,
         name: {
           type: '0x2::object::ID',
-          value: poolKey,
+          bcs: bcs.Address.serialize(poolKey).toBytes(),
         },
       })
-      const fields = getObjectFields(res)
-      return fields.value.fields.value.fields.pool_id
+      const poolSimpleInfo = NodeIDPoolSimpleInfo.parse(res.dynamicField.value.bcs)
+      return poolSimpleInfo.value.pool_id
     } catch (error) {
       return handleError(DlmmErrorCode.FetchError, error as Error, {
         [DETAILS_KEYS.METHOD_NAME]: 'getPoolAddress',
@@ -155,8 +158,7 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
       const res = await this._sdk.FullClient.batchGetObjects(
         basePoolPage.data.map((item) => item.id),
         {
-          showContent: true,
-          showType: true,
+          json: true,
         }
       )
       dataPage.has_next_page = basePoolPage.has_next_page
@@ -195,11 +197,12 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
       const score = BinUtils.binScore(bin_id)
       const [groupIndex, offsetInGroup] = BinUtils.resolveBinPosition(score)
 
-      const res: any = await this._sdk.FullClient.getDynamicFieldObject({
+      const res: any = await this._sdk.FullClient.getDynamicField({
         parentId: bin_manager_handle,
-        name: { type: 'u64', value: groupIndex },
+        name: { type: 'u64', bcs: bcs.u64().serialize(groupIndex).toBytes() },
       })
-      const fields = res.data.content.fields.value.fields.value.fields.group.fields.bins[offsetInGroup].fields
+      const binGroupRef = SkipListNodeBinGroupRefRaw.parse(res.dynamicField.value.bcs)
+      const fields = binGroupRef.value.group.bins[offsetInGroup]
       const bin_info = parseBinInfo(fields)
       this._sdk.updateCache(cacheKey, bin_info)
       return bin_info
@@ -234,16 +237,15 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
     const res = await this._sdk.FullClient.batchGetObjects(
       warpOptions.map((option) => option.dynamic_field_id),
       {
-        showContent: true,
-        showType: true,
+        json: true,
       }
     )
 
-    res.forEach((item, index) => {
+    res.forEach((item: any, index: number) => {
       const { offsetInGroup, bin_manager_handle, bin_step, bin_id } = warpOptions[index]
       try {
-        const fields = getObjectFields(item)
-        const binFields = fields.value.fields.value.fields.group.fields.bins[offsetInGroup].fields
+        const fields = item.json
+        const binFields = fields.value.value.group.bins[offsetInGroup]
         const bin_info = parseBinInfo(binFields)
         bin_info_list.push({
           ...bin_info,
@@ -275,18 +277,14 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
       arguments: [tx.object(pool_id)],
       typeArguments: [coin_type_a, coin_type_b],
     })
-
-    const res = await this._sdk.FullClient.devInspectTransactionBlock({
-      transactionBlock: tx,
-      sender: normalizeSuiAddress('0x0'),
-    })
+    const res: any = await this._sdk.FullClient.sendSimulationTransaction(tx, normalizeSuiAddress('0x0'))
     const bcsFeeRate = bcs.struct('FeeRate', {
       base_fee_rate: bcs.u64(),
       var_fee_rate: bcs.u64(),
       total_fee_rate: bcs.u64(),
     })
 
-    const feeRate = bcsFeeRate.parse(Uint8Array.from(res.results![0].returnValues![0][0]))
+    const feeRate = bcsFeeRate.parse(res.commandResults[0].returnValues[0].bcs)
 
     return feeRate
   }
@@ -294,7 +292,7 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
   async getPoolBinInfo(option: GetPoolBinInfoOption): Promise<BinAmount[]> {
     const { dlmm_pool } = this._sdk.sdkOptions
     const { pool_id, coin_type_a, coin_type_b } = option
-    const limit = 1000
+    const limit = 900
     const bin_infos: BinAmount[] = []
     let start_bin_id: number | undefined = undefined
     let hasNext = true
@@ -313,21 +311,21 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
           typeArguments: ['u32'],
         })
       }
+      try {
+        tx.moveCall({
+          target: `${dlmm_pool.published_at}::pool::fetch_bins`,
+          arguments: [tx.object(pool_id), start_bin, tx.pure.u64(limit)],
+          typeArguments: [coin_type_a, coin_type_b],
+        })
+        const res: any = await this._sdk.FullClient.sendSimulationTransaction(tx, normalizeSuiAddress('0x0'))
+        const list = parseBinInfoList(res.commandResults[1].returnValues[0].bcs)
+        bin_infos.push(...list)
+        start_bin_id = list.length > 0 ? list[list.length - 1].bin_id + 1 : undefined
+        hasNext = list.length === limit
+      } catch (error) {
+        hasNext = false
+      }
 
-      tx.moveCall({
-        target: `${dlmm_pool.published_at}::pool::fetch_bins`,
-        arguments: [tx.object(pool_id), start_bin, tx.pure.u64(limit)],
-        typeArguments: [coin_type_a, coin_type_b],
-      })
-      const res = await this._sdk.FullClient.devInspectTransactionBlock({
-        transactionBlock: tx,
-        sender: normalizeSuiAddress('0x0'),
-      })
-
-      const list = parseBinInfoList(res)
-      bin_infos.push(...list)
-      start_bin_id = list.length > 0 ? list[list.length - 1].bin_id + 1 : undefined
-      hasNext = list.length === limit
     }
 
     return bin_infos.sort((a, b) => a.bin_id - b.bin_id)
@@ -347,7 +345,7 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
     const { FullClient: fullClient, sdkOptions } = this._sdk
     let client
     if (full_rpc_url) {
-      client = createFullClient(new SuiJsonRpcClient({ url: full_rpc_url, network: this._sdk.sdkOptions.env === 'testnet' ? 'testnet' : 'mainnet' }))
+      client = createFullClient(buildSuiGrpcClient(full_rpc_url, this._sdk.sdkOptions.env!), fullClient._graphQLClient, this._sdk.sdkOptions.env, buildSuiJsonRpcClient(full_rpc_url, this._sdk.sdkOptions.env!))
     } else {
       client = fullClient
     }
@@ -360,9 +358,13 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
     const query = pagination_args
     const user_limit = pagination_args.limit || 10
     do {
-      const res = await client.queryTransactionBlocksByPage({ ChangedObject: pool_id }, { ...query, limit: 50 }, order)
+      const res = await client.queryTransactionBlocksByPage(
+        { affectedObject: pool_id },
+        { ...query, limit: 50 },
+        order
+      )
       res.data.forEach((item, index) => {
-        const dataList = parsePoolTransactionInfo(item, index, sdkOptions.dlmm_pool.package_id, pool_id)
+        const dataList = parsePoolTransactionInfo(item as any, index, sdkOptions.dlmm_pool.package_id, pool_id)
         data.data = [...data.data, ...dataList]
       })
       data.has_next_page = res.has_next_page
@@ -373,9 +375,6 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
     if (data.data.length > user_limit) {
       data.data = data.data.slice(0, user_limit)
       data.has_next_page = true
-    }
-    if (data.data.length > 0) {
-      data.next_cursor = data.data[data.data.length - 1].tx
     }
 
     return data
@@ -412,8 +411,7 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
 
     try {
       const res = await this._sdk.FullClient.batchGetObjects(assign_pool_ids, {
-        showContent: true,
-        showType: true,
+        json: true,
       })
       for (const suiObj of res) {
         const pool = parseDlmmPool(suiObj)
@@ -444,13 +442,12 @@ export class PoolModule implements IModule<CetusDlmmSDK> {
         return cacheData
       }
       const suiObj = await this._sdk.FullClient.getObject({
-        id: pool_id,
-        options: {
-          showType: true,
-          showContent: true,
+        objectId: pool_id,
+        include: {
+          json: true,
         },
       })
-      const pool = parseDlmmPool(suiObj)
+      const pool = parseDlmmPool(suiObj.object)
       this._sdk.updateCache(cacheKey, pool)
       return pool
     } catch (error) {

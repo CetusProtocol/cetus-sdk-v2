@@ -2,16 +2,16 @@ import { FullRpcUrlTestnet, GraphRpcUrlTestnet } from '@cetusprotocol/common-sdk
 import type { SdkOptions } from '../../src'
 const SDKConfig = {
   xcetusConfig: {
-    xcetus_manager_id: '0x3be34cbad122c8b100ed7157d762b9610e68b3c65734e08bc3c3baf857da807d',
-    lock_manager_id: '0x7c67e805182e3fecd098bd68a6b06c317f28f8c6249bd771e07904a10b424e60',
-    lock_handle_id: '0xc5f3bbfefe9a45c13da7a34bc72cac122ee45d633690476a8ac56bd2c4e78c86',
+    xcetus_manager_id: '0xac0ca3b0bee299e5cc33edb436e40824d90e2b4d18c135efe9f86950cdf603ca',
+    lock_manager_id: '0xedd79fdfee399511d9d90e27178fb6e346041f9fa9f948a71c78b84c9c5c63db',
+    lock_handle_id: '0x13257dd9584374ffa05926f540866bbe7462bf41d12a6e1fa2a0ab6028d28888',
   },
   xcetusDividendsConfig: {
-    dividend_manager_id: '0x9d1be1a6b1146b30448a266bc87127466c0bae1585750c42adffce3e25e1ab6d',
-    dividend_admin_id: '0x36d63c1a588bd93775aff8f47538a0063960564f0a171d100a9f49526a872b92',
-    dividend_settle_id: '0x9eb78595419560b1dcaa9fb0ca307921ab1664a5f63c877c6887ab696344b400',
-    venft_dividends_id: '0xc31a85fa5a77fc1def0dc5b2aadc5317a9d744ffda24b472e56a646711770676',
-    venft_dividends_id_v2: '0x53b24031120730f6e4a733526147917650b1ecd3c56b43164b69eaa74f9b9ff7',
+    dividend_manager_id: '0x8b100dc835861d49f2a3dbd90eef38da47e9bc43fc378ca7007d62d1b57eed70',
+    dividend_admin_id: '0xc08543e7dd3b14bb1f63a4f2a5f13de3e410dc5ac4ab42e28e9dd6b53d5d8ab7',
+    dividend_settle_id: '0x84e750aaad4e520be79a6321198a31f4405e592f4836f2892000f2a17fa2f206',
+    venft_dividends_id: '0x423b6224fe3dd9c857bdb074fb3b26f8993912a4bf5b17447853578efd142d80',
+    venft_dividends_id_v2: '0x090104beb87413bf005ec85ddf89a1c9dd1c4d6f0cb15383fb2303f1b31035cc',
   },
 }
 
@@ -19,20 +19,20 @@ export const xcetus_testnet: SdkOptions = {
   full_rpc_url: FullRpcUrlTestnet,
   graph_rpc_url: GraphRpcUrlTestnet,
   xcetus: {
-    package_id: '0xdebaab6b851fd3414c0a62dbdf8eb752d6b0d31f5cfce5e38541bc6c6daa8966',
-    published_at: '0xdebaab6b851fd3414c0a62dbdf8eb752d6b0d31f5cfce5e38541bc6c6daa8966',
+    package_id: '0x73d3c2670950d05dd00b6c3387f5e962480ee74aafeae2ec0eda99259bbc158d',
+    published_at: '0xb3b39006f0b905f035fe75360f6bc0043c8fa442b60f2bcc3a777727d4e33a27',
     version: 1,
     config: SDKConfig.xcetusConfig,
   },
   xcetus_dividends: {
-    package_id: '0x4061e279415a3c45cfd31554d38c5b3bb0e06c65833811a98a66f469e04c69c3',
-    published_at: '0xfeda040996e722ba532ab2203d13333484024456ca38bf4adeb526ce1457332d',
+    package_id: '0xe8449c10c6c8602b4e8afe2e854bf9d0496c27f775ac323cd47b97f22a9f1135',
+    published_at: '0xe8449c10c6c8602b4e8afe2e854bf9d0496c27f775ac323cd47b97f22a9f1135',
     version: 1,
     config: SDKConfig.xcetusDividendsConfig,
   },
   cetus_faucet: {
-    package_id: '0x1a69aee6be709054750949959a67aedbb4200583b39586d5e3eabe57f40012c7',
-    published_at: '0x1a69aee6be709054750949959a67aedbb4200583b39586d5e3eabe57f40012c7',
+    package_id: '0x52dab26246cb8d694d0d2aa828e7d753d298fad5ebd9209bef2de71b917074ee',
+    published_at: '0x52dab26246cb8d694d0d2aa828e7d753d298fad5ebd9209bef2de71b917074ee',
   },
   env: 'testnet',
 }

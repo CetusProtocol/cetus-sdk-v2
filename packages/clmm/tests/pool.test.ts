@@ -8,87 +8,21 @@ import { CreatePoolCustomRangeParams, FullRangeParams } from '../src/types/clmm_
 import { buildTransferCoin } from '../src/utils'
 import { Pool } from '../src'
 import { symbol } from 'valibot'
-import fs from 'node:fs'
-import path from 'node:path'
+const fs = require('fs')
+const path = require('path')
 
-// import { buildTransferCoin, PositionUtils } from '../dist/index.js'
-// import { CreatePoolCustomRangeParams, FullRangeParams } from '../dist/index.js'
 
-const poolId = '0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c90105'
-const formatCoinAdress = (address: string) => {
-  return normalizeCoinType(address) === '0x2::sui::SUI'
-    ? '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI'
-    : normalizeCoinType(address)
-}
 
-// test pool id testnet
-// const poolsId = [
-//   '0xee53b32831292be825a66d071416ace96879241d79ce78641a6c2031ce0653f1',
-//   '0xf51541621a6c69b65dd740f96ff8946cb589f4715ad24abd10a7ae1093655713',
-//   '0x149a9dcc78464dfd07c9938b7309ba52c0b7f778454d14deb34bcc62845cfeb7',
-//   '0xdd83e7fbee4f22b28c212d108379435f299dcc47cd0e4cd196cecb6a78e439d1',
-//   '0x13f207b50d553a2ee5e921efe25bb31a258b71b2b67f84eafd742f609b873296',
-//   '0x393079af9ebd4d9fad01a7b0d91eae89b7a50289b8d9846650fe44a4b55d3c92',
-//   '0xec5dbeef2798f13740535c90ccbd622cead7c2081199312bd254bf2e8454c4d7',
-//   '0x358937f51deb8470d63cb7e987d112c96e1f0b867d3b95639ce4f3e4b5581b40',
-//   '0x94f09265cb439a472b2edba2a32e99febd3ef5aab5524adc027849a05cab4324',
-//   '0x68545f551711c222a0bc257c8f76724a1f1f6afb1f3dcfd264a313b5500fcd34',
-//   '0x892ef3bff004988c1ee0fae92ac819fc2846f4a56e9a9e9954f9f180aa4a113b',
-//   '0x0ed9767b3175682c5622bb932ef3d23cbfeb956e2611e0afe8996ea0293a0190',
-//   '0x8903aa21e3a95fdeef8ab06ef29fd4511ce3bd650a1fdd28a455300ddf470062',
-//   '0xcd9fbdc416fb1c0ce1d4646b21ef267d7eaf79623727dfa485d65e10ccf0785c',
-//   '0x6b2173a5b31196f3f480b2489524e55c9d3912ed1d4f3287d9f995dbdd68511c',
-//   '0xbfee4eb11c53cb45f1f66c33999981d6cfb97c4284f9dcd8922718b384086e42',
-//   '0x3df48d41bad2e8e6c2a0be21c53377182e42d3e88aeda2dff2f282545e9483ab',
-//   '0xc0c05fc89a620a183f48badf2743349acf277902dc991efa8fa4506b1e0faf4a',
-//   '0x4b812b3dfb70d2e9df92044aeab78bc599a6eadc60ec478f967d7d02ef4db888',
-//   '0x7b40c5aff8e0fa7fd25fcf350bfff3a0f2c6221ac49b5454b4ca5a7d88637961',
-//   '0x1946626a2ebbca85a22844070b15a6a99bdf6f702f789dbb3baa6d5409186c99',
-//   '0x59ef6e296c731cca4872d54f38e9a07ff88524034156eb24ff37b4bb739f0ffa'
-// ]
-
-// const tokens = [
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::usdc::USDC',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::usdt::USDT',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::deep::DEEP',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::cetus::CETUS',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::sui::SUI',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::hasui::HASUI',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::hawal::HAWAL',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::wal::WAL',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::eth::ETH',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::btc::BTC',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::weth::WETH',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::wbtc::WBTC',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::wusdc::WUSDC',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::buck::BUCK',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::usdy::USDY',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::fdusd::FDUSD',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::musd::MUSD',
-//   '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::wwal::WWAL',
-//   '0xcc3b20932c2bb2dbd72c4d076a256942e9d810c4448c39d9fc5c53cf64662083::afsui::AFSUI',
-//   '0xcc3b20932c2bb2dbd72c4d076a256942e9d810c4448c39d9fc5c53cf64662083::vsui::VSUI',
-//   '0x42765cb4f0dfb4d38df785afb1f33fc23620f912a5c9966118fc8f236b0bca6f::ns::NS'
-// ]
-
-const poolsId = [
-  '0x3bb4c2bcb90efd0286de46c64df2c4a9251bac034a215b9412f35efc7baab454',
-  '0x84da70840bea67d388996976972afa41a5559c64513777daafbe24a384ec285f',
-  '0xf5962c31df2eaf01d3665138f80c118757c422c53fdee7e0a1cad4dd8d07edda',
-  '0x403c7d9c1e959c029f61d970286eac8ad5bca2db2edba358585abf4dbd4ed3cd',
-]
-
-const tokens = [
-  '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::hasui::HASUI',
-  '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::sui::SUI',
-  '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::usdc::USDC',
-  '0xd933bc488dd19dcfdf6b8967f12686c05ff052c82af43b622b1d702575905c53::tardi::TARDI',
-  '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::deep::DEEP',
-]
 describe('Pool Module', () => {
   let send_key_pair = buildTestAccount()
   const sdk = CetusClmmSDK.createSDK({ env: 'mainnet' })
   sdk.setSenderAddress(send_key_pair.getPublicKey().toSuiAddress())
+
+
+  test(' 1 getPoolImmutablesWithPage', async () => {
+    const res = await sdk.Pool.getPoolLiquiditySnapshot({ limit: 10 })
+    console.log('getPoolImmutablesWithPage####', res)
+  })
 
   test('getClmmConfigs', async () => {
     const configs = await sdk.Pool.getClmmConfigs()
@@ -101,26 +35,16 @@ describe('Pool Module', () => {
   })
 
   test('getAssignPools', async () => {
-    // const pools = await sdk.Pool.getAssignPools(['0xcf994611fd4c48e277ce3ffd4d4364c914af2c3cbb05f7bf6facd371de688630'])
-    const pools = await sdk.Pool.getAssignPools(poolsId)
+    const pools = await sdk.Pool.getAssignPools(["0xb8a67c149fd1bc7f9aca1541c61e51ba13bdded64c273c278e50850ae3bff073"])
     console.log(pools)
   })
 
-  test('getPoolLiquiditySnapshot', async () => {
-    const poolSnaps = await sdk.Pool.getPoolLiquiditySnapshot('0xf51541621a6c69b65dd740f96ff8946cb589f4715ad24abd10a7ae1093655713')
-    console.log('poolSnaps: ', poolSnaps)
-
-    const posSnap = await sdk.Pool.getPositionSnapshot(poolSnaps.snapshots.id, [
-      '0x59c5d04778b40c333fdbef58c49357b06c599db7d885687f1cbdaea3c872293e',
-    ])
-    console.log('posSnap: ', posSnap)
-  })
 
   test('getPoolTransactionList', async () => {
     const res = await sdk.Pool.getPoolTransactionList({
-      pool_id: '0x2e041f3fd93646dcc877f783c1f2b7fa62d30271bdef1f21ef002cebf857bded',
+      pool_id: '0xb8a67c149fd1bc7f9aca1541c61e51ba13bdded64c273c278e50850ae3bff073',
       pagination_args: {
-        limit: 100,
+        limit: 10,
         cursor: undefined,
       },
     })
@@ -129,7 +53,7 @@ describe('Pool Module', () => {
 
   test('getSinglePool', async () => {
     // const pool = await sdk.Pool.getPool('0xcf994611fd4c48e277ce3ffd4d4364c914af2c3cbb05f7bf6facd371de688630')
-    const pool = await sdk.Pool.getPool('0xb8a67c149fd1bc7f9aca1541c61e51ba13bdded64c273c278e50850ae3bff073')
+    const pool = await sdk.Pool.getPool('0xb8a67c149fd1bc7f9aca1541c61e51ba13bdded64c273c278e50850ae3bff073', true, true)
     console.log('pool', pool)
   })
 
@@ -245,6 +169,20 @@ describe('Pool Module', () => {
       '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC'
     )
     console.log('🚀🚀🚀 ~ file: pool.test.ts:145 ~ test ~ p:', p)
+  })
+
+
+  test(' getPoolAddress', async () => {
+
+    const poolId = await sdk.Pool.getPoolAddress("0x06864a6f921804860930db6ddbe2e16acdf8504495ea7481637a1c8b9a8fe54b::cetus::CETUS",
+      "0x2::sui::SUI", 2)
+    console.log('🚀🚀🚀 ~ file: pool.test.ts:179 ~ test ~ poolId:', poolId)
+  })
+
+  test('buildPoolKey rejects invalid coin order', () => {
+    expect(() =>
+      sdk.Pool.buildPoolKey('0x2::sui::SUI', '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC', 60)
+    ).toThrow()
   })
 
   test('createPoolTransactionPayload', async () => {

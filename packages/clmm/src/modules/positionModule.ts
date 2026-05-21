@@ -1,4 +1,5 @@
-import { DevInspectResults, SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
+import { SuiGrpcClient } from '@mysten/sui/grpc'
+import type { DevInspectResults } from '@mysten/sui/jsonRpc'
 import type { TransactionObjectArgument } from '@mysten/sui/transactions'
 import { Transaction } from '@mysten/sui/transactions'
 import { isValidSuiObjectId, normalizeSuiAddress } from '@mysten/sui/utils'
@@ -12,14 +13,14 @@ import {
   d,
   DETAILS_KEYS,
   extractStructTagFromType,
-  getObjectFields,
   getPackagerConfigs,
   IModule,
-  FullClient,
   TickMath,
   TickUtil,
   createFullClient,
   deriveDynamicFieldIdByType,
+  buildSuiGrpcClient,
+  buildSuiJsonRpcClient,
 } from '@cetusprotocol/common-sdk'
 import Decimal from 'decimal.js'
 import { handleError, handleMessageError, PoolErrorCode, PositionErrorCode } from '../errors/errors'
@@ -50,8 +51,9 @@ import {
   ClmmIntegratePoolV3Module,
   ClmmIntegrateRouterModule,
 } from '../types/sui'
-import { buildPosition, buildPositionInfo, buildPositionTransactionInfo } from '../utils'
+import { buildPosition, buildPositionInfo, buildPositionTransactionInfo, FetchPositionFeesEventRaw, NodeIDPositionInfo, PositionInfoRaw } from '../utils'
 import { findAdjustCoin, PositionUtils } from '../utils/positionUtils'
+import { bcs } from '@mysten/sui/bcs'
 /**
  * Helper class to help interact with clmm position with a position router interface.
  */
@@ -105,7 +107,7 @@ export class PositionModule implements IModule<CetusClmmSDK> {
     }
     let client
     if (full_rpc_url) {
-      client = createFullClient(new SuiJsonRpcClient({ url: full_rpc_url, network: this._sdk.sdkOptions.env === 'testnet' ? 'testnet' : 'mainnet' }))
+      client = createFullClient(buildSuiGrpcClient(full_rpc_url, this._sdk.sdkOptions.env!), fullClient._graphQLClient, this._sdk.sdkOptions.env, buildSuiJsonRpcClient(full_rpc_url, this._sdk.sdkOptions.env!))
     } else {
       client = fullClient
     }
@@ -114,10 +116,10 @@ export class PositionModule implements IModule<CetusClmmSDK> {
       has_next_page: false,
     }
     try {
-      const res = await client.queryTransactionBlocksByPage({ ChangedObject: pos_id }, pagination_args, order)
+      const res = await client.queryTransactionBlocksByPage({ affectedObject: pos_id }, pagination_args)
 
       res.data.forEach((item, index) => {
-        const dataList = buildPositionTransactionInfo(item, index, filterIds)
+        const dataList = buildPositionTransactionInfo(item as any, index, filterIds)
         data.data = [...data.data, ...dataList]
       })
       data.has_next_page = res.has_next_page
@@ -141,14 +143,11 @@ export class PositionModule implements IModule<CetusClmmSDK> {
   async getPositionList(account_address: string, assign_pool_ids: string[] = [], show_display = true): Promise<Position[]> {
     const all_position: Position[] = []
 
-    const owner_res: any = await this._sdk.FullClient.getOwnedObjectsByPage(account_address, {
-      options: { showType: true, showContent: true, showDisplay: show_display, showOwner: true },
-      filter: { Package: this._sdk.sdkOptions.clmm_pool.package_id },
-    })
+    const owner_res: any = await this._sdk.FullClient.getOwnedObjectsByPage(account_address, this.buildPositionType())
 
     const has_assign_pool_ids = assign_pool_ids.length > 0
     for (const item of owner_res.data as any[]) {
-      const type = extractStructTagFromType(item.data.type)
+      const type = extractStructTagFromType(item.type)
 
       if (type.full_address === this.buildPositionType()) {
         const position = buildPosition(item)
@@ -172,11 +171,10 @@ export class PositionModule implements IModule<CetusClmmSDK> {
    * if you want to get a position, you can use getPositionById method directly.
    * @param {string} position_handle The handle of the position to get.
    * @param {string} position_id The ID of the position to get.
-   * @param {boolean} calculate_rewarder Whether to calculate the rewarder of the position.
    * @returns {Promise<Position>} Position object.
    */
-  async getPosition(position_handle: string, position_id: string, calculate_rewarder = true, show_display = true): Promise<Position> {
-    let position = await this.getSimplePosition(position_id, show_display)
+  async getPosition(position_handle: string, position_id: string, calculate_rewarder = true): Promise<Position> {
+    let position = await this.getSimplePosition(position_id)
     if (calculate_rewarder) {
       position = await this.updatePositionInfo(position_handle, position)
     }
@@ -187,11 +185,10 @@ export class PositionModule implements IModule<CetusClmmSDK> {
    * Gets a position by its ID.
    * @param {string} position_id The ID of the position to get.
    * @param {boolean} calculate_rewarder Whether to calculate the rewarder of the position.
-   * @param {boolean} show_display When some testnet rpc nodes can't return object's display data, you can set this option to false to avoid returning errors. Default is true.
    * @returns {Promise<Position>} Position object.
    */
-  async getPositionById(position_id: string, calculate_rewarder = true, show_display = true): Promise<Position> {
-    const position = await this.getSimplePosition(position_id, show_display)
+  async getPositionById(position_id: string, calculate_rewarder = true): Promise<Position> {
+    const position = await this.getSimplePosition(position_id)
     if (calculate_rewarder) {
       const pool = await this._sdk.Pool.getPool(position.pool, false)
       const result = await this.updatePositionInfo(pool.position_manager.positions_handle, position)
@@ -205,17 +202,17 @@ export class PositionModule implements IModule<CetusClmmSDK> {
    * @param {string} position_id The ID of the position to get.
    * @returns {Promise<Position>} Position object.
    */
-  async getSimplePosition(position_id: string, show_display = true): Promise<Position> {
+  async getSimplePosition(position_id: string): Promise<Position> {
     const cache_key = `${position_id}_getPositionList`
 
     let position = this.getSimplePositionByCache(position_id)
 
     if (position === undefined) {
       const object_data_responses = await this.sdk.FullClient.getObject({
-        id: position_id,
-        options: { showContent: true, showType: true, showDisplay: show_display, showOwner: true },
+        objectId: position_id,
+        include: { json: true },
       })
-      position = buildPosition(object_data_responses)
+      position = buildPosition(object_data_responses.object)
 
       this._sdk.updateCache(cache_key, position)
     }
@@ -252,15 +249,12 @@ export class PositionModule implements IModule<CetusClmmSDK> {
 
     if (not_found_ids.length > 0) {
       const object_data_responses = await this._sdk.FullClient.batchGetObjects(not_found_ids, {
-        showOwner: true,
-        showContent: true,
-        showDisplay: show_display,
-        showType: true,
+        json: true,
       })
 
-      object_data_responses.forEach((info) => {
-        if (info.error == null) {
-          const position = buildPosition(info)
+      object_data_responses.forEach((info: any) => {
+        const position = buildPosition(info)
+        if (position) {
           position_list.push(position)
           const cache_key = `${position.pos_object_id}_getPositionList`
           this._sdk.updateCache(cache_key, position)
@@ -284,7 +278,6 @@ export class PositionModule implements IModule<CetusClmmSDK> {
       ...position_reward,
     }
   }
-
   /**
    * Gets the position info for the given position handle and position object ID.
    * @param {string} position_handle The handle of the position.
@@ -293,17 +286,16 @@ export class PositionModule implements IModule<CetusClmmSDK> {
    */
   async getPositionInfo(position_handle: string, position_id: string): Promise<PositionInfo> {
     try {
-      const dynamic_field_object = await this._sdk.FullClient.getDynamicFieldObject({
+      const dynamic_field_object: any = await this._sdk.FullClient.getDynamicField({
         parentId: position_handle,
         name: {
           type: '0x2::object::ID',
-          value: position_id,
+          bcs: bcs.Address.serialize(position_id).toBytes(),
         },
       })
 
-      const object_fields = getObjectFields(dynamic_field_object.data as any) as any
-      const fields = object_fields.value.fields.value
-      const position_info = buildPositionInfo(fields)
+      const positionInfoRaw = NodeIDPositionInfo.parse(dynamic_field_object.dynamicField.value.bcs)
+      const position_info = buildPositionInfo(positionInfoRaw.value)
       return position_info
     } catch (error) {
       return handleError(PositionErrorCode.FetchError, error as Error, {
@@ -332,16 +324,12 @@ export class PositionModule implements IModule<CetusClmmSDK> {
         return []
       }
       const res = await this._sdk.FullClient.batchGetObjects(warpIds, {
-        showContent: true,
-        showType: true,
-        showOwner: true,
+        json: true,
       })
 
-      res.forEach((item) => {
+      res.forEach((item: any) => {
         try {
-          const object_fields = getObjectFields(item.data as any) as any
-          const fields = object_fields.value.fields.value
-          const position_info = buildPositionInfo(fields)
+          const position_info = buildPositionInfo(item.json.value.value)
           position_info_list.push(position_info)
         } catch (error) {
           console.log('getPositionInfoList error', error)
@@ -369,20 +357,20 @@ export class PositionModule implements IModule<CetusClmmSDK> {
     })
   }
 
-  parsedPosFeeData(simulate_res: DevInspectResults) {
+  parsedPosFeeData(simulate_res: any) {
     const feeData: Record<string, { position_id: string; fee_owned_a: string; fee_owned_b: string }> = {}
     const feeValueData: any[] = simulate_res.events?.filter((item: any) => {
-      return item.type.includes('fetcher_script::FetchPositionFeesEvent')
+      return item.eventType.includes('fetcher_script::FetchPositionFeesEvent')
     })
 
     for (let i = 0; i < feeValueData.length; i += 1) {
-      const { parsedJson } = feeValueData[i]
-      const posObj = {
-        position_id: parsedJson.position_id,
-        fee_owned_a: parsedJson.fee_owned_a,
-        fee_owned_b: parsedJson.fee_owned_b,
+      const { bcs } = feeValueData[i]
+      const parsed = FetchPositionFeesEventRaw.parse(bcs)
+      feeData[parsed.position_id] = {
+        position_id: parsed.position_id,
+        fee_owned_a: parsed.fee_owned_a.toString(),
+        fee_owned_b: parsed.fee_owned_b.toString(),
       }
-      feeData[parsedJson.position_id] = posObj
     }
 
     return feeData
@@ -394,30 +382,25 @@ export class PositionModule implements IModule<CetusClmmSDK> {
    * @returns {Promise<CollectFeesQuote[]>} A Promise that resolves with the fetched position fee amount for the specified addresses.
    */
   public async fetchPosFeeAmount(params: FetchPosFeeParams[]): Promise<CollectFeesQuote[]> {
-    const { clmm_pool, integrate } = this.sdk.sdkOptions
     const tx = new Transaction()
 
     for (const paramItem of params) {
       this.buildFetchPosFee(paramItem, tx)
     }
 
-    const simulateRes = await this.sdk.FullClient.devInspectTransactionBlock({
-      transactionBlock: tx,
-      sender: normalizeSuiAddress('0x0'),
-    })
+    const simulateRes = await this.sdk.FullClient.sendSimulationTransaction(tx, normalizeSuiAddress('0x0'))
 
-    if (simulateRes.error != null) {
-      handleMessageError(
-        PoolErrorCode.InvalidPoolObject,
-        `fetch position fee error code: ${simulateRes.error ?? 'unknown error'}, please check config and position and pool object ids`,
-        {
-          [DETAILS_KEYS.METHOD_NAME]: 'fetchPosFeeAmount',
-        }
-      )
+    if (simulateRes.FailedTransaction != null) {
+      return handleError(PositionErrorCode.FetchError, new Error(simulateRes.FailedTransaction.status.error?.message ?? 'unknown error'), {
+        [DETAILS_KEYS.METHOD_NAME]: 'fetchPosFeeAmount',
+        [DETAILS_KEYS.REQUEST_PARAMS]: {
+          params,
+        },
+      })
     }
 
     const result: CollectFeesQuote[] = []
-    const parsedPosFeeData = this.parsedPosFeeData(simulateRes)
+    const parsedPosFeeData = this.parsedPosFeeData(simulateRes.Transaction)
     for (let i = 0; i < params.length; i += 1) {
       const posFeeData = parsedPosFeeData[params[i].position_id]
       if (posFeeData) {

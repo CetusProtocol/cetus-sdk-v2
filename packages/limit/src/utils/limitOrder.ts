@@ -1,12 +1,11 @@
-import { SuiTransactionBlockResponse } from '@mysten/sui/jsonRpc'
-import { d, extractStructTagFromType, getObjectFields, getObjectType } from '@cetusprotocol/common-sdk'
+import { d, extractStructTagFromType } from '@cetusprotocol/common-sdk'
 import { LimitOrder, LimitOrderStatus, OrderLimitEvent } from '../types/limitOrder'
 export class LimitOrderUtils {
-  static buildOrderLimitEvent(item: SuiTransactionBlockResponse, filter_types: string[]): OrderLimitEvent[] {
+  static buildOrderLimitEvent(item: any, filter_types: string[]): OrderLimitEvent[] {
     const { events } = item
     const list: OrderLimitEvent[] = []
     if (events) {
-      events.forEach((event) => {
+      events.forEach((event: any) => {
         const type = extractStructTagFromType(event.type).name
         if (filter_types.includes(type)) {
           const info: OrderLimitEvent = {
@@ -23,8 +22,8 @@ export class LimitOrderUtils {
   }
 
   static buildLimitOrderInfo(info: any) {
-    const fields = getObjectFields(info)
-    const type = getObjectType(info)
+    const fields = info.json
+    const type = info.type
 
     if (fields && type) {
       try {
@@ -33,7 +32,7 @@ export class LimitOrderUtils {
           pay_coin_type: typeStruct.type_arguments[0],
           target_coin_type: typeStruct.type_arguments[1],
           canceled_ts: fields.canceled_ts === '18446744073709551615' ? 0 : Number(fields.canceled_ts),
-          id: fields.id.id,
+          id: fields.id,
           obtained_amount: fields.obtained_amount,
           owner: fields.owner,
           rate: fields.rate,

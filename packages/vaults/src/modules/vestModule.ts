@@ -1,9 +1,10 @@
-import { CLOCK_ADDRESS, DETAILS_KEYS, fixCoinType, getObjectFields, getPackagerConfigs, IModule } from '@cetusprotocol/common-sdk'
+import { CLOCK_ADDRESS, DETAILS_KEYS, fixCoinType, getPackagerConfigs, IModule } from '@cetusprotocol/common-sdk'
 import { CetusVaultsSDK } from '../sdk'
 import { handleError, handleMessageError, VaultsErrorCode } from '../errors'
 import { Transaction } from '@mysten/sui/transactions'
 import { RedeemOption, VaultsVestInfo, VaultVestNFT, VestCreateEvent } from '../types/vest'
 import { VaultsUtils } from '../utils/vaults'
+import { bcs } from '@mysten/sui/bcs'
 
 export class VestModule implements IModule<CetusVaultsSDK> {
   protected _sdk: CetusVaultsSDK
@@ -18,15 +19,17 @@ export class VestModule implements IModule<CetusVaultsSDK> {
 
   async vestNftIsAvailable(vest_nft_id: string, vester_infos_handle: string): Promise<boolean> {
     try {
-      const res = await this._sdk.FullClient.getDynamicFieldObject({
+      const res = await this._sdk.FullClient.getDynamicField({
         parentId: vester_infos_handle,
         name: {
           type: '0x2::object::ID',
-          value: vest_nft_id,
+          bcs: bcs.Address.serialize(vest_nft_id).toBytes(),
         },
       })
-      const fields = getObjectFields(res)
-      return !fields.value.fields.is_pause
+      const passed = bcs.struct('CetusVaultVesterInfo', {
+        is_pause: bcs.bool(),
+      }).parse(res.dynamicField.value.bcs)
+      return !passed.is_pause
     } catch (error) {
       console.log('vestNftIsAvailable error', error)
       return true
@@ -88,8 +91,7 @@ export class VestModule implements IModule<CetusVaultsSDK> {
     const vest_info_list: VaultsVestInfo[] = []
 
     const res = await this._sdk.FullClient.batchGetObjects(vest_ids, {
-      showContent: true,
-      showType: true,
+      json: true,
     })
 
     res.forEach((item) => {
@@ -120,8 +122,8 @@ export class VestModule implements IModule<CetusVaultsSDK> {
     }
 
     try {
-      const res = await this._sdk.FullClient.getObject({ id: vest_id, options: { showContent: true, showType: true } })
-      const vestInfo = VaultsUtils.parseVaultsVestInfo(res)
+      const res = await this._sdk.FullClient.getObject({ objectId: vest_id, include: { json: true } })
+      const vestInfo = VaultsUtils.parseVaultsVestInfo(res.object)
       this._sdk.updateCache(cacheKey, vestInfo)
       return vestInfo
     } catch (error) {
@@ -180,18 +182,9 @@ export class VestModule implements IModule<CetusVaultsSDK> {
       })
     }
 
-    const res = await this._sdk.FullClient.getOwnedObjectsByPage(owner, {
-      filter: {
-        StructType: `${vest.package_id}::vault_vester::CetusVaultVester`,
-      },
-      options: {
-        showContent: true,
-        showType: true,
-        showOwner: true,
-      },
-    })
+    const res = await this._sdk.FullClient.getOwnedObjectsByPage(owner, `${vest.package_id}::vault_vester::CetusVaultVester`)
     const vault_vest_nft_list: VaultVestNFT[] = []
-    res.data.forEach((item) => {
+    res.data.forEach((item: any) => {
       try {
         const vault_vest_nft = VaultsUtils.parseVaultVestNFT(item)
         vault_vest_nft_list.push(vault_vest_nft)

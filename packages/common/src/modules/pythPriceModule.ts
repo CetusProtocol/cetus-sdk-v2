@@ -1,10 +1,11 @@
 import { Transaction } from '@mysten/sui/transactions'
 import { HermesClient, PriceUpdate } from "@pythnetwork/hermes-client"
 import { bcs } from '@mysten/sui/bcs'
-import { defaultPythConfigs, feed_map_mainnet, FeedInfo, FullClient, getPriceWithFormattedDecimals, Price, PythUpdateOraclePriceCallback, toSuiObjectId } from '../type'
+import { defaultPythConfigs, feed_map_mainnet, FeedInfo, FullClient, getPriceWithFormattedDecimals, Price, PythUpdateOraclePriceCallback, TypeNameRaw } from '../type'
 import { SUI_CLOCK_OBJECT_ID } from '@mysten/sui/utils'
 import { d } from '../utils/numbers'
-import { fixCoinType } from '../utils/contracts'
+import { fixCoinType, toSuiObjectId } from '../utils/contracts'
+import { SuiGrpcClient } from '@mysten/sui/grpc'
 
 const MAX_ARGUMENT_SIZE = 16 * 1024
 
@@ -83,14 +84,12 @@ export class PythPriceModule {
 
   async getPackageId(objectId: string): Promise<string> {
     const result: any = await this.fullClient.getObject({
-      id: objectId,
-      options: {
-        showContent: true,
-      },
+      objectId,
+      include: { json: true },
     })
-
-    if (result.data?.content?.dataType == "moveObject") {
-      return result.data.content.fields.upgrade_cap.fields.package;;
+    const fields = result?.object?.json
+    if (fields?.upgrade_cap?.package) {
+      return fields.upgrade_cap.package
     }
     throw new Error("upgrade_cap not found")
   }
@@ -251,26 +250,46 @@ export class PythPriceModule {
      * Fetches the price table object id for the current state id if not cached
      * @returns price table object id
      */
-  async getPriceTableInfo(): Promise<{ id: string; fieldType: string }> {
+  async getPriceTableInfo() {
     if (this.priceTableInfo === undefined) {
-      const result = await this.fullClient.getDynamicFieldObject({
-        parentId: this.pythConfigs.pyth_state_id,
-        name: {
-          type: "vector<u8>",
-          value: "price_info",
-        },
-      });
-      if (!result.data?.type) {
-        throw new Error(
-          "Price Table not found, contract may not be initialized",
-        );
+      // Look up the price_info dynamic field from the pyth state object
+      let cursor: string | null = null
+      let hasNextPage = true
+
+      while (hasNextPage) {
+        const dynamicFields: Awaited<ReturnType<SuiGrpcClient['listDynamicFields']>> =
+          await this.fullClient.listDynamicFields({
+            parentId: this.pythConfigs.pyth_state_id,
+            cursor,
+          })
+
+        for (const field of dynamicFields.dynamicFields) {
+          if (field.name.type === "vector<u8>") {
+            // For dynamic object fields, resolve the child object directly
+            const objectId = (field.$kind === "DynamicObject" && field.childId)
+              ? field.childId
+              : field.fieldId
+            const fieldObj = await this.fullClient.getObject({
+              objectId,
+              include: { json: true },
+            })
+            const type = fieldObj.object.type
+            if (type.includes("table::Table")) {
+              // Extract the key type (PriceIdentifier) from Table<KeyType, ValueType>
+              const innerTypes = type.replace(/.*table::Table</, "").replace(/>$/, "")
+              const fieldType = innerTypes.split(",")[0].trim()
+              this.priceTableInfo = { id: fieldObj.object.objectId, fieldType }
+              return this.priceTableInfo
+            }
+          }
+        }
+
+        hasNextPage = dynamicFields.hasNextPage
+        cursor = dynamicFields.cursor
       }
-      let type = result.data.type.replace("0x2::table::Table<", "");
-      type = type.replace(
-        "::price_identifier::PriceIdentifier, 0x2::object::ID>",
-        "",
-      );
-      this.priceTableInfo = { id: result.data.objectId, fieldType: type };
+    }
+    if (this.priceTableInfo === undefined) {
+      throw new Error(" getPriceTableInfo Price table not found");
     }
     return this.priceTableInfo;
   }
@@ -286,23 +305,25 @@ export class PythPriceModule {
       return cacheValue
     }
     const { id: tableId, fieldType } = await this.getPriceTableInfo();
-    const result: any = await this.fullClient.getDynamicFieldObject({
+    const PriceIdentifier = bcs.struct('PriceIdentifier', {
+      bytes: bcs.vector(bcs.u8()),
+    })
+    const bcsBytes = PriceIdentifier.serialize({ bytes: Array.from(Buffer.from(normalizedFeedId, "hex")) }).toBytes()
+
+    const result = await this.fullClient.getDynamicField({
       parentId: tableId,
       name: {
-        type: `${fieldType}::price_identifier::PriceIdentifier`,
-        value: {
-          bytes: [...Buffer.from(normalizedFeedId, "hex")],
-        },
+        type: fieldType,
+        bcs: bcsBytes,
       },
-    });
-    if (!result.data?.content) {
-      return undefined;
-    }
-    if (result.data.content.dataType !== "moveObject") {
-      throw new Error("Price feed type mismatch");
-    }
-    this.fullClient.updateCache(cacheKey, result.data.content.fields.value)
-    return result.data.content.fields.value
+    })
+
+    // Decode the object::ID value from BCS
+    const valueBcs = result.dynamicField.value.bcs
+    const valueBytes = valueBcs instanceof Uint8Array ? valueBcs : new Uint8Array(Object.values(valueBcs))
+    const objectId = "0x" + Array.from(valueBytes).map(b => b.toString(16).padStart(2, '0')).join('')
+    this.fullClient.updateCache(cacheKey, objectId)
+    return objectId
   }
 
 
@@ -406,17 +427,13 @@ export class PythPriceModule {
   async getBaseUpdateFee(): Promise<number> {
     if (this.baseUpdateFee === undefined) {
       const result = await this.fullClient.getObject({
-        id: this.pythConfigs.pyth_state_id,
-        options: { showContent: true },
+        objectId: this.pythConfigs.pyth_state_id,
+        include: { json: true },
       });
-      if (
-        !result.data?.content ||
-        result.data.content.dataType !== "moveObject"
-      )
+      const fields = (result as any)?.object?.json
+      if (!fields)
         throw new Error("Unable to fetch pyth state object");
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      this.baseUpdateFee = result.data.content.fields.base_update_fee as number;
+      this.baseUpdateFee = Number(fields.base_update_fee);
     }
 
     return this.baseUpdateFee;
@@ -543,23 +560,28 @@ export class PythPriceModule {
     if (jsonValue) {
       return jsonValue
     }
-    const { feed_info_handle } = this.pythConfigs
-    if (!feed_info_handle) {
+
+    if (!this.pythConfigs.feed_info_handle) {
       throw new Error('feed_info_handle is not set')
     }
 
-    const res: any = await this.fullClient.getDynamicFieldObject({
-      parentId: feed_info_handle,
+    const res: any = await this.fullClient.getDynamicField({
+      parentId: this.pythConfigs.feed_info_handle,
       name: {
         type: '0x1::type_name::TypeName',
-        value: fixCoinType(coinType, true),
+        bcs: TypeNameRaw.serialize({ name: fixCoinType(coinType, true) }).toBytes(),
       },
     })
-    const { fields } = res.data.content.fields.value
+    const parsed = bcs.struct('OracleInfo', {
+      price_feed_id: bcs.vector(bcs.U8),
+      price_info_object_id: bcs.Address,
+      last_update_time: bcs.u64(),
+      coin_decimals: bcs.u8(),
+    }).parse(res.dynamicField.value.bcs)
     const info: FeedInfo = {
       coin_type: coinType,
-      price_feed_id: toSuiObjectId(fields.price_feed_id),
-      coin_decimals: fields.coin_decimals,
+      price_feed_id: toSuiObjectId(parsed.price_feed_id),
+      coin_decimals: parsed.coin_decimals,
     }
     console.log('🚀 ~ PythPriceModule ~ getFeedInfo ~ info:', info)
     this.fullClient.updateCache(cacheKey, info)

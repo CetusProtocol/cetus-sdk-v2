@@ -1,6 +1,5 @@
 import { FullRpcUrlTestnet, GraphRpcUrlTestnet } from '@cetusprotocol/common-sdk'
 import type { SdkOptions } from '../sdk'
-import { CetusBurnSDK } from '../sdk'
 
 export const burnTestnet: SdkOptions = {
   env: 'testnet',

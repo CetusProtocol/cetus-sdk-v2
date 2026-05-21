@@ -46,7 +46,11 @@ const wallet = 'YOUR_WALLET_ADDRESS'
 const sdk = CetusBurnSDK.createSDK({ env })
 ```
 
+<<<<<<< HEAD
+If you wish to set your own full node URL or SuiGrpcClient, you can do so as follows:
+=======
 If you wish to set your own full node URL or SuiJsonRpcClient, you can do so as follows:
+>>>>>>> dev_migrate_json_rpc
 
 ```typescript
 const sdk = CetusBurnSDK.createSDK({ env, sui_client })

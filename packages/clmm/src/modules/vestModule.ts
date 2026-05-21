@@ -5,6 +5,7 @@ import { handleError, handleMessageError, VestErrorCode } from '../errors'
 import { VestUtils } from '../utils/vestUtils'
 import { Transaction } from '@mysten/sui/transactions'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
+import { GetPositionsVestingEventRaw } from '../utils/parse'
 
 export class VestModule implements IModule<CetusClmmSDK> {
   protected _sdk: CetusClmmSDK
@@ -36,7 +37,7 @@ export class VestModule implements IModule<CetusClmmSDK> {
       const objects = await this._sdk.FullClient.queryEventsByPage({ MoveEventType: moveEventType })
       const warpIds = objects.data.map((object) => (object.parsedJson as any).clmm_vester_id)
       if (warpIds.length > 0) {
-        const res = await this._sdk.FullClient.batchGetObjects(warpIds, { showContent: true, showType: true })
+        const res = await this._sdk.FullClient.batchGetObjects(warpIds, { json: true })
         res.forEach((item) => {
           const vestInfo = VestUtils.parseClmmVestInfo(item)
           const cacheKey = `${vestInfo.id}-ClmmVestInfo`
@@ -74,8 +75,8 @@ export class VestModule implements IModule<CetusClmmSDK> {
     }
 
     try {
-      const res = await this._sdk.FullClient.getObject({ id: clmm_vest_id, options: { showContent: true, showType: true } })
-      const vestInfo = VestUtils.parseClmmVestInfo(res)
+      const res = await this._sdk.FullClient.getObject({ objectId: clmm_vest_id, include: { json: true } })
+      const vestInfo = VestUtils.parseClmmVestInfo(res.object)
       this._sdk.updateCache(cacheKey, vestInfo)
       return vestInfo
     } catch (error) {
@@ -113,16 +114,13 @@ export class VestModule implements IModule<CetusClmmSDK> {
       })
     })
 
-    const simulateRes = await this.sdk.FullClient.devInspectTransactionBlock({
-      transactionBlock: tx,
-      sender: normalizeSuiAddress('0x0'),
-    })
+    const simulateRes: any = await this.sdk.FullClient.sendSimulationTransaction(tx, normalizeSuiAddress('0x0'))
 
     const position_vesting_list: PositionVesting[] = []
-    simulateRes.events?.forEach((event) => {
-      if (event.type.includes('clmm_vester::GetPositionsVestingEvent')) {
-        const { parsedJson } = event as any
-        position_vesting_list.push(...parsedJson.position_vestings.map((item: any) => VestUtils.parsePositionVesting(item)))
+    simulateRes.Transaction?.events?.forEach((event: any) => {
+      if (event.eventType.includes('clmm_vester::GetPositionsVestingEvent')) {
+        const parsed = GetPositionsVestingEventRaw.parse(event.bcs).data
+        position_vesting_list.push(...parsed.map((item: any) => VestUtils.parsePositionVesting(item)))
       }
     })
 

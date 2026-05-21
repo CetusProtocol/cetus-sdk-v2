@@ -4,10 +4,10 @@ import { buildTestAccount } from '@cetusprotocol/test-utils'
 import { CetusDlmmSDK } from '../src/sdk'
 import { printTransaction } from '@cetusprotocol/common-sdk'
 
-const pool_id = '0x94088f9a28a6b355ab3569b9cc32895dbccf4c6716f030d59d3f0cf747305ec9'
+const pool_id = '0x64e590b0e4d4f7dfc7ae9fae8e9983cd80ad83b658d8499bf550a9d4f6667076'
 
 describe('dlmm swap', () => {
-  const sdk = CetusDlmmSDK.createSDK({ env: 'testnet' })
+  const sdk = CetusDlmmSDK.createSDK({ env: 'mainnet' })
   let send_key_pair: Ed25519Keypair
   let account: string
 

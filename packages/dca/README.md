@@ -44,7 +44,7 @@ const wallet = 'YOUR_WALLET_ADDRESS'
 const sdk = CetusDcaSDK.createSDK({ env })
 ```
 
-If you wish to set your own full node URL or SuiClient, you can do so as follows:
+If you wish to set your own full node URL or SuiGrpcClient, you can do so as follows:
 
 ```typescript
 const sdk = CetusDcaSDK.createSDK({ env, sui_client })

@@ -7,12 +7,7 @@ import {
   d,
   DETAILS_KEYS,
   extractStructTagFromType,
-  getMoveObjectType,
-  getObjectDeletedResponse,
-  getObjectFields,
-  getObjectId,
-  getObjectNotExistsResponse,
-  getObjectOwner,
+  fixCoinType,
   MathUtil,
 } from '@cetusprotocol/common-sdk'
 import { handleMessageError, PoolErrorCode, PositionErrorCode } from '../errors/errors'
@@ -40,26 +35,20 @@ function buildPoolName(coin_type_a: string, coin_type_b: string, tick_spacing: s
  * @param {SuiObjectResponse} objects - The SuiObjectResponse containing information about the pool.
  * @returns {Pool} - The built Pool object.
  */
-export function buildPool(objects: SuiObjectResponse): Pool {
-  const type = getMoveObjectType(objects) as string
-  const formatType = extractStructTagFromType(type)
-  const fields = getObjectFields(objects)
-  if (fields == null) {
-    handleMessageError(PoolErrorCode.InvalidPoolObject, `Pool id ${getObjectId(objects)} not exists.`, {
-      [DETAILS_KEYS.METHOD_NAME]: 'buildPool',
-    })
-  }
+export function buildPool(objects: any): Pool {
+  const formatType = extractStructTagFromType(objects.type)
+  const fields = objects.json
 
   const rewarders: Rewarder[] = []
-  fields.rewarder_manager.fields.rewarders.forEach((item: any) => {
-    const { emissions_per_second } = item.fields
+  fields.rewarder_manager.rewarders.forEach((item: any) => {
+    const { emissions_per_second } = item
     const emissionSeconds = MathUtil.fromX64(new BN(emissions_per_second))
     const emissionsEveryDay = Math.floor(emissionSeconds.toNumber() * 60 * 60 * 24)
 
     rewarders.push({
       emissions_per_second,
-      coin_type: extractStructTagFromType(item.fields.reward_coin.fields.name).source_address,
-      growth_global: item.fields.growth_global,
+      coin_type: extractStructTagFromType(item.reward_coin).source_address,
+      growth_global: item.growth_global,
       emissions_every_day: emissionsEveryDay,
     })
   })
@@ -75,14 +64,14 @@ export function buildPool(objects: SuiObjectResponse): Pool {
   }
 
   const pool: Pool = {
-    id: getObjectId(objects),
-    pool_type: type,
+    id: objects.objectId,
+    pool_type: formatType.source_address,
     coin_type_a: formatType.type_arguments[0],
     coin_type_b: formatType.type_arguments[1],
     coin_amount_a: fields.coin_a,
     coin_amount_b: fields.coin_b,
     current_sqrt_price: fields.current_sqrt_price,
-    current_tick_index: asIntN(BigInt(fields.current_tick_index.fields.bits)),
+    current_tick_index: asIntN(BigInt(fields.current_tick_index.bits)),
     fee_growth_global_a: fields.fee_growth_global_a,
     fee_growth_global_b: fields.fee_growth_global_b,
     fee_protocol_coin_a: fields.fee_protocol_coin_a,
@@ -91,13 +80,13 @@ export function buildPool(objects: SuiObjectResponse): Pool {
     pool_status,
     liquidity: fields.liquidity,
     position_manager: {
-      positions_handle: fields.position_manager.fields.positions.fields.id.id,
-      size: fields.position_manager.fields.positions.fields.size,
+      positions_handle: fields.position_manager.positions.id,
+      size: fields.position_manager.positions.size,
     },
     rewarder_infos: rewarders,
-    rewarder_last_updated_time: fields.rewarder_manager.fields.last_updated_time,
+    rewarder_last_updated_time: fields.rewarder_manager.last_updated_time,
     tick_spacing: fields.tick_spacing,
-    ticks_handle: fields.tick_manager.fields.ticks.fields.id.id,
+    ticks_handle: fields.tick_manager.ticks.id,
     uri: fields.url,
     index: Number(fields.index),
     name: '',
@@ -110,12 +99,7 @@ export function buildPool(objects: SuiObjectResponse): Pool {
  * @param {SuiObjectResponse} object - The SuiObjectResponse containing information about the position.
  * @returns {Position} - The built Position object.
  */
-export function buildPosition(object: SuiObjectResponse): Position {
-  if (object.error != null || object.data?.content?.dataType !== 'moveObject') {
-    handleMessageError(PositionErrorCode.InvalidPositionObject, `Position not exists. Get Position error:${object.error}`, {
-      [DETAILS_KEYS.METHOD_NAME]: 'buildPosition',
-    })
-  }
+export function buildPosition(object: any): Position {
 
   let nft: NFT = {
     creator: '',
@@ -150,10 +134,10 @@ export function buildPosition(object: SuiObjectResponse): Position {
     fee_owned_b: '0',
     position_status: ClmmPositionStatus.Exists,
   }
-  let fields = getObjectFields(object)
+  let fields = object.json
   if (fields) {
-    const type = getMoveObjectType(object) as string
-    const ownerWarp = getObjectOwner(object) as {
+    const type = object.type
+    const ownerWarp = object.owner as {
       AddressOwner: string
     }
 
@@ -163,19 +147,19 @@ export function buildPosition(object: SuiObjectResponse): Position {
       nft.name = fields.name
       nft.link = fields.url
     } else {
-      nft = buildNFT(object)
+      nft = buildNFT(fields)
     }
 
     position = {
       ...nft,
-      pos_object_id: fields.id.id,
+      pos_object_id: fields.id,
       owner: ownerWarp.AddressOwner,
       type,
       liquidity: fields.liquidity,
-      coin_type_a: fields.coin_type_a.fields.name,
-      coin_type_b: fields.coin_type_b.fields.name,
-      tick_lower_index: asIntN(BigInt(fields.tick_lower_index.fields.bits)),
-      tick_upper_index: asIntN(BigInt(fields.tick_upper_index.fields.bits)),
+      coin_type_a: fixCoinType(fields.coin_type_a, false),
+      coin_type_b: fixCoinType(fields.coin_type_b, false),
+      tick_lower_index: asIntN(BigInt(fields.tick_lower_index.bits)),
+      tick_upper_index: asIntN(BigInt(fields.tick_upper_index.bits)),
       index: fields.index,
       pool: fields.pool,
       reward_amount_owned_0: '0',
@@ -189,19 +173,23 @@ export function buildPosition(object: SuiObjectResponse): Position {
       fee_growth_inside_b: '0',
       fee_owned_b: '0',
       position_status: ClmmPositionStatus.Exists,
+      name: fields.name,
+      description: fields.description,
+      image_url: fields.url,
+      link: fields.link,
     }
   }
 
-  const deletedResponse = getObjectDeletedResponse(object)
-  if (deletedResponse) {
-    position.pos_object_id = deletedResponse.objectId
-    position.position_status = ClmmPositionStatus.Deleted
-  }
-  const objectNotExistsResponse = getObjectNotExistsResponse(object)
-  if (objectNotExistsResponse) {
-    position.pos_object_id = objectNotExistsResponse
-    position.position_status = ClmmPositionStatus.NotExists
-  }
+  // const deletedResponse = object
+  // if (deletedResponse) {
+  //   position.pos_object_id = deletedResponse.objectId
+  //   position.position_status = ClmmPositionStatus.Deleted
+  // }
+  // const objectNotExistsResponse = object
+  // if (objectNotExistsResponse) {
+  //   position.pos_object_id = objectNotExistsResponse
+  //   position.position_status = ClmmPositionStatus.NotExists
+  // }
 
   return position
 }
@@ -220,10 +208,9 @@ export function buildPositionInfo(fields: any): PositionInfo {
     reward_growth_inside_1: '0',
     reward_growth_inside_2: '0',
   }
-  fields = 'fields' in fields ? fields.fields : fields
 
   fields.rewards.forEach((item: any, index: number) => {
-    const { amount_owned, growth_inside } = 'fields' in item ? item.fields : item
+    const { amount_owned, growth_inside } = item
     if (index === 0) {
       rewarders.reward_amount_owned_0 = amount_owned
       rewarders.reward_growth_inside_0 = growth_inside
@@ -236,8 +223,8 @@ export function buildPositionInfo(fields: any): PositionInfo {
     }
   })
 
-  const tick_lower_index = 'fields' in fields.tick_lower_index ? fields.tick_lower_index.fields.bits : fields.tick_lower_index.bits
-  const tick_upper_index = 'fields' in fields.tick_upper_index ? fields.tick_upper_index.fields.bits : fields.tick_upper_index.bits
+  const tick_lower_index = typeof fields.tick_lower_index === 'object' ? fields.tick_lower_index.bits : fields.tick_lower_index
+  const tick_upper_index = typeof fields.tick_upper_index === 'object' ? fields.tick_upper_index.bits : fields.tick_upper_index
 
   const position: PositionInfo = {
     liquidity: fields.liquidity,
@@ -259,28 +246,23 @@ export function buildPositionInfo(fields: any): PositionInfo {
  * @param {SuiObjectResponse} objects - The response containing information about tick data.
  * @returns {TickData} - The built TickData object.
  */
-export function buildTickData(objects: SuiObjectResponse): TickData {
-  if (objects.error != null || objects.data?.content?.dataType !== 'moveObject') {
-    handleMessageError(PoolErrorCode.InvalidTickObject, `Tick not exists. Get tick data error:${objects.error}`, {
-      [DETAILS_KEYS.METHOD_NAME]: 'buildTickData',
-    })
-  }
+export function buildTickData(objects: any): TickData {
 
-  const fields = getObjectFields(objects)
+  const fields = objects.json
 
-  const valueItem = fields.value.fields.value.fields
-  const position: TickData = {
-    object_id: getObjectId(objects),
-    index: asIntN(BigInt(valueItem.index.fields.bits)),
+  const valueItem = fields.value.value
+  const tickData: TickData = {
+    object_id: objects.objectId,
+    index: asIntN(BigInt(valueItem.index.bits)),
     sqrt_price: new BN(valueItem.sqrt_price),
-    liquidity_net: new BN(valueItem.liquidity_net.fields.bits),
+    liquidity_net: new BN(valueItem.liquidity_net.bits),
     liquidity_gross: new BN(valueItem.liquidity_gross),
     fee_growth_outside_a: new BN(valueItem.fee_growth_outside_a),
     fee_growth_outside_b: new BN(valueItem.fee_growth_outside_b),
     rewarders_growth_outside: valueItem.rewards_growth_outside,
   }
 
-  return position
+  return tickData
 }
 
 /**
@@ -305,9 +287,9 @@ export function buildTickDataByEvent(fields: any): TickData {
   }
 
   // It's assumed that asIntN is a function that converts a BigInt to an integer.
-  const index = asIntN(BigInt(fields.index.bits))
+  const index = asIntN(BigInt(fields.index))
   const sqrt_price = new BN(fields.sqrt_price)
-  const liquidity_net = new BN(fields.liquidity_net.bits)
+  const liquidity_net = new BN(fields.liquidity_net)
   const liquidity_gross = new BN(fields.liquidity_gross)
   const fee_growth_outside_a = new BN(fields.fee_growth_outside_a)
   const fee_growth_outside_b = new BN(fields.fee_growth_outside_b)
@@ -394,20 +376,22 @@ export function buildPositionTransactionInfo(data: SuiTransactionBlockResponse, 
   return list
 }
 
-export function buildPoolTransactionInfo(data: SuiTransactionBlockResponse, txIndex: number, package_ids: string[], pool_id: string) {
+export function buildPoolTransactionInfo(rawData: any, txIndex: number, package_ids: string[], pool_id: string) {
   const list: PoolTransactionInfo[] = []
-  const { timestampMs, events } = data
+  const events = rawData.effects.events.nodes
 
-  events?.forEach((event: any, index) => {
-    const { name: type, address: package_address } = extractStructTagFromType(event.type)
-    if (poolFilterEvenTypes.includes(type) && package_ids.includes(package_address) && pool_id === event.parsedJson.pool) {
+  events?.forEach((data: any, index: number) => {
+    const isoTime = data.timestamp
+    const { json: event, type: eventType } = data.contents
+    const { name: type, address: package_address } = extractStructTagFromType(eventType.repr)
+    if (poolFilterEvenTypes.includes(type) && package_ids.includes(package_address) && pool_id === event.pool) {
       const info: PoolTransactionInfo = {
-        tx: event.id.txDigest,
-        sender: event.sender,
-        type: event.type,
-        block_time: timestampMs || '0',
+        tx: rawData.digest,
+        sender: data.sender.address,
+        type: eventType.repr,
+        block_time: new Date(isoTime).getTime().toString(),
         index: `${txIndex}_${index}`,
-        parsed_json: event.parsedJson,
+        parsed_json: event,
       }
       list.push(info)
     }

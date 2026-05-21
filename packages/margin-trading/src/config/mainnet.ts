@@ -17,6 +17,19 @@ export const margin_trading_mainnet: SdkOptions = {
       markets_table_id: '0xaf0d0a53740d02f6ace10a07a60763f8e079ee646913062e8392da3a96af3500',
     },
   },
+
+  tspl: {
+    package_id: '0x4c29c419f59adb7193ac87c7934c5fe396bf0b3c4b2f182cb9a1636551e29936',
+    published_at: '0x4c29c419f59adb7193ac87c7934c5fe396bf0b3c4b2f182cb9a1636551e29936',
+    version: 0,
+    config: {
+      versioned_id: '0x64354185e553a3786b35ec8a44cfa14fe40adb6c850d4c6405babc3e076b1d10',
+      global_config_id: '0x431079e433f15c0c99bafd9028085942af14e1e6da0fe799afaa962ef7cd2757',
+      admin_cap_id: '0x3c2556269aef1b9eb32b8b1cd88401d781cec705ad3fb293a1241f3c2ff19d6a',
+      order_book_registry_id: '0xeb089113f323195fb348bb71effe8f8c2ec379d212afc1392a66a1348e0984f9',
+      order_book_registry_handle: '0xab701935c0444ca5712dcad4ce10d101c2e957fe3e85cd27e5369fd85fcfe864',
+    },
+  },
   suilend: {
     package_id: '0xf95b06141ed4a174f239417323bde3f209b972f5930d8521ea38a52aff3a6ddf',
     published_at: '0xe37cc7bb50fd9b6dbd3873df66fa2c554e973697f50ef97707311dc78bd08444',

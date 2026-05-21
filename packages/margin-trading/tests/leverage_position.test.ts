@@ -18,14 +18,13 @@ describe('leverage position test', () => {
   })
 
   test('getPositionList', async () => {
-    const res = await sdk.PositionModules.getPositionList('0xe4a2b3e3449ebab20ae7e15afc8a2414ed362a9a97af09a42fc05fd8db3f5072')
+    const res = await sdk.PositionModules.getPositionList()
     console.log('🚀🚀🚀 ~ position.test.ts:21 ~ res:', res)
   })
 
   test('1 getPosition', async () => {
     const res = await sdk.PositionModules.getPositionInfo(
-      '0x5df6f2418f591acf2ef8ba1dda160de7d54a11a01adb54d5f614bdb9f3317d73',
-      '0xe4a2b3e3449ebab20ae7e15afc8a2414ed362a9a97af09a42fc05fd8db3f5072'
+      '0x46a6c085cd222deeaf01b301150ad2d401d5fdbec74711f5edfeab643a2a13fa',
     )
 
     console.log('🚀🚀🚀 ~ position.test.ts:21 ~ res:', res)
@@ -82,7 +81,7 @@ describe('leverage position test', () => {
       "target_leverage": 2.57,
       "swap_clmm_pool": "0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab",
       "slippage": 0.005
-  })
+    })
     printTransaction(payload)
     const res = await sdk.FullClient.executeTx(send_key_pair, payload, false)
     console.log('🚀🚀🚀 ~ position.test.ts:21 ~ res:', res)

@@ -8,8 +8,8 @@ import { Transaction } from '@mysten/sui/transactions'
 
 let send_key_pair: Ed25519Keypair
 
-const poolId = '0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab'
-const position_nft_id = '0xc3d2af9ca5da5433407c5189a16b529d3dc0e835041f6b4e7cd40d9389736f0b'
+const poolId = '0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c90105'
+const position_nft_id = '0xe75defa5883cf236ccafb4910094cdd4e1ad0a0da637dce4a380e1061599e52b'
 
 describe('remove liquidity', () => {
   const sdk = CetusClmmSDK.createSDK({ env: 'mainnet' })
@@ -79,7 +79,7 @@ describe('remove liquidity', () => {
     const transferTxn = await sdk.FullClient.executeTx(send_key_pair, payload, true)
     console.log('removeLiquidity: ', transferTxn)
   })
-  test('remove liquidity for input liquidity', async () => {
+  test('11 remove liquidity for input liquidity', async () => {
     const pool = await sdk.Pool.getPool(poolId)
     const position = await sdk.Position.getPositionById(position_nft_id)
 
@@ -89,7 +89,7 @@ describe('remove liquidity', () => {
     const lowerSqrtPrice = TickMath.tickIndexToSqrtPriceX64(lowerTick)
     const upperSqrtPrice = TickMath.tickIndexToSqrtPriceX64(upperTick)
 
-    const liquidity = new BN(200)
+    const liquidity = new BN(2000)
     const slippageTolerance = new Percentage(new BN(5), new BN(100))
     const curSqrtPrice = new BN(pool.current_sqrt_price)
 
@@ -107,7 +107,7 @@ describe('remove liquidity', () => {
       pool_id: pool.id,
       pos_id: position.pos_object_id,
       rewarder_coin_types: [...rewardCoinTypes],
-      collect_fee: false,
+      collect_fee: true,
     }
 
     const removeLiquidityTransactionPayload = await sdk.Position.removeLiquidityPayload(removeLiquidityParams) as Transaction

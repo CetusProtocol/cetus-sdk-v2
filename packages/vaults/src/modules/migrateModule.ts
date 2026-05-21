@@ -245,7 +245,7 @@ export class MigrateModule implements IModule<CetusVaultsSDK> {
       if (swapCoinResult) {
         swap_price = d(swapCoinResult?.amount_out).div(swapCoinResult?.amount_in).toString()
       }
-    } catch (error) {}
+    } catch (error) { }
     if (!swap_price) {
       swap_price = TickMath.priceToSqrtPriceX64(d(current_sqrt_price.toString()), 6, 6).toString()
     }
@@ -304,17 +304,17 @@ export class MigrateModule implements IModule<CetusVaultsSDK> {
     to_coin: TransactionObjectArgument
   }> {
     const { from_coin_type, liquidity_slippage, tx, from_coin_object_id, swap_in_amount, route_obj } = options
-    const inputCoin = from_coin_object_id || CoinAssist.buildCoinWithBalance(BigInt(swap_in_amount), from_coin_type, tx)
+    const inputCoin: any = from_coin_object_id || CoinAssist.buildCoinWithBalance(BigInt(swap_in_amount), from_coin_type, tx)
 
     const routerParams: BuildRouterSwapParamsV3 = {
       router: route_obj,
       inputCoin,
       slippage: liquidity_slippage,
-      txb: tx,
+      txb: tx as any,
     }
     const to_coin = await this._sdk.AggregatorClient.fixableRouterSwapV3(routerParams)
     return {
-      to_coin,
+      to_coin: to_coin as any,
     }
   }
 

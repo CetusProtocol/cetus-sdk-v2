@@ -1,11 +1,8 @@
 import { Transaction } from '@mysten/sui/transactions'
 import {
-  asIntN,
-  asUintN,
   CLOCK_ADDRESS,
   CoinAssist,
   d,
-  getObjectFields,
   getPackagerConfigs,
   IModule,
   MathUtil,
@@ -32,15 +29,15 @@ export class RewardModule implements IModule<CetusDlmmSDK> {
   ): Promise<RewardPeriodEmission[]> {
     const res = await this._sdk.FullClient.getDynamicFieldsByPage(period_emission_handle)
     const result: RewardPeriodEmission[] = []
-    const warpIds = res.data.map((item) => item.objectId)
+    const warpIds = res.data.map((item) => item.fieldId)
     if (warpIds.length > 0) {
       const warRes = await this._sdk.FullClient.batchGetObjects(warpIds, {
-        showContent: true,
+        json: true,
       })
 
-      warRes.forEach((item) => {
-        const fields = getObjectFields(item)
-        const emission_rate = MathUtil.u128ToI128(new BN(fields.value.fields.value.fields.bits)).toString()
+      warRes.forEach((item: any) => {
+        const fields = item.json
+        const emission_rate = MathUtil.u128ToI128(new BN(fields.value.value.bits)).toString()
         const time = fields.name
         const visualizedTime = new Date(Number(time) * 1000).toLocaleString()
         const emissions_per = MathUtil.fromX64(new BN(emission_rate)).toString()

@@ -1,5 +1,5 @@
 import { Transaction } from '@mysten/sui/transactions'
-import { CLOCK_ADDRESS, d, DETAILS_KEYS, fixCoinType, getObjectFields, getPackagerConfigs, IModule } from '@cetusprotocol/common-sdk'
+import { CLOCK_ADDRESS, d, DETAILS_KEYS, fixCoinType, getPackagerConfigs, IModule } from '@cetusprotocol/common-sdk'
 import { DlmmErrorCode, handleError } from '../errors/errors'
 import { parsePartner } from '../utils'
 import { CetusDlmmSDK } from '../sdk'
@@ -26,16 +26,15 @@ export class PartnerModule implements IModule<CetusDlmmSDK> {
     const { dlmm_pool } = this._sdk.sdkOptions
     const { partners_id } = getPackagerConfigs(dlmm_pool)
     try {
-      const res = await this._sdk.FullClient.getObject({ id: partners_id, options: { showContent: true } })
-      const fields = getObjectFields(res)
-      const warpIds = fields.partners.fields.contents.map((item: any) => {
-        return item.fields.value
+      const res: any = await this._sdk.FullClient.getObject({ objectId: partners_id, include: { json: true } })
+      const fields = res.object.json
+      const warpIds = fields.partners.contents.map((item: any) => {
+        return item.value
       })
 
       if (warpIds.length > 0) {
         const res = await this._sdk.FullClient.batchGetObjects(warpIds, {
-          showContent: true,
-          showType: true,
+          json: true,
         })
         res.forEach((item) => {
           const partner = parsePartner(item)
@@ -66,21 +65,18 @@ export class PartnerModule implements IModule<CetusDlmmSDK> {
       if (cached) {
         return cached
       }
-      const res = await this._sdk.FullClient.getOwnedObjects({
+      const res = await this._sdk.FullClient.listOwnedObjects({
         owner,
-        options: {
-          showContent: true,
-          showType: true,
+        include: {
+          json: true,
         },
-        filter: {
-          StructType: `${dlmm_pool.package_id}::partner::PartnerCap`,
-        },
+        type: `${dlmm_pool.package_id}::partner::PartnerCap`,
       })
       let partnerCapId = undefined
-      res.data.forEach((item) => {
-        const fields = getObjectFields(item)
+      res.objects.forEach((item: any) => {
+        const fields = item.json
         if (fields.partner_id === partner_id) {
-          partnerCapId = fields.id.id
+          partnerCapId = fields.id
           this._sdk.updateCache(cacheKey, partnerCapId)
         }
       })
@@ -116,19 +112,16 @@ export class PartnerModule implements IModule<CetusDlmmSDK> {
 
       const balanceList: { coin_type: string; balance: string }[] = []
 
-      const warpIds = res.data.map((item) => item.objectId)
+      const warpIds = res.data.map((item) => item.fieldId)
 
       if (warpIds.length > 0) {
         const res = await this._sdk.FullClient.batchGetObjects(warpIds, {
-          showContent: true,
-          showType: true,
+          json: true,
         })
-        res.forEach((item) => {
-          const fields = getObjectFields(item)
-          console.log(fields)
+        res.forEach((item: any) => {
           balanceList.push({
-            coin_type: fixCoinType(fields.name, false),
-            balance: fields.value,
+            coin_type: fixCoinType(item.json.name, false),
+            balance: item.json.value,
           })
         })
       }
@@ -148,8 +141,8 @@ export class PartnerModule implements IModule<CetusDlmmSDK> {
    */
   async getPartner(partner_id: string): Promise<Partner> {
     try {
-      const res = await this._sdk.FullClient.getObject({ id: partner_id, options: { showContent: true } })
-      const partner = parsePartner(res)
+      const res = await this._sdk.FullClient.getObject({ objectId: partner_id, include: { json: true } })
+      const partner = parsePartner(res.object)
       return partner
     } catch (error) {
       return handleError(DlmmErrorCode.FetchError, error as Error, {

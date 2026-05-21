@@ -9,8 +9,7 @@ export const supportChainMayanList: Chain[] = [
     id: ChainId.SUI_MAYAN,
     logo_url: 'https://cdn.mayan.finance/SUI.png',
     rpc_urls: [
-      'https://rpc.ankr.com/sui_mainnet',
-      'https://rpc.ankr.com/sui/7f818a1013bdbf7c09af32622331588476299eed5149cd6fb944251fe407b87e',
+      "https://front-rpc.mayan.finance/sui"
     ],
     platform: CrossSwapPlatform.MAYAN,
     block_explorer: 'https://suiscan.xyz/mainnet/',
@@ -28,7 +27,7 @@ export const supportChainMayanList: Chain[] = [
     type: ChainType.EVM,
     id: ChainId.ETH,
     logo_url: 'https://statics.mayan.finance/assets/eth.png',
-    rpc_urls: ['https://eth-mainnet.public.blastapi.io/'],
+    rpc_urls: ["https://front-rpc.mayan.finance/ethereum"],
     platform: CrossSwapPlatform.MAYAN,
     block_explorer: 'https://etherscan.io',
     native_token: {
@@ -46,8 +45,7 @@ export const supportChainMayanList: Chain[] = [
     id: ChainId.SOL_MAYAN,
     logo_url: 'https://statics.mayan.finance/assets/SOL.png',
     rpc_urls: [
-      'https://rpc.hellomoon.io/34d462f9-1e8e-45b0-a83d-c3c43981ede0',
-      'https://proud-fabled-dawn.solana-mainnet.quiknode.pro/06df0fdd93842b3340129b8cdc4af06947fe730d/',
+      "https://front-rpc.mayan.finance/solana",
     ],
     platform: CrossSwapPlatform.MAYAN,
     block_explorer: 'https://explorer.solana.com/',
@@ -66,7 +64,7 @@ export const supportChainMayanList: Chain[] = [
     type: ChainType.EVM,
     id: ChainId.BAS,
     logo_url: 'https://cdn.mayan.finance/base.png',
-    rpc_urls: ['https://base.llamarpc.com'],
+    rpc_urls: ["https://front-rpc.mayan.finance/base"],
     platform: CrossSwapPlatform.MAYAN,
     block_explorer: 'https://basescan.org/',
     native_token: {
@@ -83,7 +81,7 @@ export const supportChainMayanList: Chain[] = [
     type: ChainType.EVM,
     id: ChainId.ARB,
     logo_url: 'https://cdn.mayan.finance/arbitrum-logo.png',
-    rpc_urls: ['https://arb1.arbitrum.io/rpc'],
+    rpc_urls: ["https://front-rpc.mayan.finance/arbitrum"],
     platform: CrossSwapPlatform.MAYAN,
     block_explorer: 'https://arbiscan.io/',
     native_token: {
@@ -100,7 +98,7 @@ export const supportChainMayanList: Chain[] = [
     type: ChainType.EVM,
     id: ChainId.OPT,
     logo_url: 'https://cdn.mayan.finance/optimism.png',
-    rpc_urls: ['https://optimism-mainnet.public.blastapi.io'],
+    rpc_urls: ["https://front-rpc.mayan.finance/optimism"],
     platform: CrossSwapPlatform.MAYAN,
     block_explorer: 'https://optimistic.etherscan.io/',
     native_token: {
@@ -117,7 +115,7 @@ export const supportChainMayanList: Chain[] = [
     type: ChainType.EVM,
     id: ChainId.POL,
     logo_url: 'https://statics.mayan.finance/assets/polygon.png',
-    rpc_urls: ['https://polygon-bor-rpc.publicnode.com'],
+    rpc_urls: ["https://front-rpc.mayan.finance/polygon"],
     platform: CrossSwapPlatform.MAYAN,
     block_explorer: 'https://polygonscan.com',
     native_token: {
@@ -134,7 +132,7 @@ export const supportChainMayanList: Chain[] = [
     type: ChainType.EVM,
     id: ChainId.AVA,
     logo_url: 'https://statics.mayan.finance/assets/avax-icon.png',
-    rpc_urls: ['https://ava-mainnet.public.blastapi.io/ext/bc/C/rpc'],
+    rpc_urls: ["https://front-rpc.mayan.finance/avalanche"],
     platform: CrossSwapPlatform.MAYAN,
     block_explorer: 'https://snowtrace.io',
     native_token: {
@@ -151,7 +149,7 @@ export const supportChainMayanList: Chain[] = [
     type: ChainType.EVM,
     id: ChainId.BSC,
     logo_url: 'https://statics.mayan.finance/assets/bsc.png',
-    rpc_urls: ['https://bsc-dataseed1.defibit.io'],
+    rpc_urls: ["https://front-rpc.mayan.finance/bsc"],
     platform: CrossSwapPlatform.MAYAN,
     block_explorer: 'https://bscscan.com',
     native_token: {
@@ -169,7 +167,7 @@ export const supportChainMayanList: Chain[] = [
     type: ChainType.EVM,
     id: ChainId.UNI,
     logo_url: 'https://cdn.mayan.finance/unichain.png',
-    rpc_urls: ['https://unichain-rpc.publicnode.com'],
+    rpc_urls: ["https://front-rpc.mayan.finance/unichain"],
     platform: CrossSwapPlatform.MAYAN,
     block_explorer: 'https://uniscan.xyz/',
     native_token: {
@@ -186,7 +184,7 @@ export const supportChainMayanList: Chain[] = [
     type: ChainType.EVM,
     id: ChainId.LNA,
     logo_url: 'https://cdn.mayan.finance/linea.png',
-    rpc_urls: ['https://linea-rpc.publicnode.com'],
+    rpc_urls: ["https://front-rpc.mayan.finance/linea"],
     platform: CrossSwapPlatform.MAYAN,
     block_explorer: 'https://lineascan.build/',
     native_token: {

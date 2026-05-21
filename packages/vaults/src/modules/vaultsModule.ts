@@ -28,7 +28,6 @@ import {
   DataPage,
   extractStructTagFromType,
   getDefaultSqrtPriceLimit,
-  getObjectFields,
   getPackagerConfigs,
   IModule,
   PaginationArgs,
@@ -37,6 +36,7 @@ import {
 import { handleMessageError, VaultsErrorCode } from '../errors'
 import { CetusVaultsSDK } from '../sdk'
 import { VaultsUtils } from '../utils/vaults'
+import { bcs } from '@mysten/sui/bcs'
 
 /**
  * Helper class to help interact with Vaults interface.
@@ -754,8 +754,8 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
     const { swap_result, amount_a, amount_b, fix_amount_a, partner, side, original_input_amount } = deposit_result
     const { vault, pool } = await this.getVaultAndPool(vault_id, false)
 
-    let primaryCoinAInputs
-    let primaryCoinBInputs
+    let primaryCoinAInputs: any
+    let primaryCoinBInputs: any
     let in_coin
     if (side === InputType.OneSide && swap_result) {
       in_coin =
@@ -871,7 +871,7 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
     const swap_coin_input_from = swap_in_coin
 
     if (route_obj) {
-      const routerParamsV2 = {
+      const routerParamsV2: any = {
         router: route_obj,
         inputCoin: swap_coin_input_from,
         slippage,
@@ -1049,7 +1049,7 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
         }
         let client = this._sdk.AggregatorClient
 
-        const to_coin = await client.fixableRouterSwapV3(routerParamsV2)
+        const to_coin: any = await client.fixableRouterSwapV3(routerParamsV2 as any)
         const coin_abs = a2b ? [swap_coin_input_from.target_coin, to_coin] : [to_coin, swap_coin_input_from.target_coin]
 
         if (a2b) {
@@ -1189,14 +1189,15 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
   async getVaultList(pagination_args: PaginationArgs = 'all'): Promise<DataPage<Vault>> {
     // const res = await this._sdk.fullClient.queryEventsByPage({ MoveEventType: `${vaults.package_id}::vaults::CreateEvent` }, paginationArgs)
     const { vaults_pool_handle } = getPackagerConfigs(this._sdk.sdkOptions.vaults)
+    const dataPage: DataPage<Vault> = {
+      data: [],
+      has_next_page: false,
+    }
     const res = await this._sdk.FullClient.getDynamicFieldsByPage(vaults_pool_handle, pagination_args)
-    const warpIds = res.data.map((item: any) => item.name.value)
+    const warpIds = res.data.map((item: any) => bcs.Address.parse(item.name.bcs))
 
     const objectList = await this._sdk.FullClient.batchGetObjects(warpIds, {
-      showType: true,
-      showContent: true,
-      showDisplay: true,
-      showOwner: true,
+      json: true,
     })
 
     const poolList: Vault[] = []
@@ -1207,15 +1208,16 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
         poolList.push(pool)
       }
     })
-
-    res.data = poolList
-    return res
+    dataPage.has_next_page = res.has_next_page
+    dataPage.next_cursor = res.next_cursor
+    dataPage.data = poolList
+    return dataPage
   }
 
   async getAssignVaultList(poolIds: string[]): Promise<Vault[]> {
     const poolList: Vault[] = []
     if (poolIds.length > 0) {
-      const objectList = await this._sdk.FullClient.batchGetObjects(poolIds, { showContent: true })
+      const objectList = await this._sdk.FullClient.batchGetObjects(poolIds, { json: true })
       objectList.forEach((item: any) => {
         const pool = VaultsUtils.buildPool(item)
         if (pool) {
@@ -1241,10 +1243,10 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
     }
     try {
       const item: any = await this._sdk.FullClient.getObject({
-        id,
-        options: { showType: true, showContent: true, showDisplay: true, showOwner: true },
+        objectId: id,
+        include: { json: true },
       })
-      const pool = VaultsUtils.buildPool(item)
+      const pool = VaultsUtils.buildPool(item.object)
       if (pool) {
         this.savePoolToCache(pool)
         return pool
@@ -1275,7 +1277,7 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
         coinType: vault.lp_token_type,
       })
       const clmm_pool = await this._sdk.ClmmSDK.Pool.getPool(vault.pool_id, true)
-      const wrap_data = VaultsUtils.buildVaultBalance(wallet_address, vault, lp_token_balance, clmm_pool)
+      const wrap_data = VaultsUtils.buildVaultBalance(wallet_address, vault, lp_token_balance.balance.balance, clmm_pool)
       if (wrap_data) {
         result.push(wrap_data)
       }
@@ -1309,9 +1311,8 @@ export class VaultsModule implements IModule<CetusVaultsSDK> {
         config.admin_cap_id = fields.admin_cap_id
         config.vaults_manager_id = fields.manager_id
 
-        const masterObj = await this._sdk.FullClient.getObject({ id: config.vaults_manager_id, options: { showContent: true } })
-        const masterFields = getObjectFields(masterObj)
-        config.vaults_pool_handle = masterFields.vault_to_pool_maps.fields.id.id
+        const masterObj: any = await this._sdk.FullClient.getObject({ objectId: config.vaults_manager_id, include: { json: true } })
+        config.vaults_pool_handle = masterObj.object.json.vault_to_pool_maps.id
         break
       }
       this._sdk.updateCache(cache_key, config, CACHE_TIME_24H)

@@ -1,9 +1,8 @@
-import { DevInspectResults } from '@mysten/sui/jsonRpc'
+import type { DevInspectResults } from '@mysten/sui/jsonRpc'
 import { Transaction, TransactionArgument, TransactionObjectArgument } from '@mysten/sui/transactions'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
 import BN from 'bn.js'
 import {
-  BuildCoinResult,
   CLOCK_ADDRESS,
   CoinAssist,
   DETAILS_KEYS,
@@ -30,6 +29,7 @@ import {
 import { ClmmFetcherModule, ClmmIntegratePoolV2Module, ClmmIntegratePoolV3Module } from '../types/sui'
 import { PositionUtils } from '../utils/positionUtils'
 import { buildTransferCoin } from '../utils/common'
+import { FetchPositionRewardsEventRaw } from '../utils/parse'
 
 /**
  * Helper class to help interact with clmm position rewaeder with a rewaeder router interface.
@@ -171,15 +171,12 @@ export class RewarderModule implements IModule<CetusClmmSDK> {
       this.buildFetchPosReward(paramItem, tx)
     }
 
-    const simulateRes = await this.sdk.FullClient.devInspectTransactionBlock({
-      transactionBlock: tx,
-      sender: normalizeSuiAddress('0x'),
-    })
+    const simulateRes = await this.sdk.FullClient.sendSimulationTransaction(tx, normalizeSuiAddress('0x0'))
 
-    if (simulateRes.error != null) {
+    if (simulateRes.FailedTransaction != null) {
       handleMessageError(
         ConfigErrorCode.InvalidConfig,
-        `fetch position rewards error code: ${simulateRes.error ?? 'unknown error'}, please check config and params`,
+        `fetch position rewards error code: ${simulateRes.FailedTransaction.status.error?.message ?? 'unknown error'}, please check config and params`,
         {
           [DETAILS_KEYS.METHOD_NAME]: 'fetchPosRewardersAmount',
           [DETAILS_KEYS.REQUEST_PARAMS]: { params },
@@ -187,7 +184,7 @@ export class RewarderModule implements IModule<CetusClmmSDK> {
       )
     }
 
-    const rewarderData = this.parsedPosRewardData(simulateRes)
+    const rewarderData = this.parsedPosRewardData(simulateRes.Transaction)
 
     const result: PosRewarderResult[] = []
 
@@ -211,19 +208,20 @@ export class RewarderModule implements IModule<CetusClmmSDK> {
     return result
   }
 
-  parsedPosRewardData(simulate_res: DevInspectResults) {
+  parsedPosRewardData(simulate_res: any) {
     const rewarderData: Record<string, { position_id: string; rewarder_amount: string[] }> = {}
     const rewarderValueData: any[] = simulate_res.events?.filter((item: any) => {
-      return item.type.includes('fetcher_script::FetchPositionRewardsEvent')
+      return item.eventType.includes('fetcher_script::FetchPositionRewardsEvent')
     })
 
     for (let i = 0; i < rewarderValueData.length; i += 1) {
-      const { parsedJson } = rewarderValueData[i]
+      const { bcs } = rewarderValueData[i]
+      const parsed = FetchPositionRewardsEventRaw.parse(bcs)
       const posObj = {
-        position_id: parsedJson.position_id,
-        rewarder_amount: parsedJson.data,
+        position_id: parsed.position_id,
+        rewarder_amount: parsed.data,
       }
-      rewarderData[parsedJson.position_id] = posObj
+      rewarderData[parsed.position_id] = posObj
     }
 
     return rewarderData

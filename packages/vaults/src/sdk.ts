@@ -1,4 +1,5 @@
 import { AggregatorClient, Env } from '@cetusprotocol/aggregator-sdk'
+import { SuiGrpcClient } from '@mysten/sui/grpc'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
 import { CetusClmmSDK } from '@cetusprotocol/sui-clmm-sdk'
 import { BaseSdkOptions, Package, SdkWrapper } from '@cetusprotocol/common-sdk'
@@ -10,7 +11,6 @@ import { VaultsConfigs } from './types/vaults'
 import { VestConfigs } from './types/vest'
 import { VestModule } from './modules/vestModule'
 import { MigrateModule } from './modules/migrateModule'
-import { SuiGrpcClient } from '@mysten/sui/grpc'
 import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
 /**
  * Represents options and configurations for an SDK.
@@ -67,7 +67,10 @@ export class CetusVaultsSDK extends SdkWrapper<SdkOptions> {
     this._migrateModule = new MigrateModule(this)
     this._aggregatorClient = new AggregatorClient({
       signer: normalizeSuiAddress('0x0'),
-      client: options.sui_client || new SuiJsonRpcClient({ url: options.full_rpc_url!, network: options.env === 'testnet' ? 'testnet' : 'mainnet' }),
+      client: new SuiGrpcClient({
+        baseUrl: options.full_rpc_url!, network: options.env === 'testnet' ?
+          "testnet" : "mainnet"
+      }) as any,
       env: options.env === 'testnet' ? Env.Testnet : Env.Mainnet,
       pythUrls: options.pyth_urls,
     })
@@ -122,7 +125,10 @@ export class CetusVaultsSDK extends SdkWrapper<SdkOptions> {
 
     this._aggregatorClient = new AggregatorClient({
       signer: normalizeSuiAddress('0x0'),
-      client: new SuiJsonRpcClient({ url: url, network: this._sdkOptions.env === 'testnet' ? 'testnet' : 'mainnet' }),
+      client: new SuiGrpcClient({
+        baseUrl: url, network: this._sdkOptions.env === 'testnet' ?
+          "testnet" : "mainnet"
+      }),
       env: this._sdkOptions.env === 'testnet' ? Env.Testnet : Env.Mainnet,
       pythUrls: this._sdkOptions.pyth_urls,
     })

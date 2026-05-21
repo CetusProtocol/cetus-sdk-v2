@@ -1,4 +1,4 @@
-import { SuiObjectResponse, CoinBalance } from '@mysten/sui/jsonRpc'
+import type { SuiObjectResponse, CoinBalance } from '@mysten/sui/jsonRpc'
 import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
 import BN from 'bn.js'
 import {
@@ -10,8 +10,6 @@ import {
   extractStructTagFromType,
   fixCoinType,
   GAS_TYPE_ARG,
-  getObjectFields,
-  getObjectType,
   TickMath,
 } from '@cetusprotocol/common-sdk'
 import { FarmsPositionNFT } from '@cetusprotocol/farms-sdk'
@@ -133,48 +131,48 @@ export class VaultsUtils {
   }
 
   static buildFarmsPositionNFT(fields: any): FarmsPositionNFT {
-    const clmmFields = fields.clmm_postion.fields
+    const clmmFields = fields.clmm_postion
     const farmsPositionNft: FarmsPositionNFT = {
-      id: fields.id.id,
+      id: fields.id,
       url: clmmFields.url,
       pool_id: fields.pool_id,
-      coin_type_a: extractStructTagFromType(clmmFields.coin_type_a.fields.name).full_address,
-      coin_type_b: extractStructTagFromType(clmmFields.coin_type_b.fields.name).full_address,
+      coin_type_a: extractStructTagFromType(clmmFields.coin_type_a).full_address,
+      coin_type_b: extractStructTagFromType(clmmFields.coin_type_b).full_address,
       description: clmmFields.description,
       name: clmmFields.name,
       index: clmmFields.index,
       liquidity: clmmFields.liquidity,
-      clmm_position_id: clmmFields.id.id,
+      clmm_position_id: clmmFields.id,
       clmm_pool_id: clmmFields.pool,
-      tick_lower_index: asIntN(BigInt(clmmFields.tick_lower_index.fields.bits)),
-      tick_upper_index: asIntN(BigInt(clmmFields.tick_upper_index.fields.bits)),
+      tick_lower_index: asIntN(BigInt(clmmFields.tick_lower_index.bits)),
+      tick_upper_index: asIntN(BigInt(clmmFields.tick_upper_index.bits)),
       rewards: [],
     }
     return farmsPositionNft
   }
 
-  static buildPool(objects: SuiObjectResponse): Vault {
-    const fields = getObjectFields(objects)
-    const type = getObjectType(objects) as string
+  static buildPool(objects: any): Vault {
+    const fields = objects.json
+    const type = objects.type
     const { positions } = fields
     if (fields && positions.length > 0) {
-      const farmsPosition = VaultsUtils.buildFarmsPositionNFT(positions[0].fields)!
+      const farmsPosition = VaultsUtils.buildFarmsPositionNFT(positions[0])!
 
       const masterNFT: Vault = {
-        id: fields.id.id,
+        id: fields.id,
         pool_id: fields.pool,
         protocol_fee_rate: fields.protocol_fee_rate,
         is_pause: fields.is_pause,
         harvest_assets: {
-          harvest_assets_handle: fields.harvest_assets.fields.id.id,
-          size: Number(fields.harvest_assets.fields.size),
+          harvest_assets_handle: fields.harvest_assets.id,
+          size: Number(fields.harvest_assets.size),
         },
         lp_token_type: extractStructTagFromType(type).type_arguments[0],
-        total_supply: fields.lp_token_treasury.fields.total_supply.fields.value,
+        total_supply: fields.lp_token_treasury.total_supply.value,
         liquidity: fields.liquidity,
         max_quota: fields.max_quota,
         status: fields.status === 1 ? VaultStatus.STATUS_RUNNING : VaultStatus.STATUS_REBALANCING,
-        quota_based_type: fields.quota_based_type.fields.name,
+        quota_based_type: fields.quota_based_type.name,
         position: farmsPosition,
       }
       return masterNFT
@@ -186,8 +184,9 @@ export class VaultsUtils {
 
 
 
-  public static buildVaultBalance(wallet_address: string, vault: Vault, lp_token_balance: CoinBalance, clmm_pool: Pool) {
-    const liquidity = VaultsUtils.getShareLiquidityByAmount(vault, lp_token_balance.totalBalance)
+
+  public static buildVaultBalance(wallet_address: string, vault: Vault, lp_token_balance: string, clmm_pool: Pool) {
+    const liquidity = VaultsUtils.getShareLiquidityByAmount(vault, lp_token_balance)
     const { tick_lower_index, tick_upper_index, coin_type_a, coin_type_b } = vault.position
     const lower_sqrt_price = TickMath.tickIndexToSqrtPriceX64(tick_lower_index)
     const upper_sqrt_price = TickMath.tickIndexToSqrtPriceX64(tick_upper_index)
@@ -203,7 +202,7 @@ export class VaultsUtils {
       clmm_pool_id: vault.pool_id,
       owner: wallet_address,
       lp_token_type: vault.lp_token_type,
-      lp_token_balance: lp_token_balance.totalBalance,
+      lp_token_balance: lp_token_balance,
       liquidity,
       tick_lower_index,
       tick_upper_index,
@@ -214,22 +213,20 @@ export class VaultsUtils {
     }
   }
 
-  static parseVaultsVestInfo(res: SuiObjectResponse): VaultsVestInfo {
-    const fields = getObjectFields(res)
+  static parseVaultsVestInfo(res: any): VaultsVestInfo {
+    const fields = res.json
 
-    const type = getObjectType(res) as string
-    const structTag = extractStructTagFromType(type)
 
-    const posFields = fields.position.fields
+    const posFields = fields.position
     const position: VaultsPosition = {
-      id: posFields.id.id,
+      id: posFields.id,
       pool_id: posFields.pool,
       index: posFields.index,
       liquidity: posFields.liquidity,
-      tick_lower_index: asIntN(BigInt(posFields.tick_lower_index.fields.bits)),
-      tick_upper_index: asIntN(BigInt(posFields.tick_upper_index.fields.bits)),
-      coin_type_a: fixCoinType(posFields.coin_type_a.fields.name, false),
-      coin_type_b: fixCoinType(posFields.coin_type_b.fields.name, false),
+      tick_lower_index: asIntN(BigInt(posFields.tick_lower_index.bits)),
+      tick_upper_index: asIntN(BigInt(posFields.tick_upper_index.bits)),
+      coin_type_a: fixCoinType(posFields.coin_type_a, false),
+      coin_type_b: fixCoinType(posFields.coin_type_b, false),
       name: posFields.name,
       description: posFields.description,
       url: posFields.url,
@@ -237,17 +234,17 @@ export class VaultsUtils {
 
     const global_vesting_periods = fields.global_vesting_periods.map((item: any) => {
       return {
-        period: item.fields.period,
-        release_time: item.fields.release_time,
-        redeemed_amount: item.fields.redeemed_amount,
-        cetus_amount: item.fields.cetus_amount,
+        period: item.period,
+        release_time: item.release_time,
+        redeemed_amount: item.redeemed_amount,
+        cetus_amount: item.cetus_amount,
       }
     })
     const vaultsVestInfo: VaultsVestInfo = {
-      id: fields.id.id,
+      id: fields.id,
       vault_id: fields.vault_id,
       index: fields.index,
-      lp_coin_type: fields.lp_coin_type.fields.name,
+      lp_coin_type: fixCoinType(fields.lp_coin_type, false),
       allocated_lp_amount: fields.allocated_lp_amount,
       position,
       balance: fields.balance,
@@ -256,26 +253,25 @@ export class VaultsUtils {
       impaired_b: fields.impaired_b,
       redeemed_amount: fields.redeemed_amount,
       url: fields.url,
-      coin_type_a: fixCoinType(fields.coin_a.fields.name, false),
-      coin_type_b: fixCoinType(fields.coin_b.fields.name, false),
+      coin_type_a: fixCoinType(fields.coin_a, false),
+      coin_type_b: fixCoinType(fields.coin_b, false),
       cetus_amount: fields.cetus_amount,
       start_time: fields.start_time,
       global_vesting_periods,
       vest_infos: {
-        id: fields.vester_infos.fields.id,
-        size: fields.vester_infos.fields.size,
+        id: fields.vester_infos.id,
+        size: fields.vester_infos.size,
       },
     }
 
     return vaultsVestInfo
   }
 
-  static parseVaultVestNFT(res: SuiObjectResponse): VaultVestNFT {
-    const fields = getObjectFields(res)
-    const type = getObjectType(res) as string
+  static parseVaultVestNFT(res: any): VaultVestNFT {
+    const fields = res.json
 
     const vaultVestNFT: VaultVestNFT = {
-      id: fields.id.id,
+      id: fields.id,
       vault_id: fields.vault_id,
       index: fields.index,
       lp_amount: fields.lp_amount,
@@ -285,12 +281,12 @@ export class VaultsUtils {
       impaired_b: fields.impaired_b,
       period_infos: fields.period_infos.map((item: any) => {
         return {
-          period: item.fields.period,
-          cetus_amount: item.fields.cetus_amount,
-          is_redeemed: item.fields.is_redeemed,
+          period: item.period,
+          cetus_amount: item.cetus_amount,
+          is_redeemed: item.is_redeemed,
         }
       }),
-      name: fields.name,
+      name: fields.pool_name,
       vester_id: fields.vester_id,
     }
 

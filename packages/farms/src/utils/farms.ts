@@ -1,4 +1,4 @@
-import { asIntN, ClmmPoolUtil, d, DETAILS_KEYS, extractStructTagFromType, getObjectFields, TickMath } from '@cetusprotocol/common-sdk'
+import { asIntN, ClmmPoolUtil, d, DETAILS_KEYS, extractStructTagFromType, TickMath } from '@cetusprotocol/common-sdk'
 import BN from 'bn.js'
 import type { FarmsPool, FarmsPositionNFT, RewarderConfig } from '../types/farmsType'
 import { FarmsErrorCode, handleError } from '../errors/errors'
@@ -46,11 +46,11 @@ export class FarmsUtils {
 
   static buildFarmsPool(data: any): FarmsPool {
     try {
-      const fields = getObjectFields(data)
+      const fields = data.json
       const rewarders: RewarderConfig[] = []
       fields.rewarders.forEach((item: any) => {
         rewarders.push({
-          reward_coin: extractStructTagFromType(item.fields.name).full_address,
+          reward_coin: extractStructTagFromType(item).full_address,
           last_reward_time: '',
           emission_per_second: '',
           total_allocate_point: '',
@@ -58,15 +58,15 @@ export class FarmsUtils {
         })
       })
       const farmsPool: FarmsPool = {
-        id: fields.id.id,
+        id: fields.id,
         clmm_pool_id: fields.clmm_pool_id,
-        effective_tick_lower: asIntN(BigInt(fields.effective_tick_lower.fields.bits)),
-        effective_tick_upper: asIntN(BigInt(fields.effective_tick_upper.fields.bits)),
+        effective_tick_lower: asIntN(BigInt(fields.effective_tick_lower.bits)),
+        effective_tick_upper: asIntN(BigInt(fields.effective_tick_upper.bits)),
         total_share: fields.total_share,
         rewarders,
         positions: {
-          positions_handle: fields.positions.fields.id.id,
-          size: fields.positions.fields.size,
+          positions_handle: fields.positions.id,
+          size: fields.positions.size,
         },
         sqrt_price: fields.sqrt_price,
       }
@@ -80,22 +80,22 @@ export class FarmsUtils {
 
   static buildFarmsPositionNFT(data: any): FarmsPositionNFT {
     try {
-      const fields = getObjectFields(data)
-      const clmmFields = fields.clmm_postion.fields
+      const fields = data.json
+      const clmmFields = fields.clmm_postion
       const farmsPositionNft: FarmsPositionNFT = {
-        id: fields.id.id,
+        id: fields.id,
         url: clmmFields.url,
         pool_id: fields.pool_id,
-        coin_type_a: extractStructTagFromType(clmmFields.coin_type_a.fields.name).full_address,
-        coin_type_b: extractStructTagFromType(clmmFields.coin_type_b.fields.name).full_address,
+        coin_type_a: extractStructTagFromType(clmmFields.coin_type_a).full_address,
+        coin_type_b: extractStructTagFromType(clmmFields.coin_type_b).full_address,
         description: clmmFields.description,
         name: clmmFields.name,
         liquidity: clmmFields.liquidity,
-        clmm_position_id: clmmFields.id.id,
+        clmm_position_id: clmmFields.id,
         clmm_pool_id: clmmFields.pool,
         index: clmmFields.index,
-        tick_lower_index: asIntN(BigInt(clmmFields.tick_lower_index.fields.bits)),
-        tick_upper_index: asIntN(BigInt(clmmFields.tick_upper_index.fields.bits)),
+        tick_lower_index: asIntN(BigInt(clmmFields.tick_lower_index.bits)),
+        tick_upper_index: asIntN(BigInt(clmmFields.tick_upper_index.bits)),
         rewards: [],
       }
       return farmsPositionNft

@@ -5,7 +5,7 @@ describe('collect fees', () => {
   const sdk = CetusClmmSDK.createSDK({ env: 'mainnet' })
 
   test('batchFetchPositionFees', async () => {
-    const res = await sdk.Position.batchFetchPositionFees(['0xcf995f40b0f9c40a8b03e0b9d9554fea2bc12a18fe63db3a04c59c46be5c10be'])
+    const res = await sdk.Position.batchFetchPositionFees(['0xe6cf790521d1c32673de1b5ac39039e9e37046e4001544d61f603d2264e35350'])
     console.log('res####', res)
   })
 })

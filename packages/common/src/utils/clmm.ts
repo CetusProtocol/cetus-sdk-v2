@@ -4,7 +4,7 @@ import { DETAILS_KEYS } from '../errors/baseError'
 import { CommonErrorCode, handleMessageError } from '../errors/errors'
 import type { CoinAmounts, LiquidityInput } from '../type/clmm'
 import { MAX_SQRT_PRICE, MIN_SQRT_PRICE, PositionStatus } from '../type/clmm'
-import type { Package } from '../type/sui'
+import type { NFT, Package } from '../type/sui'
 import Decimal from './decimal'
 import { d, fromDecimalsAmount, toDecimalsAmount } from './numbers'
 import { TickMath } from './tickMath'
@@ -520,4 +520,29 @@ export async function printTransaction(tx: Transaction, is_print = true) {
       console.log(`transaction ${index}: `, item)
     }
   })
+}
+
+/**
+ * Builds an NFT object based on a response containing information about the NFT.
+ * @param {any} objects - The response containing information about the NFT.
+ * @returns {NFT} - The built NFT object.
+ */
+export function buildNFT(fields: any): NFT {
+  const nft: NFT = {
+    creator: '',
+    description: '',
+    image_url: '',
+    link: '',
+    name: '',
+    project_url: '',
+  }
+  if (fields) {
+    nft.creator = fields.creator
+    nft.description = fields.description
+    nft.image_url = fields.image_url
+    nft.link = fields.link
+    nft.name = fields.name
+    nft.project_url = fields.project_url
+  }
+  return nft
 }

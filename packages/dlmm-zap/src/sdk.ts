@@ -1,12 +1,12 @@
 import { AggregatorClient, Env } from '@cetusprotocol/aggregator-sdk'
+import { SuiGrpcClient } from '@mysten/sui/grpc'
 import { normalizeSuiAddress } from '@mysten/sui/utils'
 import { CetusDlmmSDK } from '@cetusprotocol/dlmm-sdk'
 import { BaseSdkOptions, SdkWrapper } from '@cetusprotocol/common-sdk'
 import { zapMainnet } from './config/mainnet'
 import { zapTestnet } from './config/testnet'
 import { ZapModule } from './modules/zapModule'
-import { SuiGrpcClient } from '@mysten/sui/grpc'
-import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc'
+import { CompoundModule } from './modules/compoundModule'
 /**
  * Represents options and configurations for an SDK.
  */
@@ -35,12 +35,15 @@ export class CetusDlmmZapSDK extends SdkWrapper<SdkOptions> {
    */
   protected _zapModule: ZapModule
 
+  protected _compoundModule: CompoundModule
+
   protected _dlmmSDK: CetusDlmmSDK
 
   /**
    * Client for interacting with the Aggregator service.
    */
   protected _aggregatorClient: AggregatorClient
+
 
   constructor(options: SdkOptions, dlmmSDK?: CetusDlmmSDK) {
     super(options)
@@ -49,6 +52,7 @@ export class CetusDlmmZapSDK extends SdkWrapper<SdkOptions> {
      * Initialize the ZapModule.
      */
     this._zapModule = new ZapModule(this)
+    this._compoundModule = new CompoundModule(this)
 
     /**
      * Initialize the DlmmSDK.
@@ -62,13 +66,19 @@ export class CetusDlmmZapSDK extends SdkWrapper<SdkOptions> {
   }
 
   private createAggregatorClient() {
+    const { env = 'mainnet', full_rpc_url, sui_client, pyth_urls } = this._sdkOptions
     return new AggregatorClient({
       signer: normalizeSuiAddress('0x0'),
-      client: this._sdkOptions.sui_client || new SuiJsonRpcClient({ url: this._sdkOptions.full_rpc_url!, network: this._sdkOptions.env === 'testnet' ? 'testnet' : 'mainnet' }),
-      env: this._sdkOptions.env === 'testnet' ? Env.Testnet : Env.Mainnet,
-      pythUrls: this._sdkOptions.pyth_urls,
+      client: sui_client || new SuiGrpcClient({
+        baseUrl: full_rpc_url!, network: env === 'testnet' ?
+          "testnet" : "mainnet"
+      }),
+      env: env === 'testnet' ? Env.Testnet : Env.Mainnet,
+      pythUrls: pyth_urls,
     })
   }
+
+
 
   updatePythUrls(pythUrls: string[]) {
     if (pythUrls.length === 0) {
@@ -102,7 +112,10 @@ export class CetusDlmmZapSDK extends SdkWrapper<SdkOptions> {
     this._dlmmSDK.updateFullRpcUrl(url)
     this._aggregatorClient = new AggregatorClient({
       signer: normalizeSuiAddress('0x0'),
-      client: new SuiJsonRpcClient({ url: url, network: this._sdkOptions.env === 'testnet' ? 'testnet' : 'mainnet' }),
+      client: new SuiGrpcClient({
+        baseUrl: url, network: this._sdkOptions.env === 'testnet' ?
+          "testnet" : "mainnet"
+      }),
       env: this._sdkOptions.env === 'testnet' ? Env.Testnet : Env.Mainnet,
       pythUrls: this._sdkOptions.pyth_urls,
     })
@@ -130,6 +143,10 @@ export class CetusDlmmZapSDK extends SdkWrapper<SdkOptions> {
    */
   get Zap(): ZapModule {
     return this._zapModule
+  }
+
+  get Compound(): CompoundModule {
+    return this._compoundModule
   }
 
   /**

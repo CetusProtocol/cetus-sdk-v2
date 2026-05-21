@@ -4,7 +4,7 @@ import { buildTestAccount } from '@cetusprotocol/test-utils'
 import 'isomorphic-fetch'
 import { CetusVaultsSDK } from '../src/sdk'
 
-const vaultId = '0xf449a94a4c1e9621fc0589c6c3a08f5b2a15cd879b237709ff8c925e4a53419e'
+const vaultId = '0xde97452e63505df696440f86f0b805263d8659b77b8c316739106009d514c270'
 
 describe('vest test', () => {
   const sdk = CetusVaultsSDK.createSDK({ env: 'mainnet' })
@@ -38,8 +38,8 @@ describe('vest test', () => {
 
   test('vestNftIsAvailable', async () => {
     const isAvailable = await sdk.Vest.vestNftIsAvailable(
-      '0x13e8b44f2c95dc88f05daf30543a7d2097747bf54fab03b4e8d19fc5d89653f3',
-      '0xd0cc4a3b3a37c3db7cc880c9fc70e59315fb01c14a087ad26724a5eaccc46111'
+      '0x725a44f0cc23358e004a13797b53ec3a3bcdd5dcd7c7bf14b0354982b2fe1596',
+      '0x5ffdf3252fe7f9a685b8ac3077c8d5fe84e1d37f9879993db7d888dd738ffd5d'
     )
     console.log('isAvailable: ', isAvailable)
   })
